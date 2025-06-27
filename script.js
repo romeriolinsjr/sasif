@@ -19,6 +19,7 @@ const loginContainer = document.getElementById('login-container');
 const userEmailSpan = document.getElementById('user-email');
 const logoutButton = document.getElementById('logout-button');
 const contentArea = document.getElementById('content-area');
+const pageTitle = document.getElementById('page-title');
 
 // --- FUNÇÕES DE UTILIDADE ---
 
@@ -39,7 +40,8 @@ function formatCNPJForDisplay(cnpj) {
 // --- FUNÇÕES DE RENDERIZAÇÃO DE CONTEÚDO ---
 
 function renderDashboard() {
-    document.getElementById('page-title').textContent = 'Dashboard';
+    pageTitle.textContent = 'Dashboard';
+    document.title = 'SASIF | Dashboard'; // <-- ALTERAÇÃO AQUI
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
@@ -49,7 +51,7 @@ function renderDashboard() {
             <!-- A lista de devedores aparecerá aqui -->
         </div>
     `;
-    document.getElementById('add-devedor-btn').addEventListener('click', renderNovoDevedorForm);
+    document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
 }
 
 function renderDevedoresList(devedores) {
@@ -89,25 +91,37 @@ function renderDevedoresList(devedores) {
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
 
-    // Adiciona event listeners para os botões de ação
     container.querySelector('tbody').addEventListener('click', handleDevedorAction);
 }
 
-function renderNovoDevedorForm() {
-    document.getElementById('page-title').textContent = 'Novo Devedor';
+// Função de Formulário Única (para Novo e Editar)
+function renderDevedorForm(devedor = null) {
+    const isEditing = devedor !== null;
+    const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor';
+    
+    pageTitle.textContent = formTitle;
+    document.title = `SASIF | ${formTitle}`; // <-- ALTERAÇÃO AQUI
+    
+    const razaoSocial = isEditing ? devedor.razaoSocial : '';
+    const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : '';
+    const nomeFantasia = isEditing ? devedor.nomeFantasia : '';
+    const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1';
+    const observacoes = isEditing ? devedor.observacoes : '';
+    const devedorId = isEditing ? devedor.id : '';
+
     contentArea.innerHTML = `
-        <div class="form-container">
+        <div class="form-container" data-id="${devedorId}">
             <div class="form-group">
                 <label for="razao-social">Razão Social (Obrigatório)</label>
-                <input type="text" id="razao-social" required>
+                <input type="text" id="razao-social" value="${razaoSocial}" required>
             </div>
             <div class="form-group">
                 <label for="cnpj">CNPJ (Obrigatório)</label>
-                <input type="text" id="cnpj" required oninput="maskCNPJ(this)">
+                <input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)">
             </div>
             <div class="form-group">
                 <label for="nome-fantasia">Nome Fantasia</label>
-                <input type="text" id="nome-fantasia">
+                <input type="text" id="nome-fantasia" value="${nomeFantasia}">
             </div>
             <div class="form-group">
                 <label for="nivel-prioridade">Nível de Prioridade</label>
@@ -119,7 +133,7 @@ function renderNovoDevedorForm() {
             </div>
              <div class="form-group">
                 <label for="observacoes">Observações</label>
-                <textarea id="observacoes"></textarea>
+                <textarea id="observacoes">${observacoes}</textarea>
             </div>
             <div id="error-message"></div>
             <div class="form-buttons">
@@ -128,7 +142,12 @@ function renderNovoDevedorForm() {
             </div>
         </div>
     `;
-    document.getElementById('save-devedor-btn').addEventListener('click', handleSaveDevedor);
+
+    document.getElementById('nivel-prioridade').value = nivelPrioridade;
+    
+    document.getElementById('save-devedor-btn').addEventListener('click', () => {
+        isEditing ? handleUpdateDevedor(devedorId) : handleSaveDevedor();
+    });
     document.getElementById('cancel-btn').addEventListener('click', renderDashboard);
 }
 
@@ -137,6 +156,7 @@ function renderNovoDevedorForm() {
 function handleDevedorAction(event) {
     const target = event.target;
     const devedorId = target.dataset.id;
+    if (!devedorId) return;
 
     if (target.classList.contains('btn-delete')) {
         handleDeleteDevedor(devedorId);
@@ -148,10 +168,7 @@ function handleDevedorAction(event) {
 function handleDeleteDevedor(devedorId) {
     if (confirm("Tem certeza que deseja excluir este Grande Devedor? Esta ação não pode ser desfeita.")) {
         db.collection("grandes_devedores").doc(devedorId).delete()
-            .then(() => {
-                alert("Devedor excluído com sucesso.");
-                // O listener onSnapshot cuidará de remover da tela automaticamente.
-            })
+            .then(() => alert("Devedor excluído com sucesso."))
             .catch(error => {
                 console.error("Erro ao excluir devedor: ", error);
                 alert("Ocorreu um erro ao excluir o devedor.");
@@ -160,31 +177,52 @@ function handleDeleteDevedor(devedorId) {
 }
 
 function handleEditDevedor(devedorId) {
-    // Por enquanto, apenas um placeholder. Implementaremos em seguida.
-    alert(`Funcionalidade de editar para o devedor com ID: ${devedorId} será implementada em breve.`);
+    db.collection("grandes_devedores").doc(devedorId).get()
+        .then(doc => {
+            if (doc.exists) {
+                const devedor = { id: doc.id, ...doc.data() };
+                renderDevedorForm(devedor);
+            } else {
+                alert("Devedor não encontrado. Pode ter sido excluído.");
+                renderDashboard();
+            }
+        }).catch(error => {
+            console.error("Erro ao buscar devedor para edição: ", error);
+            alert("Erro ao buscar dados do devedor.");
+        });
 }
 
-function handleSaveDevedor() {
+function getDevedorDataFromForm() {
     const razaoSocial = document.getElementById('razao-social').value;
     const cnpj = document.getElementById('cnpj').value;
     const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = ''; 
+
     if (!razaoSocial || !cnpj) {
         errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.';
-        return;
+        return null;
     }
     if (cnpj.replace(/\D/g, '').length !== 14) {
         errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.';
-        return;
+        return null;
     }
-    const devedorData = {
+
+    return {
         razaoSocial: razaoSocial,
         cnpj: cnpj.replace(/\D/g, ''),
         nomeFantasia: document.getElementById('nome-fantasia').value,
         nivelPrioridade: parseInt(document.getElementById('nivel-prioridade').value),
         observacoes: document.getElementById('observacoes').value,
-        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        uidUsuario: auth.currentUser.uid
     };
+}
+
+function handleSaveDevedor() {
+    const devedorData = getDevedorDataFromForm();
+    if (!devedorData) return; 
+
+    devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+    devedorData.uidUsuario = auth.currentUser.uid;
+
     db.collection("grandes_devedores").add(devedorData)
         .then(() => {
             alert("Grande Devedor salvo com sucesso!");
@@ -192,13 +230,31 @@ function handleSaveDevedor() {
         })
         .catch(error => {
             console.error("Erro ao salvar devedor: ", error);
-            errorMessage.textContent = "Erro ao salvar. Tente novamente.";
+            document.getElementById('error-message').textContent = "Erro ao salvar. Tente novamente.";
+        });
+}
+
+function handleUpdateDevedor(devedorId) {
+    const devedorData = getDevedorDataFromForm();
+    if (!devedorData) return; 
+    
+    devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+
+    db.collection("grandes_devedores").doc(devedorId).update(devedorData)
+        .then(() => {
+            alert("Devedor atualizado com sucesso!");
+            renderDashboard();
+        })
+        .catch(error => {
+            console.error("Erro ao atualizar devedor: ", error);
+            document.getElementById('error-message').textContent = "Erro ao atualizar. Tente novamente.";
         });
 }
 
 // --- FUNÇÕES DE AUTENTICAÇÃO ---
 
 function renderLoginForm() {
+    document.title = 'SASIF | Login';
     loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`;
     document.getElementById('login-btn').addEventListener('click', handleLogin);
     document.getElementById('signup-btn').addEventListener('click', handleSignUp);
@@ -245,7 +301,10 @@ function setupDevedoresListener() {
         snapshot.forEach((doc) => {
             devedores.push({ id: doc.id, ...doc.data() });
         });
-        renderDevedoresList(devedores);
+        // Apenas renderiza a lista se a página atual for o Dashboard
+        if (pageTitle.textContent === 'Dashboard') {
+            renderDevedoresList(devedores);
+        }
       }, (error) => {
         console.error("Erro ao buscar devedores: ", error);
         if (document.getElementById('devedores-list-container')) {
