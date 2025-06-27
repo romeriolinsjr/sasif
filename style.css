@@ -5,6 +5,8 @@
     --cor-texto-claro: #ffffff;
     --cor-texto-escuro: #333333;
     --cor-borda: #e0e0e0;
+    --cor-sucesso: #2e7d32;
+    --cor-erro: #c62828;
     --sombra: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -18,11 +20,17 @@ body {
     font-family: 'Roboto', sans-serif;
     background-color: var(--cor-fundo);
     color: var(--cor-texto-escuro);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
 }
 
+/* --- ESTILOS DO APP PRINCIPAL --- */
 #app-container {
     display: flex;
     height: 100vh;
+    width: 100vw;
 }
 
 #sidebar {
@@ -85,6 +93,89 @@ body {
     flex-grow: 1;
 }
 
+/* --- ESTILOS PARA O LOGIN --- */
+#login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px;
+    background-color: white;
+    box-shadow: var(--sombra);
+    border-radius: 8px;
+    text-align: center;
+}
+
+#login-container h1 {
+    margin-bottom: 10px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--cor-primaria);
+}
+
+#login-container p {
+    margin-bottom: 24px;
+    color: #666;
+}
+
+.form-group {
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.form-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.form-buttons button {
+    flex-grow: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#login-btn {
+    background-color: var(--cor-primaria);
+    color: var(--cor-texto-claro);
+}
+#login-btn:hover {
+    background-color: var(--cor-secundaria);
+}
+
+#signup-btn {
+    background-color: #e0e0e0;
+    color: var(--cor-texto-escuro);
+}
+#signup-btn:hover {
+    background-color: #bdbdbd;
+}
+
+#error-message {
+    color: var(--cor-erro);
+    margin-top: 16px;
+    min-height: 20px;
+    font-weight: 500;
+}
+
+/* --- CLASSE UTILITÁRIA --- */
 .hidden {
     display: none !important;
 }
