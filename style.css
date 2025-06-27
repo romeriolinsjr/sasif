@@ -299,3 +299,48 @@ body {
     background-color: var(--cor-erro);
     color: var(--cor-texto-claro);
 }
+.number-cell {
+    text-align: center;
+    width: 1%; /* Truque para deixar a coluna o mais estreita possível */
+    font-weight: 500;
+}
+/* --- ESTILOS PARA NOTIFICAÇÃO TOAST --- */
+#toast-container {
+    position: fixed; /* Fica fixo na tela mesmo com scroll */
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%); /* Centraliza horizontalmente */
+    z-index: 1000; /* Garante que fique em cima de tudo */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.toast {
+    padding: 12px 20px;
+    border-radius: 6px;
+    color: var(--cor-texto-claro);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.toast.show {
+    opacity: 1;
+    animation: fadeinout 3s ease-in-out forwards;
+}
+
+.toast.success {
+    background-color: var(--cor-sucesso);
+}
+
+.toast.error {
+    background-color: var(--cor-erro);
+}
+
+@keyframes fadeinout {
+    0%, 100% { opacity: 0; }
+    10%, 90% { opacity: 1; }
+}

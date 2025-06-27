@@ -21,7 +21,20 @@ const logoutButton = document.getElementById('logout-button');
 const contentArea = document.getElementById('content-area');
 const pageTitle = document.getElementById('page-title');
 
+// Variável para guardar a lista de devedores em memória (nosso cache)
+let devedoresCache = [];
+
 // --- FUNÇÕES DE UTILIDADE ---
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.classList.add('show'); }, 10);
+    setTimeout(() => { toast.remove(); }, 3000);
+}
 
 function maskCNPJ(input) {
     let value = input.value.replace(/\D/g, '').substring(0, 14);
@@ -41,113 +54,50 @@ function formatCNPJForDisplay(cnpj) {
 
 function renderDashboard() {
     pageTitle.textContent = 'Dashboard';
-    document.title = 'SASIF | Dashboard'; // <-- ALTERAÇÃO AQUI
+    document.title = 'SASIF | Dashboard';
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
         </div>
         <h2>Lista de Grandes Devedores</h2>
-        <div id="devedores-list-container">
-            <!-- A lista de devedores aparecerá aqui -->
-        </div>
+        <div id="devedores-list-container"></div>
     `;
     document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
+    
+    // Agora, sempre que o dashboard for renderizado, ele usa o cache para redesenhar a lista
+    renderDevedoresList(devedoresCache);
 }
 
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
     if (!container) return;
-
     if (devedores.length === 0) {
         container.innerHTML = `<p class="empty-list-message">Nenhum grande devedor cadastrado ainda.</p>`;
         return;
     }
-
-    let tableHTML = `
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Razão Social</th>
-                    <th>CNPJ</th>
-                    <th>Prioridade</th>
-                    <th class="actions-cell">Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-    devedores.forEach(devedor => {
-        tableHTML += `
-            <tr data-id="${devedor.id}">
-                <td>${devedor.razaoSocial}</td>
-                <td>${formatCNPJForDisplay(devedor.cnpj)}</td>
-                <td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td>
-                <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button>
-                    <button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button>
-                </td>
-            </tr>
-        `;
+    let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Razão Social</th><th>CNPJ</th><th>Prioridade</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    devedores.forEach((devedor, index) => {
+        tableHTML += `<tr data-id="${devedor.id}"><td class="number-cell">${index + 1}</td><td>${devedor.razaoSocial}</td><td>${formatCNPJForDisplay(devedor.cnpj)}</td><td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button><button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button></td></tr>`;
     });
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-
     container.querySelector('tbody').addEventListener('click', handleDevedorAction);
 }
 
-// Função de Formulário Única (para Novo e Editar)
 function renderDevedorForm(devedor = null) {
     const isEditing = devedor !== null;
     const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor';
-    
     pageTitle.textContent = formTitle;
-    document.title = `SASIF | ${formTitle}`; // <-- ALTERAÇÃO AQUI
-    
+    document.title = `SASIF | ${formTitle}`;
     const razaoSocial = isEditing ? devedor.razaoSocial : '';
     const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : '';
     const nomeFantasia = isEditing ? devedor.nomeFantasia : '';
     const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1';
     const observacoes = isEditing ? devedor.observacoes : '';
     const devedorId = isEditing ? devedor.id : '';
-
-    contentArea.innerHTML = `
-        <div class="form-container" data-id="${devedorId}">
-            <div class="form-group">
-                <label for="razao-social">Razão Social (Obrigatório)</label>
-                <input type="text" id="razao-social" value="${razaoSocial}" required>
-            </div>
-            <div class="form-group">
-                <label for="cnpj">CNPJ (Obrigatório)</label>
-                <input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)">
-            </div>
-            <div class="form-group">
-                <label for="nome-fantasia">Nome Fantasia</label>
-                <input type="text" id="nome-fantasia" value="${nomeFantasia}">
-            </div>
-            <div class="form-group">
-                <label for="nivel-prioridade">Nível de Prioridade</label>
-                <select id="nivel-prioridade">
-                    <option value="1">Nível 1 (Análise a cada 30 dias)</option>
-                    <option value="2">Nível 2 (Análise a cada 45 dias)</option>
-                    <option value="3">Nível 3 (Análise a cada 60 dias)</option>
-                </select>
-            </div>
-             <div class="form-group">
-                <label for="observacoes">Observações</label>
-                <textarea id="observacoes">${observacoes}</textarea>
-            </div>
-            <div id="error-message"></div>
-            <div class="form-buttons">
-                <button id="save-devedor-btn" class="btn-primary">Salvar</button>
-                <button id="cancel-btn">Cancelar</button>
-            </div>
-        </div>
-    `;
-
+    contentArea.innerHTML = `<div class="form-container" data-id="${devedorId}"><div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div><div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div><div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div><div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (Análise a cada 30 dias)</option><option value="2">Nível 2 (Análise a cada 45 dias)</option><option value="3">Nível 3 (Análise a cada 60 dias)</option></select></div><div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`;
     document.getElementById('nivel-prioridade').value = nivelPrioridade;
-    
-    document.getElementById('save-devedor-btn').addEventListener('click', () => {
-        isEditing ? handleUpdateDevedor(devedorId) : handleSaveDevedor();
-    });
+    document.getElementById('save-devedor-btn').addEventListener('click', () => { isEditing ? handleUpdateDevedor(devedorId) : handleSaveDevedor(); });
     document.getElementById('cancel-btn').addEventListener('click', renderDashboard);
 }
 
@@ -157,7 +107,6 @@ function handleDevedorAction(event) {
     const target = event.target;
     const devedorId = target.dataset.id;
     if (!devedorId) return;
-
     if (target.classList.contains('btn-delete')) {
         handleDeleteDevedor(devedorId);
     } else if (target.classList.contains('btn-edit')) {
@@ -168,10 +117,10 @@ function handleDevedorAction(event) {
 function handleDeleteDevedor(devedorId) {
     if (confirm("Tem certeza que deseja excluir este Grande Devedor? Esta ação não pode ser desfeita.")) {
         db.collection("grandes_devedores").doc(devedorId).delete()
-            .then(() => alert("Devedor excluído com sucesso."))
+            .then(() => showToast("Devedor excluído com sucesso."))
             .catch(error => {
                 console.error("Erro ao excluir devedor: ", error);
-                alert("Ocorreu um erro ao excluir o devedor.");
+                showToast("Ocorreu um erro ao excluir o devedor.", "error");
             });
     }
 }
@@ -180,15 +129,14 @@ function handleEditDevedor(devedorId) {
     db.collection("grandes_devedores").doc(devedorId).get()
         .then(doc => {
             if (doc.exists) {
-                const devedor = { id: doc.id, ...doc.data() };
-                renderDevedorForm(devedor);
+                renderDevedorForm({ id: doc.id, ...doc.data() });
             } else {
-                alert("Devedor não encontrado. Pode ter sido excluído.");
+                showToast("Devedor não encontrado. Pode ter sido excluído.", "error");
                 renderDashboard();
             }
         }).catch(error => {
             console.error("Erro ao buscar devedor para edição: ", error);
-            alert("Erro ao buscar dados do devedor.");
+            showToast("Erro ao buscar dados do devedor.", "error");
         });
 }
 
@@ -196,8 +144,7 @@ function getDevedorDataFromForm() {
     const razaoSocial = document.getElementById('razao-social').value;
     const cnpj = document.getElementById('cnpj').value;
     const errorMessage = document.getElementById('error-message');
-    errorMessage.textContent = ''; 
-
+    errorMessage.textContent = '';
     if (!razaoSocial || !cnpj) {
         errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.';
         return null;
@@ -206,7 +153,6 @@ function getDevedorDataFromForm() {
         errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.';
         return null;
     }
-
     return {
         razaoSocial: razaoSocial,
         cnpj: cnpj.replace(/\D/g, ''),
@@ -218,15 +164,13 @@ function getDevedorDataFromForm() {
 
 function handleSaveDevedor() {
     const devedorData = getDevedorDataFromForm();
-    if (!devedorData) return; 
-
+    if (!devedorData) return;
     devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
     devedorData.uidUsuario = auth.currentUser.uid;
-
     db.collection("grandes_devedores").add(devedorData)
         .then(() => {
-            alert("Grande Devedor salvo com sucesso!");
             renderDashboard();
+            setTimeout(() => showToast("Grande Devedor salvo com sucesso!"), 100);
         })
         .catch(error => {
             console.error("Erro ao salvar devedor: ", error);
@@ -236,14 +180,12 @@ function handleSaveDevedor() {
 
 function handleUpdateDevedor(devedorId) {
     const devedorData = getDevedorDataFromForm();
-    if (!devedorData) return; 
-    
+    if (!devedorData) return;
     devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
-
     db.collection("grandes_devedores").doc(devedorId).update(devedorData)
         .then(() => {
-            alert("Devedor atualizado com sucesso!");
             renderDashboard();
+            setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100);
         })
         .catch(error => {
             console.error("Erro ao atualizar devedor: ", error);
@@ -295,33 +237,34 @@ function handleSignUp() {
 // --- PONTO DE ENTRADA E INICIALIZAÇÃO ---
 
 function setupDevedoresListener() {
-    db.collection("grandes_devedores").orderBy("razaoSocial")
+    db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial")
       .onSnapshot((snapshot) => {
         const devedores = [];
         snapshot.forEach((doc) => {
             devedores.push({ id: doc.id, ...doc.data() });
         });
-        // Apenas renderiza a lista se a página atual for o Dashboard
+        
+        devedoresCache = devedores; // Atualiza nosso cache com os dados mais recentes
+
         if (pageTitle.textContent === 'Dashboard') {
             renderDevedoresList(devedores);
         }
       }, (error) => {
         console.error("Erro ao buscar devedores: ", error);
         if (document.getElementById('devedores-list-container')) {
-             document.getElementById('devedores-list-container').innerHTML = 
-            `<p class="empty-list-message">Erro ao carregar a lista de devedores.</p>`;
+             document.getElementById('devedores-list-container').innerHTML = `<p class="empty-list-message">Erro ao carregar a lista. Verifique o console para criar o índice necessário no Firebase.</p>`;
         }
       });
 }
 
 function initApp(user) {
     userEmailSpan.textContent = user.email;
-    logoutButton.addEventListener('click', () => {
-        auth.signOut();
-    });
+    logoutButton.addEventListener('click', () => { auth.signOut(); });
     
-    renderDashboard();
+    // Inicia o listener primeiro para que os dados já estejam disponíveis
     setupDevedoresListener();
+    // Renderiza o dashboard inicial
+    renderDashboard();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
