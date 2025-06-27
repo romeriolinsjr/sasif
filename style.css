@@ -344,3 +344,27 @@ body {
     0%, 100% { opacity: 0; }
     10%, 90% { opacity: 1; }
 }
+/* --- ESTILOS PARA NAVEGAÇÃO --- */
+#main-nav ul {
+    list-style: none;
+    padding: 0;
+}
+
+#main-nav li a {
+    display: block;
+    padding: 16px 20px;
+    color: var(--cor-texto-claro);
+    text-decoration: none;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-left 0.2s;
+}
+
+#main-nav li a:hover {
+    background-color: var(--cor-secundaria);
+}
+
+#main-nav li a.active {
+    background-color: var(--cor-secundaria);
+    border-left: 4px solid #ffc107; /* Amarelo para destaque */
+}
