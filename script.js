@@ -36,7 +36,6 @@ function formatCNPJForDisplay(cnpj) {
     return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 }
 
-
 // --- FUNÇÕES DE RENDERIZAÇÃO DE CONTEÚDO ---
 
 function renderDashboard() {
@@ -50,13 +49,12 @@ function renderDashboard() {
             <!-- A lista de devedores aparecerá aqui -->
         </div>
     `;
-
     document.getElementById('add-devedor-btn').addEventListener('click', renderNovoDevedorForm);
 }
 
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
-    if (!container) return; // Se o container não estiver na tela, não faz nada
+    if (!container) return;
 
     if (devedores.length === 0) {
         container.innerHTML = `<p class="empty-list-message">Nenhum grande devedor cadastrado ainda.</p>`;
@@ -70,23 +68,29 @@ function renderDevedoresList(devedores) {
                     <th>Razão Social</th>
                     <th>CNPJ</th>
                     <th>Prioridade</th>
+                    <th class="actions-cell">Ações</th>
                 </tr>
             </thead>
             <tbody>
     `;
-
     devedores.forEach(devedor => {
         tableHTML += `
-            <tr>
+            <tr data-id="${devedor.id}">
                 <td>${devedor.razaoSocial}</td>
                 <td>${formatCNPJForDisplay(devedor.cnpj)}</td>
                 <td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button>
+                    <button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button>
+                </td>
             </tr>
         `;
     });
-
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
+
+    // Adiciona event listeners para os botões de ação
+    container.querySelector('tbody').addEventListener('click', handleDevedorAction);
 }
 
 function renderNovoDevedorForm() {
@@ -124,18 +128,46 @@ function renderNovoDevedorForm() {
             </div>
         </div>
     `;
-
     document.getElementById('save-devedor-btn').addEventListener('click', handleSaveDevedor);
     document.getElementById('cancel-btn').addEventListener('click', renderDashboard);
 }
 
 // --- FUNÇÕES DE LÓGICA (HANDLERS) ---
 
+function handleDevedorAction(event) {
+    const target = event.target;
+    const devedorId = target.dataset.id;
+
+    if (target.classList.contains('btn-delete')) {
+        handleDeleteDevedor(devedorId);
+    } else if (target.classList.contains('btn-edit')) {
+        handleEditDevedor(devedorId);
+    }
+}
+
+function handleDeleteDevedor(devedorId) {
+    if (confirm("Tem certeza que deseja excluir este Grande Devedor? Esta ação não pode ser desfeita.")) {
+        db.collection("grandes_devedores").doc(devedorId).delete()
+            .then(() => {
+                alert("Devedor excluído com sucesso.");
+                // O listener onSnapshot cuidará de remover da tela automaticamente.
+            })
+            .catch(error => {
+                console.error("Erro ao excluir devedor: ", error);
+                alert("Ocorreu um erro ao excluir o devedor.");
+            });
+    }
+}
+
+function handleEditDevedor(devedorId) {
+    // Por enquanto, apenas um placeholder. Implementaremos em seguida.
+    alert(`Funcionalidade de editar para o devedor com ID: ${devedorId} será implementada em breve.`);
+}
+
 function handleSaveDevedor() {
     const razaoSocial = document.getElementById('razao-social').value;
     const cnpj = document.getElementById('cnpj').value;
     const errorMessage = document.getElementById('error-message');
-
     if (!razaoSocial || !cnpj) {
         errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.';
         return;
@@ -144,7 +176,6 @@ function handleSaveDevedor() {
         errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.';
         return;
     }
-
     const devedorData = {
         razaoSocial: razaoSocial,
         cnpj: cnpj.replace(/\D/g, ''),
@@ -154,10 +185,8 @@ function handleSaveDevedor() {
         criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         uidUsuario: auth.currentUser.uid
     };
-
     db.collection("grandes_devedores").add(devedorData)
         .then(() => {
-            console.log("Devedor salvo com sucesso!");
             alert("Grande Devedor salvo com sucesso!");
             renderDashboard();
         })
@@ -167,27 +196,10 @@ function handleSaveDevedor() {
         });
 }
 
-
 // --- FUNÇÕES DE AUTENTICAÇÃO ---
 
 function renderLoginForm() {
-    loginContainer.innerHTML = `
-        <h1>SASIF</h1>
-        <p>Acesso ao Sistema de Acompanhamento</p>
-        <div class="form-group">
-            <label for="email">E-mail</label>
-            <input type="email" id="email" required>
-        </div>
-        <div class="form-group">
-            <label for="password">Senha</label>
-            <input type="password" id="password" required>
-        </div>
-        <div id="error-message"></div>
-        <div class="form-buttons">
-            <button id="login-btn">Entrar</button>
-            <button id="signup-btn">Cadastrar</button>
-        </div>
-    `;
+    loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`;
     document.getElementById('login-btn').addEventListener('click', handleLogin);
     document.getElementById('signup-btn').addEventListener('click', handleSignUp);
 }
@@ -236,8 +248,10 @@ function setupDevedoresListener() {
         renderDevedoresList(devedores);
       }, (error) => {
         console.error("Erro ao buscar devedores: ", error);
-        document.getElementById('devedores-list-container').innerHTML = 
+        if (document.getElementById('devedores-list-container')) {
+             document.getElementById('devedores-list-container').innerHTML = 
             `<p class="empty-list-message">Erro ao carregar a lista de devedores.</p>`;
+        }
       });
 }
 
@@ -247,8 +261,8 @@ function initApp(user) {
         auth.signOut();
     });
     
-    renderDashboard(); // Renderiza a tela inicial do app
-    setupDevedoresListener(); // Ativa o listener para a lista de devedores
+    renderDashboard();
+    setupDevedoresListener();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
