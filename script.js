@@ -22,11 +22,12 @@ const contentArea = document.getElementById('content-area');
 const pageTitle = document.getElementById('page-title');
 const mainNav = document.getElementById('main-nav');
 
-// Variáveis de Cache
+// Variáveis de Cache e Listeners
 let devedoresCache = [];
 let exequentesCache = [];
 let processosCache = [];
 let processosListenerUnsubscribe = null;
+let corresponsaveisListenerUnsubscribe = null;
 
 // --- FUNÇÕES DE UTILIDADE ---
 function showToast(message, type = 'success') {
@@ -49,7 +50,7 @@ function maskCNPJ(input) {
 }
 
 function formatCNPJForDisplay(cnpj) {
-    if (!cnpj) return '';
+    if (!cnpj || cnpj.length !== 14) return cnpj;
     return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 }
 
@@ -86,9 +87,57 @@ function getAnaliseStatus(devedor) {
     return { status: 'status-ok', text: `OK (Vence em ${diffDays} dia(s))` };
 }
 
+function maskDocument(input, tipoPessoa) {
+    let value = input.value.replace(/\D/g, '');
+
+    if (tipoPessoa === 'juridica') { // Se for Pessoa Jurídica, aplica máscara de CNPJ
+        value = value.substring(0, 14); // Limita a 14 dígitos
+        value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+        value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+        value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+        value = value.replace(/(\d{4})(\d)/, '$1-$2');
+    } else { // Se for Pessoa Física (ou qualquer outro caso), aplica máscara de CPF
+        value = value.substring(0, 11); // Limita a 11 dígitos
+        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    }
+    input.value = value;
+}
+
+function formatDocumentForDisplay(doc) {
+    if (!doc) return 'Não informado';
+    doc = doc.replace(/\D/g, '');
+    if (doc.length === 11) { // CPF
+        return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    if (doc.length === 14) { // CNPJ
+        return doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    return doc; // Retorna o número sem formatação se não for nem CPF nem CNPJ
+}
+
 // --- NAVEGAÇÃO ---
 function renderSidebar(activePage) { const pages = [{ id: 'dashboard', name: 'Dashboard' }, { id: 'exequentes', name: 'Exequentes' }]; mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`; mainNav.querySelectorAll('.nav-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(e.target.dataset.page); }); }); }
-function navigateTo(page) { if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; } renderSidebar(page); switch (page) { case 'dashboard': renderDashboard(); break; case 'exequentes': renderExequentesPage(); break; default: renderDashboard(); } }
+function navigateTo(page, params = {}) {
+    if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; }
+    if (corresponsaveisListenerUnsubscribe) { corresponsaveisListenerUnsubscribe(); corresponsaveisListenerUnsubscribe = null; }
+    
+    renderSidebar(page);
+    switch (page) {
+        case 'dashboard':
+            renderDashboard();
+            break;
+        case 'exequentes':
+            renderExequentesPage();
+            break;
+        case 'processoDetail':
+            renderProcessoDetailPage(params.id);
+            break;
+        default:
+            renderDashboard();
+    }
+}
 
 // --- DASHBOARD / DEVEDORES ---
 function renderDashboard() { pageTitle.textContent = 'Grandes Devedores'; document.title = 'SASIF | Grandes Devedores'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button></div><h2>Lista de Grandes Devedores</h2><div id="devedores-list-container"></div>`; document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm()); renderDevedoresList(devedoresCache); }
@@ -110,7 +159,7 @@ function renderDevedoresList(devedores) {
 }
 
 // --- DETALHES DO DEVEDOR E PROCESSOS ---
-function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; contentArea.innerHTML = `<div class="detail-header-card"><h2>${devedor.razaoSocial}</h2><p>CNPJ: ${formatCNPJForDisplay(devedor.cnpj)}</p></div><div class="dashboard-actions"><button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button><button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button></div><h2>Lista de Processos</h2><div id="processos-list-container"></div>`; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
+function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; contentArea.innerHTML = `<div class="detail-header-card"><p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p></div><div class="dashboard-actions"><button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button><button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button></div><h2>Lista de Processos</h2><div id="processos-list-container"></div>`; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
 function renderProcessosList(processos) {
     const container = document.getElementById('processos-list-container');
     if (!container) return;
@@ -122,12 +171,12 @@ function renderProcessosList(processos) {
     let tableHTML = `<table class="data-table"><thead><tr><th>Número do Processo</th><th>Exequente</th><th>Tipo</th><th>Valor</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
     itemsOrdenados.forEach(item => {
         const exequente = exequentesCache.find(ex => ex.id === item.exequenteId);
-        const itemHTML = (proc) => `<td>${proc.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}${formatProcessoForDisplay(proc.numeroProcesso)}</td><td>${exequente ? exequente.nome : 'N/A'}</td><td>${proc.tipoProcesso.charAt(0).toUpperCase() + proc.tipoProcesso.slice(1)}</td><td>${formatCurrency(proc.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${proc.id}">Editar</button><button class="action-btn btn-delete" data-id="${proc.id}">Excluir</button></td>`;
+        const itemHTML = (proc) => `<td>${proc.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(proc.numeroProcesso)}</a></td><td>${exequente ? exequente.nome : 'N/A'}</td><td>${proc.tipoProcesso.charAt(0).toUpperCase() + proc.tipoProcesso.slice(1)}</td><td>${formatCurrency(proc.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${proc.id}">Editar</button><button class="action-btn btn-delete" data-id="${proc.id}">Excluir</button></td>`;
         tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML(item)}</tr>`;
         if (item.tipoProcesso === 'piloto' && apensosMap.has(item.id)) {
             apensosMap.get(item.id).forEach(apenso => {
                 const exApenso = exequentesCache.find(ex => ex.id === apenso.exequenteId);
-                tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}"><td>${formatProcessoForDisplay(apenso.numeroProcesso)}</td><td>${exApenso ? exApenso.nome : 'N/A'}</td><td>Apenso</td><td>${formatCurrency(apenso.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button><button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button></td></tr>`;
+                tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}"><td><a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(apenso.numeroProcesso)}</a></td><td>${exApenso ? exApenso.nome : 'N/A'}</td><td>Apenso</td><td>${formatCurrency(apenso.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button><button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button></td></tr>`;
             });
         }
     });
@@ -136,11 +185,308 @@ function renderProcessosList(processos) {
     container.querySelector('tbody').addEventListener('click', handleProcessoAction);
 }
 
+// --- DETALHES DO PROCESSO, CORRESPONSÁVEIS, ETC ---
+function renderProcessoDetailPage(processoId) {
+    pageTitle.textContent = 'Carregando Processo...';
+    document.title = 'SASIF | Carregando...';
+    renderSidebar(null); 
+
+    db.collection("processos").doc(processoId).get().then(doc => {
+        if (!doc.exists) {
+            showToast("Processo não encontrado.", "error");
+            navigateTo('dashboard');
+            return;
+        }
+        const processo = { id: doc.id, ...doc.data() };
+        const devedor = devedoresCache.find(d => d.id === processo.devedorId);
+        const exequente = exequentesCache.find(e => e.id === processo.exequenteId);
+
+        const pageTitleText = `Processo ${formatProcessoForDisplay(processo.numeroProcesso)}`;
+        pageTitle.textContent = pageTitleText;
+        document.title = `SASIF | ${pageTitleText}`;
+        
+        contentArea.innerHTML = `
+            <div class="dashboard-actions">
+                <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
+            </div>
+            
+            <div class="detail-card">
+                <h3>Detalhes do Processo</h3>
+                <div class="detail-grid">
+                    <div><strong>Número:</strong> ${formatProcessoForDisplay(processo.numeroProcesso)}</div>
+                    <div><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</div>
+                    <div><strong>Grande Devedor:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</div>
+                    <div><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</div>
+                    <div><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorDivida)}</div>
+                </div>
+                <div class="detail-full-width">
+                    <strong>CDA(s):</strong> 
+                    <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
+                </div>
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <h2>Corresponsáveis Tributários</h2>
+                    <button id="add-corresponsavel-btn" class="btn-primary">Adicionar</button>
+                </div>
+                <div id="corresponsaveis-list-container">
+                    <!-- A lista de corresponsáveis será renderizada aqui -->
+                </div>
+            </div>
+
+            <div class="content-section">
+                <h2>Penhoras Realizadas</h2>
+                <div id="penhoras-list">
+                    <p class="empty-list-message">Funcionalidade a ser implementada.</p>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('back-to-devedor-btn').addEventListener('click', () => {
+            renderDevedorDetailPage(processo.devedorId);
+        });
+        
+        document.getElementById('add-corresponsavel-btn').addEventListener('click', () => renderCorresponsavelFormModal(processoId));
+        setupCorresponsaveisListener(processoId);
+
+    }).catch(error => {
+        console.error("Erro ao buscar detalhes do processo:", error);
+        showToast("Erro ao carregar o processo.", "error");
+    });
+}
+
+function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
+    const isEditing = corresponsavel !== null;
+    const tipoPessoa = isEditing ? (corresponsavel.cpfCnpj && corresponsavel.cpfCnpj.length > 11 ? 'juridica' : 'fisica') : 'fisica';
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>${isEditing ? 'Editar' : 'Adicionar'} Corresponsável</h3>
+            <div class="form-group">
+                <label for="corresponsavel-nome">Nome / Razão Social (Obrigatório)</label>
+                <input type="text" id="corresponsavel-nome" value="${isEditing ? corresponsavel.nome : ''}" required>
+            </div>
+            <div class="form-group">
+                <label for="tipo-pessoa">Tipo de Pessoa</label>
+                <select id="tipo-pessoa">
+                    <option value="fisica">Pessoa Física</option>
+                    <option value="juridica">Pessoa Jurídica</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="corresponsavel-documento">CPF / CNPJ</label>
+                <input type="text" id="corresponsavel-documento" 
+                       value="${isEditing ? formatDocumentForDisplay(corresponsavel.cpfCnpj) : ''}"
+                       placeholder="Digite o CPF">
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-corresponsavel-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-corresponsavel-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    const tipoPessoaSelect = document.getElementById('tipo-pessoa');
+    const documentoInput = document.getElementById('corresponsavel-documento');
+    
+    // Define o valor inicial do seletor
+    tipoPessoaSelect.value = tipoPessoa;
+
+    // Função para ajustar o campo de documento
+    const updateDocumentField = () => {
+        if (tipoPessoaSelect.value === 'fisica') {
+            documentoInput.placeholder = 'Digite o CPF';
+        } else {
+            documentoInput.placeholder = 'Digite o CNPJ';
+        }
+        documentoInput.value = ''; // Limpa o campo ao trocar o tipo
+    };
+
+    updateDocumentField(); // Chama a função uma vez para o estado inicial
+    
+    // Adiciona o listener para a máscara e para a troca de tipo
+    documentoInput.addEventListener('input', () => maskDocument(documentoInput, tipoPessoaSelect.value));
+    tipoPessoaSelect.addEventListener('change', updateDocumentField);
+    
+    // Se estiver editando, não limpa o campo inicial
+    if(isEditing) {
+        documentoInput.value = formatDocumentForDisplay(corresponsavel.cpfCnpj);
+    } else {
+        updateDocumentField();
+    }
+
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    
+    document.getElementById('save-corresponsavel-btn').addEventListener('click', () => {
+        handleSaveCorresponsavel(processoId, isEditing ? corresponsavel.id : null);
+    });
+    document.getElementById('cancel-corresponsavel-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+}
+
+function setupCorresponsaveisListener(processoId) {
+    if (corresponsaveisListenerUnsubscribe) corresponsaveisListenerUnsubscribe();
+
+    corresponsaveisListenerUnsubscribe = db.collection("corresponsaveis")
+        .where("processoId", "==", processoId)
+        .orderBy("criadoEm", "desc")
+        .onSnapshot((snapshot) => {
+            const corresponsaveis = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderCorresponsaveisList(corresponsaveis, processoId);
+        }, error => {
+            console.error("Erro ao buscar corresponsáveis: ", error);
+            const container = document.getElementById('corresponsaveis-list-container');
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os corresponsáveis.</p>`;
+        });
+}
+
+function renderCorresponsaveisList(corresponsaveis, processoId) {
+    const container = document.getElementById('corresponsaveis-list-container');
+    if (!container) return;
+
+    container.dataset.processoId = processoId;
+
+    if (corresponsaveis.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum corresponsável cadastrado para este processo.</p>`;
+        return;
+    }
+
+    let tableHTML = `<table class="data-table"><thead><tr><th>Nome / Razão Social</th><th>CPF/CNPJ</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    corresponsaveis.forEach(item => {
+        tableHTML += `
+            <tr data-id="${item.id}" data-nome="${item.nome}" data-cpf-cnpj="${item.cpfCnpj || ''}">
+                <td>${item.nome}</td>
+                <td>${formatDocumentForDisplay(item.cpfCnpj)}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                </td>
+            </tr>
+        `;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    
+    container.querySelector('tbody').addEventListener('click', handleCorresponsavelAction);
+}
+
+function handleCorresponsavelAction(event) {
+    const button = event.target;
+    const action = button.dataset.action;
+    if (!action) return;
+
+    const row = button.closest('tr');
+    const corresponsavelId = row.dataset.id;
+    const container = document.getElementById('corresponsaveis-list-container');
+    const processoId = container.dataset.processoId;
+
+    if (action === 'edit') {
+        const corresponsavelData = {
+            id: corresponsavelId,
+            nome: row.dataset.nome,
+            cpfCnpj: row.dataset.cpfCnpj
+        };
+        renderCorresponsavelFormModal(processoId, corresponsavelData);
+    } else if (action === 'delete') {
+        handleDeleteCorresponsavel(corresponsavelId);
+    }
+}
+
+function handleSaveCorresponsavel(processoId, corresponsavelId = null) {
+    const nome = document.getElementById('corresponsavel-nome').value.trim();
+    const documento = document.getElementById('corresponsavel-documento').value.trim();
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+
+    if (!nome) {
+        errorMessage.textContent = 'O campo Nome / Razão Social é obrigatório.';
+        return;
+    }
+    
+    const data = {
+        processoId,
+        nome,
+        cpfCnpj: documento.replace(/\D/g, '') // Salva apenas os números
+    };
+
+    let promise;
+    if (corresponsavelId) {
+        // Editando
+        data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("corresponsaveis").doc(corresponsavelId).update(data);
+    } else {
+        // Criando
+        data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("corresponsaveis").add(data);
+    }
+
+    promise.then(() => {
+        showToast(`Corresponsável ${corresponsavelId ? 'atualizado' : 'salvo'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(error => {
+        console.error("Erro ao salvar corresponsável:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
+    });
+}
+
+function handleDeleteCorresponsavel(corresponsavelId) {
+    if (confirm("Tem certeza que deseja excluir este corresponsável?")) {
+        db.collection("corresponsaveis").doc(corresponsavelId).delete()
+            .then(() => showToast("Corresponsável excluído com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir corresponsável:", error);
+                showToast("Erro ao excluir o corresponsável.", "error");
+            });
+    }
+}
+
 // --- HANDLERS (CRUD) ---
 function handleDevedorAction(event) { const target = event.target; if (target.classList.contains('action-btn')) { const devedorId = target.dataset.id; if (target.classList.contains('btn-delete')) handleDeleteDevedor(devedorId); else if (target.classList.contains('btn-edit')) handleEditDevedor(devedorId); } else { const row = target.closest('tr'); if (row && row.dataset.id) renderDevedorDetailPage(row.dataset.id); } }
 function handleEditDevedor(devedorId) { db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (doc.exists) renderDevedorForm({ id: doc.id, ...doc.data() }); }); }
 function handleDeleteDevedor(devedorId) { if (confirm("Tem certeza que deseja excluir este Grande Devedor?")) db.collection("grandes_devedores").doc(devedorId).delete().then(() => showToast("Devedor excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
-function handleProcessoAction(event) { const button = event.target.closest('.action-btn'); if (button) { event.stopPropagation(); const processoId = button.dataset.id; if (button.classList.contains('btn-delete')) handleDeleteProcesso(processoId); else if (button.classList.contains('btn-edit')) handleEditProcesso(processoId); } else { const row = event.target.closest('.piloto-row'); if (row) { row.classList.toggle('expanded'); document.querySelectorAll(`.apenso-row[data-piloto-ref="${row.dataset.id}"]`).forEach(apensoRow => apensoRow.classList.toggle('visible')); } } }
+function handleProcessoAction(event) {
+    event.preventDefault(); 
+    const target = event.target;
+    const row = target.closest('tr');
+    if (!row) return;
+
+    const processoId = row.dataset.id;
+
+    if (target.closest('.view-processo-link')) {
+        navigateTo('processoDetail', { id: processoId });
+        return;
+    }
+
+    const button = target.closest('.action-btn');
+    if (button) {
+        event.stopPropagation();
+        if (button.classList.contains('btn-delete')) {
+            handleDeleteProcesso(processoId);
+        } else if (button.classList.contains('btn-edit')) {
+            handleEditProcesso(processoId);
+        }
+        return;
+    }
+
+    if (row.classList.contains('piloto-row')) {
+        row.classList.toggle('expanded');
+        document.querySelectorAll(`.apenso-row[data-piloto-ref="${row.dataset.id}"]`).forEach(apensoRow => {
+            apensoRow.classList.toggle('visible');
+        });
+    }
+}
 function handleEditProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (processo) renderProcessoForm(processo.devedorId, processo); else showToast("Processo não encontrado.", "error"); }
 function handleDeleteProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (confirm(`Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`)) db.collection("processos").doc(processoId).delete().then(() => showToast("Processo excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
 function handleRegistrarAnalise(devedorId) { if (confirm("Deseja registrar a data de análise para hoje?")) { db.collection("grandes_devedores").doc(devedorId).update({ dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp() }).then(() => showToast("Data de análise registrada com sucesso!")).catch(err => { console.error("Erro ao registrar análise: ", err); showToast("Erro ao registrar análise.", "error"); }); } }

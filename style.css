@@ -436,3 +436,115 @@ body {
     width: 1%;
     white-space: nowrap;
 }
+/* Adicionar no final do style.css */
+.view-processo-link {
+    text-decoration: none;
+    color: var(--cor-primaria);
+    font-weight: 500;
+}
+.view-processo-link:hover {
+    text-decoration: underline;
+}
+/* Adicionar no final do style.css */
+.btn-secondary {
+    padding: 12px 20px;
+    background-color: #6c757d; /* Cinza */
+    color: var(--cor-texto-claro);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.detail-card {
+    background-color: white;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: var(--sombra);
+    margin-bottom: 24px;
+}
+
+.detail-card h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 10px;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.detail-full-width p {
+    margin-top: 8px;
+    background-color: var(--cor-fundo);
+    padding: 10px;
+    border-radius: 4px;
+    white-space: pre-wrap; /* Preserva as quebras de linha */
+}
+
+.content-section {
+    margin-top: 30px;
+}
+/* Adicionar no final do style.css */
+.detail-header-card {
+    background-color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: var(--sombra);
+    margin-bottom: 24px;
+}
+.detail-header-card p {
+    margin: 0;
+    font-size: 16px;
+}
+/* Adicionar no final do style.css */
+
+/* --- ESTILOS PARA MODAL --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* Estilo para cabeçalho de seção com botão */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-header h2 {
+    margin-bottom: 0;
+}
