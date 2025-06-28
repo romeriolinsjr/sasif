@@ -118,7 +118,8 @@ function formatDocumentForDisplay(doc) {
 }
 
 // --- NAVEGAÇÃO ---
-function renderSidebar(activePage) { const pages = [{ id: 'dashboard', name: 'Dashboard' }, { id: 'exequentes', name: 'Exequentes' }]; mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`; mainNav.querySelectorAll('.nav-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(e.target.dataset.page); }); }); }
+function renderSidebar(activePage) { const pages = [{ id: 'dashboard', name: 'Dashboard' }, { id: 'grandesDevedores', name: 'Grandes Devedores' }, { id: 'exequentes', name: 'Exequentes' }, { id: 'motivos', name: 'Motivos de Suspensão' }];
+mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`; mainNav.querySelectorAll('.nav-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(e.target.dataset.page); }); }); }
 function navigateTo(page, params = {}) {
     if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; }
     if (corresponsaveisListenerUnsubscribe) { corresponsaveisListenerUnsubscribe(); corresponsaveisListenerUnsubscribe = null; }
@@ -130,8 +131,14 @@ function navigateTo(page, params = {}) {
         case 'dashboard':
             renderDashboard();
             break;
+        case 'grandesDevedores':
+            renderGrandesDevedoresPage();
+            break;
         case 'exequentes':
             renderExequentesPage();
+            break;
+        case 'motivos':
+            renderMotivosPage();
             break;
         case 'processoDetail':
             renderProcessoDetailPage(params.id);
@@ -142,27 +149,21 @@ function navigateTo(page, params = {}) {
 }
 
 // --- DASHBOARD / DEVEDORES ---
+
 function renderDashboard() {
     pageTitle.textContent = 'Dashboard';
     document.title = 'SASIF | Dashboard';
     
     contentArea.innerHTML = `
         <div id="dashboard-widgets-container">
-            <!-- O widget de audiências será inserido aqui -->
+            <!-- Widgets serão inseridos aqui -->
         </div>
-        <div class="dashboard-actions">
-            <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
-        </div>
-        <h2>Lista de Grandes Devedores</h2>
-        <div id="devedores-list-container"></div>
     `;
     
-    document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
-    renderDevedoresList(devedoresCache);
-    
-    // Inicia a busca por audiências para o widget
+    // Inicia a busca por dados para os widgets
     setupDashboardWidgets();
 }
+
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
     if (!container) return;
@@ -180,28 +181,91 @@ function renderDevedoresList(devedores) {
     container.querySelector('tbody').addEventListener('click', handleDevedorAction);
 }
 
+function renderGrandesDevedoresPage() {
+    pageTitle.textContent = 'Grandes Devedores';
+    document.title = 'SASIF | Grandes Devedores';
+
+    contentArea.innerHTML = `
+        <div class="dashboard-actions">
+            <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
+        </div>
+        <h2>Lista de Grandes Devedores</h2>
+        <div id="devedores-list-container"></div>
+    `;
+    
+    document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
+    
+    // Renderiza a lista com os dados do cache
+    renderDevedoresList(devedoresCache);
+}
+
 // --- DETALHES DO DEVEDOR E PROCESSOS ---
 function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; contentArea.innerHTML = `<div class="detail-header-card"><p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p></div><div class="dashboard-actions"><button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button><button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button></div><h2>Lista de Processos</h2><div id="processos-list-container"></div>`; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
 function renderProcessosList(processos) {
     const container = document.getElementById('processos-list-container');
     if (!container) return;
+
     const autonomos = processos.filter(p => p.tipoProcesso === 'autonomo').sort((a,b) => (a.criadoEm.seconds < b.criadoEm.seconds) ? 1 : -1);
     const pilotos = processos.filter(p => p.tipoProcesso === 'piloto').sort((a,b) => (a.criadoEm.seconds < b.criadoEm.seconds) ? 1 : -1);
     const apensosMap = processos.filter(p => p.tipoProcesso === 'apenso').reduce((map, apenso) => { const pilotoId = apenso.processoPilotoId; if (!map.has(pilotoId)) map.set(pilotoId, []); map.get(pilotoId).push(apenso); return map; }, new Map());
+    
     const itemsOrdenados = [...autonomos, ...pilotos];
-    if (itemsOrdenados.length === 0) { container.innerHTML = `<p class="empty-list-message">Nenhum processo cadastrado.</p>`; return; }
-    let tableHTML = `<table class="data-table"><thead><tr><th>Número do Processo</th><th>Exequente</th><th>Tipo</th><th>Valor</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+
+    if (itemsOrdenados.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum processo cadastrado.</p>`;
+        return;
+    }
+
+    let tableHTML = `<table class="data-table"><thead><tr><th>Número do Processo</th><th>Exequente</th><th>Tipo</th><th>Status</th><th>Valor</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+
     itemsOrdenados.forEach(item => {
         const exequente = exequentesCache.find(ex => ex.id === item.exequenteId);
-        const itemHTML = (proc) => `<td>${proc.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(proc.numeroProcesso)}</a></td><td>${exequente ? exequente.nome : 'N/A'}</td><td>${proc.tipoProcesso.charAt(0).toUpperCase() + proc.tipoProcesso.slice(1)}</td><td>${formatCurrency(proc.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${proc.id}">Editar</button><button class="action-btn btn-delete" data-id="${proc.id}">Excluir</button></td>`;
-        tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML(item)}</tr>`;
+        
+        // Lógica de status para piloto/autônomo
+        const motivo = item.status === 'Suspenso' && item.motivoSuspensaoId 
+            ? motivosSuspensaoCache.find(m => m.id === item.motivoSuspensaoId)
+            : null;
+        const statusText = motivo ? `Suspenso (${motivo.descricao})` : (item.status || 'Ativo');
+
+        const itemHTML = `
+            <td>${item.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(item.numeroProcesso)}</a></td>
+            <td>${exequente ? exequente.nome : 'N/A'}</td>
+            <td>${item.tipoProcesso.charAt(0).toUpperCase() + item.tipoProcesso.slice(1)}</td>
+            <td><span class="status-badge status-${(item.status || 'Ativo').toLowerCase()}">${statusText}</span></td>
+            <td>${formatCurrency(item.valorDivida)}</td>
+            <td class="actions-cell">
+                <button class="action-btn btn-edit" data-id="${item.id}">Editar</button>
+                <button class="action-btn btn-delete" data-id="${item.id}">Excluir</button>
+            </td>`;
+        
+        tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML}</tr>`;
+
         if (item.tipoProcesso === 'piloto' && apensosMap.has(item.id)) {
             apensosMap.get(item.id).forEach(apenso => {
                 const exApenso = exequentesCache.find(ex => ex.id === apenso.exequenteId);
-                tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}"><td><a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(apenso.numeroProcesso)}</a></td><td>${exApenso ? exApenso.nome : 'N/A'}</td><td>Apenso</td><td>${formatCurrency(apenso.valorDivida)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button><button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button></td></tr>`;
+
+                // Lógica de status para processo apenso
+                const motivoApenso = apenso.status === 'Suspenso' && apenso.motivoSuspensaoId 
+                    ? motivosSuspensaoCache.find(m => m.id === apenso.motivoSuspensaoId)
+                    : null;
+                const statusTextApenso = motivoApenso ? `Suspenso (${motivoApenso.descricao})` : (apenso.status || 'Ativo');
+
+                const apensoHTML = `
+                    <td><a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(apenso.numeroProcesso)}</a></td>
+                    <td>${exApenso ? exApenso.nome : 'N/A'}</td>
+                    <td>Apenso</td>
+                    <td><span class="status-badge status-${(apenso.status || 'Ativo').toLowerCase()}">${statusTextApenso}</span></td>
+                    <td>${formatCurrency(apenso.valorDivida)}</td>
+                    <td class="actions-cell">
+                        <button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button>
+                        <button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button>
+                    </td>`;
+                    
+                tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}">${apensoHTML}</tr>`;
             });
         }
     });
+
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
     container.querySelector('tbody').addEventListener('click', handleProcessoAction);
@@ -1001,24 +1065,216 @@ function handleSaveExequente() { const nome = document.getElementById('nome').va
 function handleUpdateExequente(exequenteId) { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").doc(exequenteId).update(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente atualizado com sucesso!"), 100); }); }
 function handleDeleteExequente(exequenteId) { if (confirm("Tem certeza que deseja excluir este Exequente?")) { db.collection("exequentes").doc(exequenteId).delete().then(() => showToast("Exequente excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); } }
 
+// --- PÁGINA: MOTIVOS DE SUSPENSÃO ---
+let motivosSuspensaoCache = [];
+
+function renderMotivosPage() {
+    pageTitle.textContent = 'Motivos de Suspensão';
+    document.title = 'SASIF | Motivos de Suspensão';
+    contentArea.innerHTML = `
+        <div class="dashboard-actions">
+            <button id="add-motivo-btn" class="btn-primary">Cadastrar Novo Motivo</button>
+        </div>
+        <h2>Lista de Motivos</h2>
+        <div id="motivos-list-container"></div>
+    `;
+    document.getElementById('add-motivo-btn').addEventListener('click', () => renderMotivoForm());
+    renderMotivosList(motivosSuspensaoCache);
+}
+
+function renderMotivosList(motivos) {
+    const container = document.getElementById('motivos-list-container');
+    if (!container) return;
+    if (motivos.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum motivo de suspensão cadastrado.</p>`;
+        return;
+    }
+    let tableHTML = `<table class="data-table"><thead><tr><th>Descrição do Motivo</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    motivos.forEach(motivo => {
+        tableHTML += `
+            <tr data-id="${motivo.id}">
+                <td>${motivo.descricao}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-id="${motivo.id}">Editar</button>
+                    <button class="action-btn btn-delete" data-id="${motivo.id}">Excluir</button>
+                </td>
+            </tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    container.querySelector('tbody').addEventListener('click', handleMotivoAction);
+}
+
+function renderMotivoForm(motivo = null) {
+    const isEditing = motivo !== null;
+    const formTitle = isEditing ? 'Editar Motivo de Suspensão' : 'Cadastrar Novo Motivo';
+    navigateTo(null); 
+    pageTitle.textContent = formTitle;
+    document.title = `SASIF | ${formTitle}`;
+    
+    const descricao = isEditing ? motivo.descricao : '';
+    
+    contentArea.innerHTML = `
+        <div class="form-container">
+            <div class="form-group">
+                <label for="descricao">Descrição (Obrigatório)</label>
+                <input type="text" id="descricao" value="${descricao}" required>
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-motivo-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-btn">Cancelar</button>
+            </div>
+        </div>`;
+    
+    document.getElementById('save-motivo-btn').addEventListener('click', () => {
+        isEditing ? handleUpdateMotivo(motivo.id) : handleSaveMotivo();
+    });
+    document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('motivos'));
+}
+
+function handleMotivoAction(event) {
+    const target = event.target;
+    const motivoId = target.dataset.id;
+    if (!motivoId) return;
+
+    if (target.classList.contains('btn-delete')) {
+        handleDeleteMotivo(motivoId);
+    } else if (target.classList.contains('btn-edit')) {
+        const motivo = motivosSuspensaoCache.find(m => m.id === motivoId);
+        if(motivo) renderMotivoForm(motivo);
+    }
+}
+
+function handleSaveMotivo() {
+    const descricao = document.getElementById('descricao').value;
+    if (!descricao) {
+        document.getElementById('error-message').textContent = 'A descrição é obrigatória.';
+        return;
+    }
+    const data = { descricao, criadoEm: firebase.firestore.FieldValue.serverTimestamp() };
+    db.collection("motivos_suspensao").add(data).then(() => {
+        navigateTo('motivos');
+        setTimeout(() => showToast("Motivo salvo com sucesso!"), 100);
+    });
+}
+
+function handleUpdateMotivo(motivoId) {
+    const descricao = document.getElementById('descricao').value;
+    if (!descricao) {
+        document.getElementById('error-message').textContent = 'A descrição é obrigatória.';
+        return;
+    }
+    const data = { descricao, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() };
+    db.collection("motivos_suspensao").doc(motivoId).update(data).then(() => {
+        navigateTo('motivos');
+        setTimeout(() => showToast("Motivo atualizado com sucesso!"), 100);
+    });
+}
+
+function handleDeleteMotivo(motivoId) {
+    if (confirm("Tem certeza que deseja excluir este Motivo? Processos que o utilizam não serão afetados, mas o motivo não aparecerá mais na lista.")) {
+        db.collection("motivos_suspensao").doc(motivoId).delete()
+            .then(() => showToast("Motivo excluído com sucesso."))
+            .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
+    }
+}
+
 // --- FORMULÁRIOS E HANDLERS: PROCESSOS ---
 function renderProcessoForm(devedorId, processo = null) {
     const isEditing = processo !== null;
     pageTitle.textContent = isEditing ? 'Editar Processo' : 'Novo Processo';
     document.title = `SASIF | ${pageTitle.textContent}`;
     
+    // Prepara as opções para os seletores
     const pilotosDoDevedor = processosCache.filter(p => p.tipoProcesso === 'piloto' && p.id !== (processo ? processo.id : null));
     const pilotoOptions = pilotosDoDevedor.map(p => `<option value="${p.id}" ${isEditing && processo.processoPilotoId === p.id ? 'selected' : ''}>${formatProcessoForDisplay(p.numeroProcesso)}</option>`).join('');
     const exequenteOptions = exequentesCache.map(ex => `<option value="${ex.id}" ${isEditing && processo.exequenteId === ex.id ? 'selected' : ''}>${ex.nome}</option>`).join('');
+    const motivosOptions = motivosSuspensaoCache.map(m => `<option value="${m.id}" ${isEditing && processo.motivoSuspensaoId === m.id ? 'selected' : ''}>${m.descricao}</option>`).join('');
 
-    contentArea.innerHTML = `<div class="form-container"><div class="form-group"><label for="numero-processo">Número do Processo (Obrigatório)</label><input type="text" id="numero-processo" required oninput="maskProcesso(this)" value="${isEditing ? formatProcessoForDisplay(processo.numeroProcesso) : ''}"></div><div class="form-group"><label for="exequente">Exequente (Obrigatório)</label><select id="exequente"><option value="">Selecione...</option>${exequenteOptions}</select></div><div class="form-group"><label for="tipo-processo">Tipo</label><select id="tipo-processo"><option value="autonomo">Autônomo</option><option value="piloto">Piloto</option><option value="apenso">Apenso</option></select></div><div id="piloto-select-container"></div><div class="form-group"><label for="valor-divida">Valor da Dívida</label><input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? processo.valorDivida : ''}"></div><div class="form-group"><label for="cdas">CDA(s)</label><textarea id="cdas">${isEditing ? (processo.cdas || '') : ''}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-processo-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`;
+    contentArea.innerHTML = `
+        <div class="form-container">
+            <div class="form-group">
+                <label for="numero-processo">Número do Processo (Obrigatório)</label>
+                <input type="text" id="numero-processo" required oninput="maskProcesso(this)" value="${isEditing ? formatProcessoForDisplay(processo.numeroProcesso) : ''}">
+            </div>
+            <div class="form-group">
+                <label for="exequente">Exequente (Obrigatório)</label>
+                <select id="exequente"><option value="">Selecione...</option>${exequenteOptions}</select>
+            </div>
+            <div class="form-group">
+                <label for="tipo-processo">Tipo</label>
+                <select id="tipo-processo">
+                    <option value="autonomo">Autônomo</option>
+                    <option value="piloto">Piloto</option>
+                    <option value="apenso">Apenso</option>
+                </select>
+            </div>
+            <div id="piloto-select-container"></div>
+            
+            <hr style="margin: 20px 0;">
+
+            <div class="form-group">
+                <label for="status-processo">Status</label>
+                <select id="status-processo">
+                    <option value="Ativo">Ativo</option>
+                    <option value="Suspenso">Suspenso</option>
+                    <option value="Baixado">Baixado</option>
+                    <option value="Extinto">Extinto</option>
+                </select>
+            </div>
+            <div id="motivo-suspensao-container" class="hidden">
+                <div class="form-group">
+                    <label for="motivo-suspensao">Motivo da Suspensão</label>
+                    <select id="motivo-suspensao">
+                        <option value="">Selecione o motivo...</option>
+                        ${motivosOptions}
+                    </select>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0;">
+
+            <div class="form-group">
+                <label for="valor-divida">Valor da Dívida</label>
+                <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? processo.valorDivida : ''}">
+            </div>
+            <div class="form-group">
+                <label for="cdas">CDA(s)</label>
+                <textarea id="cdas" rows="3">${isEditing ? (processo.cdas || '') : ''}</textarea>
+            </div>
+
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-processo-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-btn">Cancelar</button>
+            </div>
+        </div>`;
     
-    const tipoProcessoSelect = document.getElementById('tipo-processo');
+    // Popula os valores iniciais dos seletores
     if (isEditing) {
-        tipoProcessoSelect.value = processo.tipoProcesso;
+        document.getElementById('tipo-processo').value = processo.tipoProcesso;
         document.getElementById('exequente').value = processo.exequenteId;
+        document.getElementById('status-processo').value = processo.status || 'Ativo';
     }
     
+    // Lógica para mostrar/esconder o seletor de motivo
+    const statusSelect = document.getElementById('status-processo');
+    const motivoContainer = document.getElementById('motivo-suspensao-container');
+
+    const toggleMotivoSelect = () => {
+        if (statusSelect.value === 'Suspenso') {
+            motivoContainer.classList.remove('hidden');
+        } else {
+            motivoContainer.classList.add('hidden');
+        }
+    };
+
+    toggleMotivoSelect(); // Verifica o estado inicial
+    statusSelect.addEventListener('change', toggleMotivoSelect);
+
+    // Lógica para o seletor de piloto (já existente)
+    const tipoProcessoSelect = document.getElementById('tipo-processo');
     function togglePilotoSelect() {
         const container = document.getElementById('piloto-select-container');
         if (tipoProcessoSelect.value === 'apenso') {
@@ -1033,6 +1289,8 @@ function renderProcessoForm(devedorId, processo = null) {
     
     togglePilotoSelect();
     tipoProcessoSelect.addEventListener('change', togglePilotoSelect);
+    
+    // Listeners dos botões
     document.getElementById('save-processo-btn').addEventListener('click', () => handleSaveProcesso(devedorId, processo ? processo.id : null));
     document.getElementById('cancel-btn').addEventListener('click', () => renderDevedorDetailPage(devedorId));
 }
@@ -1041,14 +1299,34 @@ function handleSaveProcesso(devedorId, processoId = null) {
     const numeroProcesso = document.getElementById('numero-processo').value;
     const exequenteId = document.getElementById('exequente').value;
     const tipoProcesso = document.getElementById('tipo-processo').value;
+    const status = document.getElementById('status-processo').value;
+    const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
     const errorMessage = document.getElementById('error-message');
-    if (!numeroProcesso || !exequenteId) { errorMessage.textContent = 'Número do Processo e Exequente são obrigatórios.'; return; }
+    errorMessage.textContent = '';
     
-    const processoData = { devedorId, numeroProcesso: numeroProcesso.replace(/\D/g, ''), exequenteId, tipoProcesso, valorDivida: parseFloat(document.getElementById('valor-divida').value) || 0, cdas: document.getElementById('cdas').value, uidUsuario: auth.currentUser.uid };
+    if (!numeroProcesso || !exequenteId) { 
+        errorMessage.textContent = 'Número do Processo e Exequente são obrigatórios.';
+        return; 
+    }
+    
+    const processoData = {
+        devedorId,
+        numeroProcesso: numeroProcesso.replace(/\D/g, ''),
+        exequenteId,
+        tipoProcesso,
+        status,
+        motivoSuspensaoId: status === 'Suspenso' ? motivoSuspensaoId : null,
+        valorDivida: parseFloat(document.getElementById('valor-divida').value) || 0,
+        cdas: document.getElementById('cdas').value,
+        uidUsuario: auth.currentUser.uid
+    };
     
     if (tipoProcesso === 'apenso') {
         const processoPilotoId = document.getElementById('processo-piloto')?.value;
-        if (!processoPilotoId) { errorMessage.textContent = 'Para apensos, é obrigatório selecionar um processo piloto.'; return; }
+        if (!processoPilotoId) {
+            errorMessage.textContent = 'Para apensos, é obrigatório selecionar um processo piloto.';
+            return;
+        }
         processoData.processoPilotoId = processoPilotoId;
     } else {
         processoData.processoPilotoId = null; 
@@ -1058,14 +1336,33 @@ function handleSaveProcesso(devedorId, processoId = null) {
         ? db.collection("processos").doc(processoId).update({...processoData, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()})
         : db.collection("processos").add({...processoData, criadoEm: firebase.firestore.FieldValue.serverTimestamp()});
         
-    promise.then(() => { renderDevedorDetailPage(devedorId); setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100); }).catch(err => { console.error("Erro ao salvar processo: ", err); errorMessage.textContent = 'Ocorreu um erro ao salvar.'; });
+    promise.then(() => {
+        renderDevedorDetailPage(devedorId);
+        setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100);
+    }).catch(err => {
+        console.error("Erro ao salvar processo: ", err);
+        errorMessage.textContent = 'Ocorreu um erro ao salvar.';
+    });
 }
 
 // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
 function renderLoginForm() { document.title = 'SASIF | Login'; loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`; document.getElementById('login-btn').addEventListener('click', handleLogin); document.getElementById('signup-btn').addEventListener('click', handleSignUp); }
 function handleLogin() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.signInWithEmailAndPassword(email, password).catch(error => { errorMessage.textContent = 'E-mail ou senha incorretos.'; }); }
 function handleSignUp() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.createUserWithEmailAndPassword(email, password).catch(error => { if (error.code === 'auth/weak-password') errorMessage.textContent = 'A senha deve ter no mínimo 6 caracteres.'; else if (error.code === 'auth/email-already-in-use') errorMessage.textContent = 'Este e-mail já está em uso.'; else errorMessage.textContent = 'Ocorreu um erro ao tentar cadastrar.'; }); }
-function setupListeners() { db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => { devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); if (document.title.includes('Grandes Devedores')) renderDevedoresList(devedoresCache); }); db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); }); }
+function setupListeners() {
+    db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
+    devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Apenas atualiza a lista se a página de Grandes Devedores estiver visível.
+    if (document.title.includes('Grandes Devedores')) {
+        renderDevedoresList(devedoresCache);
+    }
+});
+    // ... resto da função
+db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); }); db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
+        motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
+    });
+}
 function setupProcessosListener(devedorId) { if (processosListenerUnsubscribe) processosListenerUnsubscribe(); processosListenerUnsubscribe = db.collection("processos").where("devedorId", "==", devedorId).onSnapshot((snapshot) => { processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderProcessosList(processosCache); }, error => { console.error("Erro ao buscar processos: ", error); if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; }); }
 function initApp(user) { userEmailSpan.textContent = user.email; logoutButton.addEventListener('click', () => { auth.signOut(); }); setupListeners(); navigateTo('dashboard'); }
 document.addEventListener('DOMContentLoaded', () => { auth.onAuthStateChanged(user => { if (user) { appContainer.classList.remove('hidden'); loginContainer.classList.add('hidden'); initApp(user); } else { appContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); renderLoginForm(); } }); });

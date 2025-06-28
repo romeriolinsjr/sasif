@@ -636,3 +636,16 @@ body {
     padding: 12px 20px;
     border-radius: 6px;
 }
+/* Adicionar no final do style.css */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+}
+.status-badge.status-ativo { background-color: #2e7d32; }
+.status-badge.status-suspenso { background-color: #f57f17; }
+.status-badge.status-baixado { background-color: #6c757d; }
+.status-badge.status-extinto { background-color: #333; }
