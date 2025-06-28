@@ -123,6 +123,7 @@ function navigateTo(page, params = {}) {
     if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; }
     if (corresponsaveisListenerUnsubscribe) { corresponsaveisListenerUnsubscribe(); corresponsaveisListenerUnsubscribe = null; }
     if (penhorasListenerUnsubscribe) { penhorasListenerUnsubscribe(); penhorasListenerUnsubscribe = null; }
+    if (audienciasListenerUnsubscribe) { audienciasListenerUnsubscribe(); audienciasListenerUnsubscribe = null; }
     
     renderSidebar(page);
     switch (page) {
@@ -245,6 +246,15 @@ function renderProcessoDetailPage(processoId) {
                     <!-- A lista de penhoras será renderizada aqui -->
                 </div>
             </div>
+                        <div class="content-section">
+                <div class="section-header">
+                    <h2>Audiências Agendadas</h2>
+                    <button id="add-audiencia-btn" class="btn-primary">Adicionar</button>
+                </div>
+                <div id="audiencias-list-container">
+                    <!-- A lista de audiências será renderizada aqui -->
+                </div>
+            </div>
         `;
 
         document.getElementById('back-to-devedor-btn').addEventListener('click', () => {
@@ -255,6 +265,9 @@ function renderProcessoDetailPage(processoId) {
         setupCorresponsaveisListener(processoId);
         document.getElementById('add-penhora-btn').addEventListener('click', () => renderPenhoraFormModal(processoId));
         setupPenhorasListener(processoId);
+        document.getElementById('add-audiencia-btn').addEventListener('click', () => renderAudienciaFormModal(processoId));
+        setupAudienciasListener(processoId);
+    }).catch(error => { //...
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
         showToast("Erro ao carregar o processo.", "error");
@@ -671,6 +684,179 @@ function handleDeletePenhora(penhoraId) {
             .catch(error => {
                 console.error("Erro ao excluir penhora:", error);
                 showToast("Erro ao excluir a penhora.", "error");
+            });
+    }
+}
+
+// --- GERENCIAMENTO DE AUDIÊNCIAS ---
+
+let audienciasListenerUnsubscribe = null;
+
+function renderAudienciaFormModal(processoId, audiencia = null) {
+    const isEditing = audiencia !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    // Para o campo de data e hora, precisamos do formato YYYY-MM-DDTHH:MM
+    let dataHora = '';
+    if (isEditing && audiencia.dataHora) {
+        dataHora = new Date(audiencia.dataHora.seconds * 1000).toISOString().slice(0, 16);
+    }
+    
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>${isEditing ? 'Editar' : 'Agendar'} Audiência</h3>
+            <div class="form-group">
+                <label for="audiencia-data-hora">Data e Hora (Obrigatório)</label>
+                <input type="datetime-local" id="audiencia-data-hora" value="${dataHora}" required>
+            </div>
+            <div class="form-group">
+                <label for="audiencia-local">Local</label>
+                <input type="text" id="audiencia-local" placeholder="Ex: Sala de Audiências da 6ª Vara" value="${isEditing ? audiencia.local : ''}">
+            </div>
+            <div class="form-group">
+                <label for="audiencia-obs">Observações</label>
+                <textarea id="audiencia-obs" rows="3">${isEditing ? audiencia.observacoes : ''}</textarea>
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-audiencia-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-audiencia-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    
+    document.getElementById('save-audiencia-btn').addEventListener('click', () => {
+        handleSaveAudiencia(processoId, isEditing ? audiencia.id : null);
+    });
+    document.getElementById('cancel-audiencia-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+}
+
+function setupAudienciasListener(processoId) {
+    if (audienciasListenerUnsubscribe) audienciasListenerUnsubscribe();
+
+    audienciasListenerUnsubscribe = db.collection("audiencias")
+        .where("processoId", "==", processoId)
+        .orderBy("dataHora", "desc")
+        .onSnapshot((snapshot) => {
+            const audiencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderAudienciasList(audiencias, processoId);
+        }, error => {
+            console.error("Erro ao buscar audiências: ", error);
+            const container = document.getElementById('audiencias-list-container');
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências. Verifique se o índice do Firestore foi criado.</p>`;
+        });
+}
+
+function renderAudienciasList(audiencias, processoId) {
+    const container = document.getElementById('audiencias-list-container');
+    if (!container) return;
+
+    container.dataset.processoId = processoId;
+
+    if (audiencias.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhuma audiência agendada para este processo.</p>`;
+        return;
+    }
+
+    let tableHTML = `<table class="data-table"><thead><tr><th>Data e Hora</th><th>Local</th><th>Observações</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    audiencias.forEach(item => {
+        const data = new Date(item.dataHora.seconds * 1000);
+        const dataFormatada = data.toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+        
+        tableHTML += `
+            <tr data-id="${item.id}">
+                <td>${dataFormatada}</td>
+                <td>${item.local || 'Não informado'}</td>
+                <td style="white-space: pre-wrap;">${item.observacoes || ''}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                </td>
+            </tr>
+        `;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    
+    container.querySelector('tbody').addEventListener('click', (event) => handleAudienciaAction(event, audiencias));
+}
+
+function handleAudienciaAction(event, audiencias) {
+    const button = event.target;
+    const action = button.dataset.action;
+    if (!action) return;
+
+    const row = button.closest('tr');
+    const audienciaId = row.dataset.id;
+    const container = document.getElementById('audiencias-list-container');
+    const processoId = container.dataset.processoId;
+    
+    const audienciaData = audiencias.find(a => a.id === audienciaId);
+
+    if (action === 'edit') {
+        renderAudienciaFormModal(processoId, audienciaData);
+    } else if (action === 'delete') {
+        handleDeleteAudiencia(audienciaId);
+    }
+}
+
+function handleSaveAudiencia(processoId, audienciaId = null) {
+    const dataHoraInput = document.getElementById('audiencia-data-hora').value;
+    const local = document.getElementById('audiencia-local').value.trim();
+    const observacoes = document.getElementById('audiencia-obs').value.trim();
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+
+    if (!dataHoraInput) {
+        errorMessage.textContent = 'O campo Data e Hora é obrigatório.';
+        return;
+    }
+    
+    const audienciaData = {
+        processoId,
+        dataHora: new Date(dataHoraInput),
+        local,
+        observacoes
+    };
+
+    let promise;
+    if (audienciaId) {
+        audienciaData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("audiencias").doc(audienciaId).update(audienciaData);
+    } else {
+        audienciaData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("audiencias").add(audienciaData);
+    }
+
+    promise.then(() => {
+        showToast(`Audiência ${audienciaId ? 'atualizada' : 'agendada'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(error => {
+        console.error("Erro ao salvar audiência:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
+    });
+}
+
+function handleDeleteAudiencia(audienciaId) {
+    if (confirm("Tem certeza que deseja cancelar esta audiência?")) {
+        db.collection("audiencias").doc(audienciaId).delete()
+            .then(() => showToast("Audiência cancelada com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir audiência:", error);
+                showToast("Erro ao cancelar a audiência.", "error");
             });
     }
 }
