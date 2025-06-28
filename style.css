@@ -649,3 +649,28 @@ body {
 .status-badge.status-suspenso { background-color: #f57f17; }
 .status-badge.status-baixado { background-color: #6c757d; }
 .status-badge.status-extinto { background-color: #333; }
+/* Adicionar no final do style.css */
+.analise-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.analise-item:last-child {
+    border-bottom: none;
+}
+.analise-item:hover {
+    background-color: #f8f9fa;
+    margin: 0 -20px;
+    padding: 12px 20px;
+    border-radius: 6px;
+}
+.analise-item-devedor {
+    font-weight: 500;
+}
+.analise-item-detalhes {
+    font-size: 14px;
+    color: #555;
+    margin-top: 4px;
+    padding-left: 22px; /* Alinha com o texto do devedor */
+}

@@ -156,11 +156,12 @@ function renderDashboard() {
     
     contentArea.innerHTML = `
         <div id="dashboard-widgets-container">
-            <!-- Widgets serão inseridos aqui -->
+            <div id="audiencias-widget-container"></div>
+            <div id="analises-widget-container"></div>
         </div>
     `;
     
-    // Inicia a busca por dados para os widgets
+    // Dispara a busca e renderização dos widgets toda vez que o dashboard é exibido.
     setupDashboardWidgets();
 }
 
@@ -956,23 +957,31 @@ function handleDeleteAudiencia(audienciaId) {
 }
 
 function setupDashboardWidgets() {
+    // --- Widget de Próximas Audiências ---
     const hoje = new Date();
-    
     db.collection("audiencias")
       .where("dataHora", ">=", hoje)
       .orderBy("dataHora", "asc")
-      .onSnapshot((snapshot) => {
+      .limit(10)
+      .get()
+      .then((snapshot) => {
           const audienciasFuturas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          // Renderiza APENAS o widget de audiências
           renderProximasAudienciasWidget(audienciasFuturas);
-      }, error => {
+      })
+      .catch(error => {
           console.error("Erro ao buscar audiências para o dashboard:", error);
-          const container = document.getElementById('dashboard-widgets-container');
-          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar as audiências. Verifique se o índice do Firestore foi criado.</p></div>`;
+          const container = document.getElementById('audiencias-widget-container');
+          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
       });
+
+    // --- Widget de Análises Pendentes ---
+    // Renderiza APENAS o widget de análises usando os dados do cache
+    renderAnalisePendenteWidget(devedoresCache);
 }
 
 function renderProximasAudienciasWidget(audiencias) {
-    const container = document.getElementById('dashboard-widgets-container');
+    const container = document.getElementById('audiencias-widget-container');
     if (!container) return;
 
     let contentHTML = '';
@@ -1009,6 +1018,63 @@ function renderProximasAudienciasWidget(audiencias) {
             ${contentHTML}
         </div>
     `;
+}
+
+function renderAnalisePendenteWidget(devedores) {
+    const container = document.getElementById('analises-widget-container');
+    if (!container) return;
+
+    // Filtra devedores que precisam de atenção
+    const devedoresParaAnalise = devedores.map(devedor => {
+        return {
+            ...devedor,
+            analise: getAnaliseStatus(devedor) // Reutiliza nossa função de status!
+        };
+    }).filter(d => d.analise.status === 'status-expired' || d.analise.status === 'status-warning');
+    
+    // Ordena por urgência: primeiro os vencidos, depois os com alerta
+    devedoresParaAnalise.sort((a, b) => {
+        if (a.analise.status === 'status-expired' && b.analise.status !== 'status-expired') return -1;
+        if (a.analise.status !== 'status-expired' && b.analise.status === 'status-expired') return 1;
+        return 0; // Mantém a ordem original entre os de mesmo status
+    });
+
+
+    let contentHTML = '';
+    if (devedoresParaAnalise.length === 0) {
+        contentHTML = '<p class="empty-list-message">Nenhuma análise pendente. Bom trabalho!</p>';
+    } else {
+        devedoresParaAnalise.forEach(item => {
+            contentHTML += `
+                <div class="analise-item" data-id="${item.id}">
+                    <div class="analise-item-devedor">
+                        <span class="status-dot ${item.analise.status}" style="margin-right: 10px;"></span>
+                        ${item.razaoSocial}
+                    </div>
+                    <div class="analise-item-detalhes">
+                        <strong>Status:</strong> ${item.analise.text}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // Cria o novo widget e o adiciona ao container
+    const widgetHTML = `
+        <div class="widget-card">
+            <h3>Análises Pendentes</h3>
+            ${contentHTML}
+        </div>
+    `;
+    container.innerHTML = widgetHTML;
+
+    // Adiciona um listener para que o item seja clicável
+    container.querySelector('.widget-card')?.addEventListener('click', (event) => {
+        const item = event.target.closest('.analise-item');
+        if (item && item.dataset.id) {
+            renderDevedorDetailPage(item.dataset.id);
+        }
+    });
 }
 
 // --- HANDLERS (CRUD) ---
@@ -1350,19 +1416,33 @@ function renderLoginForm() { document.title = 'SASIF | Login'; loginContainer.in
 function handleLogin() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.signInWithEmailAndPassword(email, password).catch(error => { errorMessage.textContent = 'E-mail ou senha incorretos.'; }); }
 function handleSignUp() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.createUserWithEmailAndPassword(email, password).catch(error => { if (error.code === 'auth/weak-password') errorMessage.textContent = 'A senha deve ter no mínimo 6 caracteres.'; else if (error.code === 'auth/email-already-in-use') errorMessage.textContent = 'Este e-mail já está em uso.'; else errorMessage.textContent = 'Ocorreu um erro ao tentar cadastrar.'; }); }
 function setupListeners() {
-    db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
+db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
     devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Apenas atualiza a lista se a página de Grandes Devedores estiver visível.
+    
+    // Se a página de Grandes Devedores estiver aberta, atualiza a lista
     if (document.title.includes('Grandes Devedores')) {
         renderDevedoresList(devedoresCache);
     }
+    
+    // Se a página do Dashboard estiver aberta, chama a função que monta TODOS os widgets
+    if (document.title.includes('Dashboard')) {
+        setupDashboardWidgets();
+    }
 });
-    // ... resto da função
 db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); }); db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
         motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
     });
 }
 function setupProcessosListener(devedorId) { if (processosListenerUnsubscribe) processosListenerUnsubscribe(); processosListenerUnsubscribe = db.collection("processos").where("devedorId", "==", devedorId).onSnapshot((snapshot) => { processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderProcessosList(processosCache); }, error => { console.error("Erro ao buscar processos: ", error); if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; }); }
-function initApp(user) { userEmailSpan.textContent = user.email; logoutButton.addEventListener('click', () => { auth.signOut(); }); setupListeners(); navigateTo('dashboard'); }
+function initApp(user) {
+    userEmailSpan.textContent = user.email;
+    logoutButton.addEventListener('click', () => { auth.signOut(); });
+    
+    // Primeiro, navega para o dashboard para garantir que a estrutura HTML exista.
+    navigateTo('dashboard');
+    
+    // Depois, inicia os listeners que irão popular a tela.
+    setupListeners();
+}
 document.addEventListener('DOMContentLoaded', () => { auth.onAuthStateChanged(user => { if (user) { appContainer.classList.remove('hidden'); loginContainer.classList.add('hidden'); initApp(user); } else { appContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); renderLoginForm(); } }); });
