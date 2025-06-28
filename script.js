@@ -122,6 +122,7 @@ function renderSidebar(activePage) { const pages = [{ id: 'dashboard', name: 'Da
 function navigateTo(page, params = {}) {
     if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; }
     if (corresponsaveisListenerUnsubscribe) { corresponsaveisListenerUnsubscribe(); corresponsaveisListenerUnsubscribe = null; }
+    if (penhorasListenerUnsubscribe) { penhorasListenerUnsubscribe(); penhorasListenerUnsubscribe = null; }
     
     renderSidebar(page);
     switch (page) {
@@ -236,9 +237,12 @@ function renderProcessoDetailPage(processoId) {
             </div>
 
             <div class="content-section">
-                <h2>Penhoras Realizadas</h2>
-                <div id="penhoras-list">
-                    <p class="empty-list-message">Funcionalidade a ser implementada.</p>
+                <div class="section-header">
+                    <h2>Penhoras Realizadas</h2>
+                    <button id="add-penhora-btn" class="btn-primary">Adicionar</button>
+                </div>
+                <div id="penhoras-list-container">
+                    <!-- A lista de penhoras será renderizada aqui -->
                 </div>
             </div>
         `;
@@ -249,7 +253,8 @@ function renderProcessoDetailPage(processoId) {
         
         document.getElementById('add-corresponsavel-btn').addEventListener('click', () => renderCorresponsavelFormModal(processoId));
         setupCorresponsaveisListener(processoId);
-
+        document.getElementById('add-penhora-btn').addEventListener('click', () => renderPenhoraFormModal(processoId));
+        setupPenhorasListener(processoId);
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
         showToast("Erro ao carregar o processo.", "error");
@@ -264,7 +269,7 @@ function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
     modalOverlay.className = 'modal-overlay';
 
     modalOverlay.innerHTML = `
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <h3>${isEditing ? 'Editar' : 'Adicionar'} Corresponsável</h3>
             <div class="form-group">
                 <label for="corresponsavel-nome">Nome / Razão Social (Obrigatório)</label>
@@ -448,6 +453,224 @@ function handleDeleteCorresponsavel(corresponsavelId) {
             .catch(error => {
                 console.error("Erro ao excluir corresponsável:", error);
                 showToast("Erro ao excluir o corresponsável.", "error");
+            });
+    }
+}
+
+// --- GERENCIAMENTO DE PENHORAS ---
+
+let penhorasListenerUnsubscribe = null;
+
+function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) {
+    const isEditing = penhora !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    // Define o conteúdo e os botões com base no modo (leitura ou edição)
+    let formContentHTML = '';
+    let formButtonsHTML = '';
+
+    if (isReadOnly) {
+        // --- MODO DE VISUALIZAÇÃO ---
+        formContentHTML = `
+            <div class="form-group">
+                <label>Descrição Completa do Bem</label>
+                <div class="readonly-textarea">${penhora.descricao}</div>
+            </div>
+        `;
+        formButtonsHTML = `<button id="close-penhora-btn" class="btn-primary">Fechar</button>`;
+    } else {
+        // --- MODO DE CRIAÇÃO/EDIÇÃO ---
+        formContentHTML = `
+            <div class="form-group">
+                <label for="penhora-descricao">Descrição do Bem (Obrigatório)</label>
+                <textarea id="penhora-descricao" required rows="5">${isEditing ? penhora.descricao : ''}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="penhora-valor">Valor de Avaliação</label>
+                <input type="number" id="penhora-valor" placeholder="0.00" step="0.01" value="${isEditing ? penhora.valor : ''}">
+            </div>
+            <div class="form-group">
+                <label for="penhora-data">Data da Penhora</label>
+                <input type="date" id="penhora-data" value="${isEditing ? penhora.data : ''}">
+            </div>
+            <div id="error-message"></div>
+        `;
+        formButtonsHTML = `
+            <button id="save-penhora-btn" class="btn-primary">Salvar</button>
+            <button id="cancel-penhora-btn">Cancelar</button>
+        `;
+    }
+
+    modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>${isReadOnly ? 'Detalhes da Penhora' : (isEditing ? 'Editar' : 'Adicionar') + ' Penhora'}</h3>
+            ${formContentHTML}
+            <div class="form-buttons">
+                ${formButtonsHTML}
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+
+    // Adiciona os listeners apropriados
+    if (isReadOnly) {
+        document.getElementById('close-penhora-btn').addEventListener('click', closeModal);
+    } else {
+        document.getElementById('save-penhora-btn').addEventListener('click', () => {
+            handleSavePenhora(processoId, isEditing ? penhora.id : null);
+        });
+        document.getElementById('cancel-penhora-btn').addEventListener('click', closeModal);
+    }
+    
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+}
+
+function setupPenhorasListener(processoId) {
+    if (penhorasListenerUnsubscribe) penhorasListenerUnsubscribe();
+
+    penhorasListenerUnsubscribe = db.collection("penhoras")
+        .where("processoId", "==", processoId)
+        .orderBy("criadoEm", "desc")
+        .onSnapshot((snapshot) => {
+            const penhoras = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderPenhorasList(penhoras, processoId);
+        }, error => {
+            console.error("Erro ao buscar penhoras: ", error);
+            const container = document.getElementById('penhoras-list-container');
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras. Verifique se o índice do Firestore foi criado (veja o console do navegador).</p>`;
+        });
+}
+
+function renderPenhorasList(penhoras, processoId) {
+    const container = document.getElementById('penhoras-list-container');
+    if (!container) return;
+
+    container.dataset.processoId = processoId;
+
+    if (penhoras.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhuma penhora cadastrada para este processo.</p>`;
+        return;
+    }
+
+    const truncateText = (text, maxLength) => {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    };
+
+    let tableHTML = `<table class="data-table"><thead><tr><th>Descrição do Bem</th><th>Valor</th><th>Data</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    penhoras.forEach(item => {
+        let dataFormatada = 'Não informada';
+        if (item.data) {
+            const partes = item.data.split('-');
+            dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+        
+        tableHTML += `
+            <tr data-id="${item.id}" 
+                data-descricao="${item.descricao}" 
+                data-valor="${item.valor || ''}" 
+                data-data="${item.data || ''}">
+                <td>
+                    <a href="#" class="view-penhora-link" data-action="view">
+                        ${truncateText(item.descricao, 80)}
+                    </a>
+                </td>
+                <td>${formatCurrency(item.valor || 0)}</td>
+                <td>${dataFormatada}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                </td>
+            </tr>
+        `;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    
+    container.querySelector('tbody').addEventListener('click', handlePenhoraAction);
+}
+
+function handlePenhoraAction(event) {
+    event.preventDefault();
+    const target = event.target;
+    const action = target.dataset.action;
+    if (!action) return;
+
+    const row = target.closest('tr');
+    const penhoraId = row.dataset.id;
+    const container = document.getElementById('penhoras-list-container');
+    const processoId = container.dataset.processoId;
+
+    const penhoraData = {
+        id: penhoraId,
+        descricao: row.dataset.descricao,
+        valor: row.dataset.valor,
+        data: row.dataset.data
+    };
+
+    if (action === 'view') {
+        // Abre o modal em modo SOMENTE LEITURA
+        renderPenhoraFormModal(processoId, penhoraData, true);
+    } else if (action === 'edit') {
+        // Abre o modal em modo de EDIÇÃO
+        renderPenhoraFormModal(processoId, penhoraData, false);
+    } else if (action === 'delete') {
+        handleDeletePenhora(penhoraId);
+    }
+}
+
+function handleSavePenhora(processoId, penhoraId = null) {
+    const descricao = document.getElementById('penhora-descricao').value.trim();
+    const valor = document.getElementById('penhora-valor').value;
+    const data = document.getElementById('penhora-data').value;
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+
+    if (!descricao) {
+        errorMessage.textContent = 'O campo Descrição do Bem é obrigatório.';
+        return;
+    }
+    
+    const penhoraData = {
+        processoId,
+        descricao,
+        valor: parseFloat(valor) || 0,
+        data: data || null
+    };
+
+    let promise;
+    if (penhoraId) {
+        penhoraData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("penhoras").doc(penhoraId).update(penhoraData);
+    } else {
+        penhoraData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("penhoras").add(penhoraData);
+    }
+
+    promise.then(() => {
+        showToast(`Penhora ${penhoraId ? 'atualizada' : 'salva'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(error => {
+        console.error("Erro ao salvar penhora:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
+    });
+}
+
+function handleDeletePenhora(penhoraId) {
+    if (confirm("Tem certeza que deseja excluir esta penhora?")) {
+        db.collection("penhoras").doc(penhoraId).delete()
+            .then(() => showToast("Penhora excluída com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir penhora:", error);
+                showToast("Erro ao excluir a penhora.", "error");
             });
     }
 }

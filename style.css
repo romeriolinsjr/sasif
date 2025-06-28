@@ -548,3 +548,41 @@ body {
 .section-header h2 {
     margin-bottom: 0;
 }
+/* Adicionar no final do style.css */
+.modal-content.modal-large {
+    max-width: 700px; /* Aumenta a largura máxima do modal */
+}
+
+/* Garante que o textarea ocupe todo o espaço e seja redimensionável verticalmente */
+.modal-content textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+    resize: vertical; /* Permite que o usuário redimensione a altura */
+    min-height: 100px;
+}
+/* Adicionar no final do style.css */
+.view-penhora-link {
+    text-decoration: none;
+    color: var(--cor-texto-escuro);
+}
+.view-penhora-link:hover {
+    color: var(--cor-primaria);
+    text-decoration: underline;
+}
+/* Adicionar no final do style.css */
+.readonly-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 10px;
+    background-color: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    white-space: pre-wrap; /* Preserva quebras de linha e espaços */
+    font-family: 'Roboto', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+}
