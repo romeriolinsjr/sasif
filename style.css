@@ -216,25 +216,22 @@ body {
     box-shadow: var(--sombra);
 }
 
-.form-container select {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--cor-borda);
-    border-radius: 4px;
-    font-size: 16px;
-    background-color: white; /* Garante fundo branco em todos os navegadores */
-}
-
+.form-container select,
 .form-container textarea {
     width: 100%;
     padding: 12px;
     border: 1px solid var(--cor-borda);
     border-radius: 4px;
     font-size: 16px;
+    background-color: white;
     font-family: 'Roboto', sans-serif;
+}
+
+.form-container textarea {
     min-height: 80px;
     resize: vertical;
 }
+
 /* --- ESTILOS PARA TABELA DE DADOS --- */
 .data-table {
     width: 100%;
@@ -243,29 +240,30 @@ body {
     background-color: white;
     box-shadow: var(--sombra);
     border-radius: 8px;
-    overflow: hidden; /* Garante que o border-radius seja aplicado nas bordas da tabela */
+    overflow: hidden;
 }
 
 .data-table th, .data-table td {
     padding: 12px 16px;
     text-align: left;
     border-bottom: 1px solid var(--cor-borda);
+    vertical-align: middle;
 }
 
 .data-table th {
-    background-color: #eef1f5; /* Um cinza um pouco mais escuro que o fundo */
+    background-color: #eef1f5;
     font-weight: 500;
     font-size: 14px;
     text-transform: uppercase;
 }
 
-.data-table tbody tr:hover {
-    background-color: #f8f9fa; /* Um destaque suave ao passar o mouse */
+.data-table tbody tr:not(.apenso-row):hover {
+    background-color: #f8f9fa;
 }
 
-.data-table .level-1 { font-weight: 700; color: #b71c1c; } /* Vermelho escuro */
-.data-table .level-2 { font-weight: 500; color: #f57f17; } /* Amarelo escuro */
-.data-table .level-3 { font-weight: 400; color: #1a237e; } /* Azul índigo */
+.data-table .level-1 { font-weight: 700; color: #b71c1c; }
+.data-table .level-2 { font-weight: 500; color: #f57f17; }
+.data-table .level-3 { font-weight: 400; color: #1a237e; }
 
 .empty-list-message {
     margin-top: 20px;
@@ -275,9 +273,12 @@ body {
     border-radius: 8px;
     color: #666;
 }
+
 /* --- ESTILOS PARA AÇÕES NA TABELA --- */
 .actions-cell {
     text-align: right;
+    width: 1%;
+    white-space: nowrap;
 }
 
 .action-btn {
@@ -291,7 +292,7 @@ body {
 }
 
 .btn-edit {
-    background-color: #ffc107; /* Amarelo */
+    background-color: #ffc107;
     color: var(--cor-texto-escuro);
 }
 
@@ -299,18 +300,88 @@ body {
     background-color: var(--cor-erro);
     color: var(--cor-texto-claro);
 }
-.number-cell {
-    text-align: center;
-    width: 1%; /* Truque para deixar a coluna o mais estreita possível */
+
+/* --- ESTILOS PARA NAVEGAÇÃO --- */
+#main-nav ul {
+    list-style: none;
+    padding: 0;
+}
+
+#main-nav li a {
+    display: block;
+    padding: 16px 20px;
+    color: var(--cor-texto-claro);
+    text-decoration: none;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-left 0.2s;
+}
+
+#main-nav li a:hover {
+    background-color: var(--cor-secundaria);
+}
+
+#main-nav li a.active {
+    background-color: var(--cor-secundaria);
+    border-left: 4px solid #ffc107;
+}
+
+/* --- ESTILOS PARA LINHA CLICÁVEL E HIERARQUIA --- */
+.data-table tbody tr.clickable-row {
+    cursor: pointer;
+}
+
+.piloto-row {
+    cursor: pointer;
     font-weight: 500;
 }
+.piloto-row:hover {
+    background-color: #e8f5e9 !important;
+}
+
+.apenso-row {
+    display: none;
+    background-color: #fafafa;
+}
+.apenso-row.visible {
+    display: table-row;
+}
+.apenso-row td:first-child {
+    padding-left: 40px;
+    position: relative;
+}
+.apenso-row td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: -12px;
+    height: 100%;
+    width: 2px;
+    background-color: var(--cor-borda);
+}
+
+.piloto-row .toggle-icon {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 6px solid var(--cor-texto-escuro);
+    margin-right: 10px;
+    transition: transform 0.2s ease;
+}
+
+.piloto-row.expanded .toggle-icon {
+    transform: rotate(90deg);
+}
+
 /* --- ESTILOS PARA NOTIFICAÇÃO TOAST --- */
 #toast-container {
-    position: fixed; /* Fica fixo na tela mesmo com scroll */
+    position: fixed;
     bottom: 20px;
     left: 50%;
-    transform: translateX(-50%); /* Centraliza horizontalmente */
-    z-index: 1000; /* Garante que fique em cima de tudo */
+    transform: translateX(-50%);
+    z-index: 1000;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -344,27 +415,24 @@ body {
     0%, 100% { opacity: 0; }
     10%, 90% { opacity: 1; }
 }
-/* --- ESTILOS PARA NAVEGAÇÃO --- */
-#main-nav ul {
-    list-style: none;
-    padding: 0;
+
+/* --- ESTILOS PARA STATUS DE ANÁLISE --- */
+.status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
 }
 
-#main-nav li a {
-    display: block;
-    padding: 16px 20px;
-    color: var(--cor-texto-claro);
-    text-decoration: none;
-    font-weight: 500;
-    border-left: 4px solid transparent;
-    transition: background-color 0.2s, border-left 0.2s;
-}
+.status-ok { background-color: #4caf50; }
+.status-warning { background-color: #ffc107; }
+.status-expired { background-color: #f44336; }
 
-#main-nav li a:hover {
-    background-color: var(--cor-secundaria);
-}
-
-#main-nav li a.active {
-    background-color: var(--cor-secundaria);
-    border-left: 4px solid #ffc107; /* Amarelo para destaque */
+/* Célula de número da tabela */
+.number-cell {
+    text-align: center;
+    width: 1%;
+    white-space: nowrap;
 }
