@@ -142,7 +142,27 @@ function navigateTo(page, params = {}) {
 }
 
 // --- DASHBOARD / DEVEDORES ---
-function renderDashboard() { pageTitle.textContent = 'Grandes Devedores'; document.title = 'SASIF | Grandes Devedores'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button></div><h2>Lista de Grandes Devedores</h2><div id="devedores-list-container"></div>`; document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm()); renderDevedoresList(devedoresCache); }
+function renderDashboard() {
+    pageTitle.textContent = 'Dashboard';
+    document.title = 'SASIF | Dashboard';
+    
+    contentArea.innerHTML = `
+        <div id="dashboard-widgets-container">
+            <!-- O widget de audiências será inserido aqui -->
+        </div>
+        <div class="dashboard-actions">
+            <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
+        </div>
+        <h2>Lista de Grandes Devedores</h2>
+        <div id="devedores-list-container"></div>
+    `;
+    
+    document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
+    renderDevedoresList(devedoresCache);
+    
+    // Inicia a busca por audiências para o widget
+    setupDashboardWidgets();
+}
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
     if (!container) return;
@@ -824,12 +844,22 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
         errorMessage.textContent = 'O campo Data e Hora é obrigatório.';
         return;
     }
+
+    // --- LÓGICA NOVA: BUSCAR DADOS PARA DESNORMALIZAÇÃO ---
+    const processo = processosCache.find(p => p.id === processoId);
+    const devedor = devedoresCache.find(d => d.id === processo.devedorId);
+    // --------------------------------------------------------
     
     const audienciaData = {
         processoId,
         dataHora: new Date(dataHoraInput),
         local,
-        observacoes
+        observacoes,
+        // --- CAMPOS NOVOS PARA O DASHBOARD ---
+        numeroProcesso: processo ? processo.numeroProcesso : 'Não encontrado',
+        razaoSocialDevedor: devedor ? devedor.razaoSocial : 'Não encontrado',
+        devedorId: devedor ? devedor.id : null
+        // ------------------------------------
     };
 
     let promise;
@@ -859,6 +889,62 @@ function handleDeleteAudiencia(audienciaId) {
                 showToast("Erro ao cancelar a audiência.", "error");
             });
     }
+}
+
+function setupDashboardWidgets() {
+    const hoje = new Date();
+    
+    db.collection("audiencias")
+      .where("dataHora", ">=", hoje)
+      .orderBy("dataHora", "asc")
+      .onSnapshot((snapshot) => {
+          const audienciasFuturas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          renderProximasAudienciasWidget(audienciasFuturas);
+      }, error => {
+          console.error("Erro ao buscar audiências para o dashboard:", error);
+          const container = document.getElementById('dashboard-widgets-container');
+          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar as audiências. Verifique se o índice do Firestore foi criado.</p></div>`;
+      });
+}
+
+function renderProximasAudienciasWidget(audiencias) {
+    const container = document.getElementById('dashboard-widgets-container');
+    if (!container) return;
+
+    let contentHTML = '';
+    if (audiencias.length === 0) {
+        contentHTML = '<p class="empty-list-message">Nenhuma audiência futura agendada.</p>';
+    } else {
+        const hoje = new Date();
+        const umaSemana = new Date();
+        umaSemana.setDate(hoje.getDate() + 8); // Pega os próximos 8 dias
+
+        audiencias.forEach(item => {
+            const data = new Date(item.dataHora.seconds * 1000);
+            const dataFormatada = data.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' });
+            
+            // Verifica se a audiência é na próxima semana para dar destaque
+            const isDestaque = data < umaSemana;
+
+            contentHTML += `
+                <div class="audiencia-item ${isDestaque ? 'destaque' : ''}">
+                    <div class="audiencia-item-processo">${formatProcessoForDisplay(item.numeroProcesso)}</div>
+                    <div class="audiencia-item-devedor">${item.razaoSocialDevedor}</div>
+                    <div class="audiencia-item-detalhes">
+                        <strong>Data:</strong> ${dataFormatada}<br>
+                        <strong>Local:</strong> ${item.local || 'A definir'}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    container.innerHTML = `
+        <div class="widget-card">
+            <h3>Próximas Audiências</h3>
+            ${contentHTML}
+        </div>
+    `;
 }
 
 // --- HANDLERS (CRUD) ---

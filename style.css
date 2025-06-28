@@ -586,3 +586,53 @@ body {
     font-size: 16px;
     line-height: 1.5;
 }
+/* Adicionar no final do style.css */
+#dashboard-widgets-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.widget-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: var(--sombra);
+    padding: 20px;
+}
+
+.widget-card h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: 10px;
+    font-size: 18px;
+}
+
+.audiencia-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.audiencia-item:last-child {
+    border-bottom: none;
+}
+.audiencia-item-processo {
+    font-weight: 500;
+    color: var(--cor-primaria);
+}
+.audiencia-item-devedor {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 8px;
+}
+.audiencia-item-detalhes {
+    font-size: 14px;
+    color: #333;
+}
+
+.audiencia-item.destaque {
+    background-color: #fffde7; /* Amarelo bem claro */
+    margin: -12px -20px; /* Expande para preencher o card */
+    padding: 12px 20px;
+    border-radius: 6px;
+}
