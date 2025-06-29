@@ -382,13 +382,13 @@ function renderMotivosList(motivos) {
     container.querySelector('tbody').addEventListener('click', handleMotivoAction);
 }
 
-// --- PÁGINA: DILIGÊNCIAS MENSAIS ---
+// --- PÁGINA: DILIGÊNCIAS MENSAIS (NOVA VERSÃO) ---
 function renderDiligenciasPage() {
     pageTitle.textContent = 'Diligências Mensais';
     document.title = 'SASIF | Diligências Mensais';
     contentArea.innerHTML = `
         <div class="dashboard-actions">
-            <button id="add-diligencia-btn" class="btn-primary">Adicionar Modelo de Diligência</button>
+            <button id="add-diligencia-btn" class="btn-primary">Adicionar Diligência</button>
         </div>
         <h2>Controle de Diligências do Mês</h2>
         <div id="diligencias-list-container"></div>
@@ -401,7 +401,7 @@ function renderDiligenciasList(diligencias) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
     if (diligencias.length === 0) {
-        container.innerHTML = `<p class="empty-list-message">Nenhum modelo de diligência cadastrado.</p>`;
+        container.innerHTML = `<p class="empty-list-message">Nenhuma diligência cadastrada.</p>`;
         return;
     }
 
@@ -410,9 +410,9 @@ function renderDiligenciasList(diligencias) {
     const mesAtual = hoje.getMonth() + 1;
     const chaveMesAno = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
 
-    let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Dia Alvo</th><th>Descrição da Diligência</th><th>Status (Mês Atual)</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Dia Alvo</th><th>Título da Diligência</th><th>Processo Vinculado</th><th>Status (Mês Atual)</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
     
-    diligencias.forEach((item, index) => {
+    diligencias.forEach(item => {
         let statusHTML = '';
         let acoesHTML = '';
         const cumpridoEsteMes = item.historicoCumprimentos && item.historicoCumprimentos[chaveMesAno];
@@ -428,14 +428,14 @@ function renderDiligenciasList(diligencias) {
 
         tableHTML += `
             <tr data-id="${item.id}" class="${cumpridoEsteMes ? 'cumprido' : ''}">
-                <td class="number-cell">${index + 1}</td>
-                <td>Dia ${item.diaDoMes}</td>
-                <td class="diligencia-descricao">${item.descricao}</td>
+                <td style="text-align: center;">${item.diaDoMes}</td>
+                <td><a href="#" class="view-diligencia-link" data-action="view-desc">${item.titulo}</a></td>
+                <td>${item.processoVinculado ? formatProcessoForDisplay(item.processoVinculado) : 'N/A'}</td>
                 <td>${statusHTML}</td>
                 <td class="actions-cell">
                     ${acoesHTML}
-                    <button class="action-btn btn-edit" data-action="edit">Editar Modelo</button>
-                    <button class="action-btn btn-delete" data-action="delete">Excluir Modelo</button>
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
                 </td>
             </tr>`;
     });
@@ -444,6 +444,150 @@ function renderDiligenciasList(diligencias) {
     container.innerHTML = tableHTML;
     container.querySelector('tbody').addEventListener('click', (event) => handleDiligenciaAction(event, diligencias));
 }
+
+function renderDiligenciaFormModal(diligencia = null, isReadOnly = false) {
+    const isEditing = diligencia !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    
+    let modalTitle = 'Adicionar Diligência';
+    if(isReadOnly) modalTitle = 'Detalhes da Diligência';
+    else if(isEditing) modalTitle = 'Editar Diligência';
+
+    let formContentHTML = '';
+    let formButtonsHTML = '';
+
+    if (isReadOnly) {
+        formContentHTML = `
+            <div class="form-group">
+                <label>Descrição Completa</label>
+                <div class="readonly-textarea">${diligencia.descricao}</div>
+            </div>
+        `;
+        formButtonsHTML = `<button id="close-diligencia-btn" class="btn-primary">Fechar</button>`;
+    } else {
+        formContentHTML = `
+            <div class="form-group">
+                <label for="diligencia-titulo">Título da Diligência (Obrigatório)</label>
+                <input type="text" id="diligencia-titulo" value="${isEditing ? diligencia.titulo : ''}" required>
+            </div>
+            <div class="form-group">
+                <label for="diligencia-dia">Dia Alvo do Mês (1-31, Obrigatório)</label>
+                <input type="number" id="diligencia-dia" min="1" max="31" value="${isEditing ? diligencia.diaDoMes : ''}" required>
+            </div>
+             <div class="form-group">
+                <label for="diligencia-processo">Processo Vinculado (Opcional)</label>
+                <input type="text" id="diligencia-processo" oninput="maskProcesso(this)" value="${isEditing && diligencia.processoVinculado ? formatProcessoForDisplay(diligencia.processoVinculado) : ''}">
+            </div>
+            <div class="form-group">
+                <label for="diligencia-descricao">Descrição Completa</label>
+                <textarea id="diligencia-descricao" rows="4">${isEditing ? diligencia.descricao : ''}</textarea>
+            </div>
+            <div id="error-message"></div>
+        `;
+        formButtonsHTML = `
+            <button id="save-diligencia-btn" class="btn-primary">Salvar</button>
+            <button id="cancel-diligencia-btn">Cancelar</button>
+        `;
+    }
+
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>${modalTitle}</h3>
+            ${formContentHTML}
+            <div class="form-buttons">${formButtonsHTML}</div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    
+    if(isReadOnly) {
+        document.getElementById('close-diligencia-btn').addEventListener('click', closeModal);
+    } else {
+        document.getElementById('save-diligencia-btn').addEventListener('click', () => handleSaveDiligencia(isEditing ? diligencia.id : null));
+        document.getElementById('cancel-diligencia-btn').addEventListener('click', closeModal);
+    }
+}
+
+async function handleDiligenciaAction(event, diligencias) {
+    event.preventDefault();
+    const target = event.target;
+    const action = target.dataset.action;
+    if (!action) return;
+    
+    const row = target.closest('tr');
+    const diligenciaId = row.dataset.id;
+    const diligencia = diligencias.find(d => d.id === diligenciaId);
+    
+    if (action === 'view-desc') {
+        renderDiligenciaFormModal(diligencia, true); // Abre em modo somente leitura
+        return;
+    }
+    
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth() + 1;
+    const chaveMesAno = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
+    const caminhoDoCampo = `historicoCumprimentos.${chaveMesAno}`;
+
+    if (action === 'marcar-cumprido') {
+        if (confirm(`Marcar a diligência "${diligencia.titulo}" como cumprida hoje?`)) {
+            await db.collection("diligenciasMensais").doc(diligenciaId).update({ [caminhoDoCampo]: new Date() });
+            showToast('Diligência marcada como cumprida!');
+        }
+    } else if (action === 'desmarcar') {
+        await db.collection("diligenciasMensais").doc(diligenciaId).update({ [caminhoDoCampo]: firebase.firestore.FieldValue.delete() });
+        showToast('Status da diligência revertido para pendente.');
+    } else if (action === 'edit') {
+        renderDiligenciaFormModal(diligencia, false); // Abre em modo de edição
+    } else if (action === 'delete') {
+        if (confirm(`Tem certeza que deseja excluir permanentemente a diligência "${diligencia.titulo}"?`)) {
+            await db.collection("diligenciasMensais").doc(diligenciaId).delete();
+            showToast('Diligência excluída com sucesso.');
+        }
+    }
+}
+
+function handleSaveDiligencia(diligenciaId = null) {
+    const titulo = document.getElementById('diligencia-titulo').value.trim();
+    const diaDoMes = parseInt(document.getElementById('diligencia-dia').value, 10);
+    const descricao = document.getElementById('diligencia-descricao').value.trim();
+    const processoVinculado = document.getElementById('diligencia-processo').value.replace(/\D/g, '');
+
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+    
+    if (!titulo || !diaDoMes) {
+        errorMessage.textContent = 'Título e Dia Alvo são obrigatórios.';
+        return;
+    }
+
+    const data = {
+        titulo,
+        diaDoMes,
+        descricao,
+        processoVinculado: processoVinculado || null
+    };
+
+    let promise;
+    if (diligenciaId) {
+        promise = db.collection("diligenciasMensais").doc(diligenciaId).update(data);
+    } else {
+        data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        data.historicoCumprimentos = {};
+        promise = db.collection("diligenciasMensais").add(data);
+    }
+
+    promise.then(() => {
+        showToast(`Diligência ${diligenciaId ? 'atualizada' : 'salva'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(err => {
+        console.error("Erro ao salvar diligência: ", err);
+        errorMessage.textContent = 'Ocorreu um erro ao salvar.';
+    });
+}
+
 
 // --- DETALHES DO PROCESSO ---
 function renderProcessoDetailPage(processoId) {
@@ -649,7 +793,7 @@ function handleRegistrarAnalise(devedorId) {
 // --- FORMULÁRIOS ---
 function renderDevedorForm(devedor = null) {
     const isEditing = devedor !== null;
-    const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor';
+    const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Devedor';
     navigateTo(null);
     pageTitle.textContent = formTitle;
     document.title = `SASIF | ${formTitle}`;
@@ -836,113 +980,430 @@ function handleDeleteMotivo(motivoId) {
     }
 }
 
-function renderDiligenciaFormModal(diligencia = null) {
-    const isEditing = diligencia !== null;
+function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
+    const isEditing = corresponsavel !== null;
+    const tipoPessoa = isEditing ? (corresponsavel.cpfCnpj && corresponsavel.cpfCnpj.length > 11 ? 'juridica' : 'fisica') : 'fisica';
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
-
     modalOverlay.innerHTML = `
         <div class="modal-content">
-            <h3>${isEditing ? 'Editar Modelo de' : 'Adicionar'} Diligência</h3>
+            <h3>${isEditing ? 'Editar' : 'Adicionar'} Corresponsável</h3>
             <div class="form-group">
-                <label for="diligencia-ordem">Ordem (para classificação)</label>
-                <input type="number" id="diligencia-ordem" placeholder="Ex: 1, 2, 3..." value="${isEditing ? diligencia.ordem : ''}">
+                <label for="corresponsavel-nome">Nome / Razão Social (Obrigatório)</label>
+                <input type="text" id="corresponsavel-nome" value="${isEditing ? corresponsavel.nome : ''}" required>
             </div>
             <div class="form-group">
-                <label for="diligencia-dia">Dia Alvo do Mês (1-31)</label>
-                <input type="number" id="diligencia-dia" min="1" max="31" value="${isEditing ? diligencia.diaDoMes : ''}">
+                <label for="tipo-pessoa">Tipo de Pessoa</label>
+                <select id="tipo-pessoa">
+                    <option value="fisica">Pessoa Física</option>
+                    <option value="juridica">Pessoa Jurídica</option>
+                </select>
             </div>
             <div class="form-group">
-                <label for="diligencia-descricao">Descrição (Obrigatório)</label>
-                <textarea id="diligencia-descricao" rows="4" required>${isEditing ? diligencia.descricao : ''}</textarea>
+                <label for="corresponsavel-documento">CPF / CNPJ</label>
+                <input type="text" id="corresponsavel-documento" 
+                       value="${isEditing ? formatDocumentForDisplay(corresponsavel.cpfCnpj) : ''}"
+                       placeholder="Digite o CPF">
             </div>
             <div id="error-message"></div>
             <div class="form-buttons">
-                <button id="save-diligencia-btn" class="btn-primary">Salvar</button>
-                <button id="cancel-diligencia-btn">Cancelar</button>
+                <button id="save-corresponsavel-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-corresponsavel-btn">Cancelar</button>
             </div>
         </div>
     `;
-
     document.body.appendChild(modalOverlay);
-
-    const closeModal = () => document.body.removeChild(modalOverlay);
-    
-    document.getElementById('save-diligencia-btn').addEventListener('click', () => {
-        handleSaveDiligencia(isEditing ? diligencia.id : null);
-    });
-    document.getElementById('cancel-diligencia-btn').addEventListener('click', closeModal);
-}
-
-async function handleDiligenciaAction(event, diligencias) {
-    const button = event.target.closest('.action-btn');
-    if (!button) return;
-    
-    const action = button.dataset.action;
-    const row = button.closest('tr');
-    const diligenciaId = row.dataset.id;
-    
-    const diligencia = diligencias.find(d => d.id === diligenciaId);
-    
-    const hoje = new Date();
-    const anoAtual = hoje.getFullYear();
-    const mesAtual = hoje.getMonth() + 1;
-    const chaveMesAno = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
-    const caminhoDoCampo = `historicoCumprimentos.${chaveMesAno}`;
-
-    if (action === 'marcar-cumprido') {
-        if (confirm(`Marcar a diligência "${diligencia.descricao}" como cumprida hoje?`)) {
-            await db.collection("diligenciasMensais").doc(diligenciaId).update({ [caminhoDoCampo]: new Date() });
-            showToast('Diligência marcada como cumprida!');
+    const tipoPessoaSelect = document.getElementById('tipo-pessoa');
+    const documentoInput = document.getElementById('corresponsavel-documento');
+    tipoPessoaSelect.value = tipoPessoa;
+    const updateDocumentField = () => {
+        if (tipoPessoaSelect.value === 'fisica') {
+            documentoInput.placeholder = 'Digite o CPF';
+        } else {
+            documentoInput.placeholder = 'Digite o CNPJ';
         }
-    } else if (action === 'desmarcar') {
-        await db.collection("diligenciasMensais").doc(diligenciaId).update({ [caminhoDoCampo]: firebase.firestore.FieldValue.delete() });
-        showToast('Status da diligência revertido para pendente.');
-    } else if (action === 'edit') {
-        renderDiligenciaFormModal(diligencia);
-    } else if (action === 'delete') {
-        if (confirm(`Tem certeza que deseja excluir permanentemente o modelo da diligência "${diligencia.descricao}"? Todo o histórico de cumprimento será perdido.`)) {
-            await db.collection("diligenciasMensais").doc(diligenciaId).delete();
-            showToast('Modelo de diligência excluído com sucesso.');
-        }
+        documentoInput.value = '';
+    };
+    if(isEditing) {
+        documentoInput.value = formatDocumentForDisplay(corresponsavel.cpfCnpj);
+    } else {
+        updateDocumentField();
     }
+    documentoInput.addEventListener('input', () => maskDocument(documentoInput, tipoPessoaSelect.value));
+    tipoPessoaSelect.addEventListener('change', updateDocumentField);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    document.getElementById('save-corresponsavel-btn').addEventListener('click', () => {
+        handleSaveCorresponsavel(processoId, isEditing ? corresponsavel.id : null);
+    });
+    document.getElementById('cancel-corresponsavel-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
 }
 
-function handleSaveDiligencia(diligenciaId = null) {
-    const descricao = document.getElementById('diligencia-descricao').value.trim();
-    const diaDoMes = parseInt(document.getElementById('diligencia-dia').value, 10);
-    const ordem = parseInt(document.getElementById('diligencia-ordem').value, 10);
-
+function handleSaveCorresponsavel(processoId, corresponsavelId = null) {
+    const nome = document.getElementById('corresponsavel-nome').value.trim();
+    const documento = document.getElementById('corresponsavel-documento').value.trim();
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
-    
-    if (!descricao || !diaDoMes) {
-        errorMessage.textContent = 'Descrição e Dia Alvo são obrigatórios.';
+
+    if (!nome) {
+        errorMessage.textContent = 'O campo Nome / Razão Social é obrigatório.';
         return;
     }
-
-    const data = {
-        descricao,
-        diaDoMes,
-        ordem: isNaN(ordem) ? 0 : ordem,
-    };
+    
+    const data = { processoId, nome, cpfCnpj: documento.replace(/\D/g, '') };
 
     let promise;
-    if (diligenciaId) {
-        promise = db.collection("diligenciasMensais").doc(diligenciaId).update(data);
+    if (corresponsavelId) {
+        data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("corresponsaveis").doc(corresponsavelId).update(data);
     } else {
         data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
-        data.historicoCumprimentos = {}; // Inicializa o histórico como um objeto vazio
-        promise = db.collection("diligenciasMensais").add(data);
+        promise = db.collection("corresponsaveis").add(data);
     }
 
     promise.then(() => {
-        showToast(`Modelo de diligência ${diligenciaId ? 'atualizado' : 'salvo'} com sucesso!`);
+        showToast(`Corresponsável ${corresponsavelId ? 'atualizado' : 'salvo'} com sucesso!`);
         document.body.removeChild(document.querySelector('.modal-overlay'));
-    }).catch(err => {
-        console.error("Erro ao salvar diligência: ", err);
-        errorMessage.textContent = 'Ocorreu um erro ao salvar.';
+    }).catch(error => {
+        console.error("Erro ao salvar corresponsável:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
     });
+}
+
+function handleDeleteCorresponsavel(corresponsavelId) {
+    if (confirm("Tem certeza que deseja excluir este corresponsável?")) {
+        db.collection("corresponsaveis").doc(corresponsavelId).delete()
+            .then(() => showToast("Corresponsável excluído com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir corresponsável:", error);
+                showToast("Erro ao excluir o corresponsável.", "error");
+            });
+    }
+}
+
+function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) {
+    const isEditing = penhora !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    let formContentHTML = '';
+    let formButtonsHTML = '';
+    if (isReadOnly) {
+        formContentHTML = `
+            <div class="form-group">
+                <label>Descrição Completa do Bem</label>
+                <div class="readonly-textarea">${penhora.descricao}</div>
+            </div>
+        `;
+        formButtonsHTML = `<button id="close-penhora-btn" class="btn-primary">Fechar</button>`;
+    } else {
+        formContentHTML = `
+            <div class="form-group">
+                <label for="penhora-descricao">Descrição do Bem (Obrigatório)</label>
+                <textarea id="penhora-descricao" required rows="5">${isEditing ? penhora.descricao : ''}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="penhora-valor">Valor de Avaliação</label>
+                <input type="number" id="penhora-valor" placeholder="0.00" step="0.01" value="${isEditing ? penhora.valor : ''}">
+            </div>
+            <div class="form-group">
+                <label for="penhora-data">Data da Penhora</label>
+                <input type="date" id="penhora-data" value="${isEditing ? penhora.data : ''}">
+            </div>
+            <div id="error-message"></div>
+        `;
+        formButtonsHTML = `
+            <button id="save-penhora-btn" class="btn-primary">Salvar</button>
+            <button id="cancel-penhora-btn">Cancelar</button>
+        `;
+    }
+    modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>${isReadOnly ? 'Detalhes da Penhora' : (isEditing ? 'Editar' : 'Adicionar') + ' Penhora'}</h3>
+            ${formContentHTML}
+            <div class="form-buttons">${formButtonsHTML}</div>
+        </div>
+    `;
+    document.body.appendChild(modalOverlay);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    if (isReadOnly) {
+        document.getElementById('close-penhora-btn').addEventListener('click', closeModal);
+    } else {
+        document.getElementById('save-penhora-btn').addEventListener('click', () => {
+            handleSavePenhora(processoId, isEditing ? penhora.id : null);
+        });
+        document.getElementById('cancel-penhora-btn').addEventListener('click', closeModal);
+    }
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+}
+
+function setupPenhorasListener(processoId) {
+    if (penhorasListenerUnsubscribe) penhorasListenerUnsubscribe();
+    penhorasListenerUnsubscribe = db.collection("penhoras")
+        .where("processoId", "==", processoId)
+        .orderBy("criadoEm", "desc")
+        .onSnapshot((snapshot) => {
+            const penhoras = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderPenhorasList(penhoras, processoId);
+        }, error => {
+            console.error("Erro ao buscar penhoras: ", error);
+            const container = document.getElementById('penhoras-list-container');
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras. Verifique se o índice do Firestore foi criado (veja o console do navegador).</p>`;
+        });
+}
+
+function renderPenhorasList(penhoras, processoId) {
+    const container = document.getElementById('penhoras-list-container');
+    if (!container) return;
+    container.dataset.processoId = processoId;
+    if (penhoras.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhuma penhora cadastrada para este processo.</p>`;
+        return;
+    }
+    const truncateText = (text, maxLength) => {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    };
+    let tableHTML = `<table class="data-table"><thead><tr><th>Descrição do Bem</th><th>Valor</th><th>Data</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    penhoras.forEach(item => {
+        let dataFormatada = 'Não informada';
+        if (item.data) {
+            const partes = item.data.split('-');
+            dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+        tableHTML += `
+            <tr data-id="${item.id}" data-descricao="${item.descricao}" data-valor="${item.valor || ''}" data-data="${item.data || ''}">
+                <td><a href="#" class="view-penhora-link" data-action="view">${truncateText(item.descricao, 80)}</a></td>
+                <td>${formatCurrency(item.valor || 0)}</td>
+                <td>${dataFormatada}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                </td>
+            </tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    container.querySelector('tbody').addEventListener('click', handlePenhoraAction);
+}
+
+function handlePenhoraAction(event) {
+    event.preventDefault();
+    const target = event.target;
+    const action = target.dataset.action;
+    if (!action) return;
+    const row = target.closest('tr');
+    const penhoraId = row.dataset.id;
+    const container = document.getElementById('penhoras-list-container');
+    const processoId = container.dataset.processoId;
+    const penhoraData = { id: penhoraId, descricao: row.dataset.descricao, valor: row.dataset.valor, data: row.dataset.data };
+    if (action === 'view') {
+        renderPenhoraFormModal(processoId, penhoraData, true);
+    } else if (action === 'edit') {
+        renderPenhoraFormModal(processoId, penhoraData, false);
+    } else if (action === 'delete') {
+        handleDeletePenhora(penhoraId);
+    }
+}
+
+function handleSavePenhora(processoId, penhoraId = null) {
+    const descricao = document.getElementById('penhora-descricao').value.trim();
+    const valor = document.getElementById('penhora-valor').value;
+    const data = document.getElementById('penhora-data').value;
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+    if (!descricao) {
+        errorMessage.textContent = 'O campo Descrição do Bem é obrigatório.';
+        return;
+    }
+    const penhoraData = { processoId, descricao, valor: parseFloat(valor) || 0, data: data || null };
+    let promise;
+    if (penhoraId) {
+        penhoraData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("penhoras").doc(penhoraId).update(penhoraData);
+    } else {
+        penhoraData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("penhoras").add(penhoraData);
+    }
+    promise.then(() => {
+        showToast(`Penhora ${penhoraId ? 'atualizada' : 'salva'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(error => {
+        console.error("Erro ao salvar penhora:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
+    });
+}
+
+function handleDeletePenhora(penhoraId) {
+    if (confirm("Tem certeza que deseja excluir esta penhora?")) {
+        db.collection("penhoras").doc(penhoraId).delete()
+            .then(() => showToast("Penhora excluída com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir penhora:", error);
+                showToast("Erro ao excluir a penhora.", "error");
+            });
+    }
+}
+
+function renderAudienciaFormModal(processoId, audiencia = null) {
+    const isEditing = audiencia !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    let dataHora = '';
+    if (isEditing && audiencia.dataHora) {
+        dataHora = new Date(audiencia.dataHora.seconds * 1000).toISOString().slice(0, 16);
+    }
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>${isEditing ? 'Editar' : 'Agendar'} Audiência</h3>
+            <div class="form-group">
+                <label for="audiencia-data-hora">Data e Hora (Obrigatório)</label>
+                <input type="datetime-local" id="audiencia-data-hora" value="${dataHora}" required>
+            </div>
+            <div class="form-group">
+                <label for="audiencia-local">Local</label>
+                <input type="text" id="audiencia-local" placeholder="Ex: Sala de Audiências da 6ª Vara" value="${isEditing ? audiencia.local : ''}">
+            </div>
+            <div class="form-group">
+                <label for="audiencia-obs">Observações</label>
+                <textarea id="audiencia-obs" rows="3">${isEditing ? audiencia.observacoes : ''}</textarea>
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-audiencia-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-audiencia-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalOverlay);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    document.getElementById('save-audiencia-btn').addEventListener('click', () => {
+        handleSaveAudiencia(processoId, isEditing ? audiencia.id : null);
+    });
+    document.getElementById('cancel-audiencia-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
+}
+
+function setupAudienciasListener(processoId) {
+    if (audienciasListenerUnsubscribe) audienciasListenerUnsubscribe();
+    audienciasListenerUnsubscribe = db.collection("audiencias")
+        .where("processoId", "==", processoId)
+        .orderBy("dataHora", "desc")
+        .onSnapshot((snapshot) => {
+            const audiencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderAudienciasList(audiencias, processoId);
+        }, error => {
+            console.error("Erro ao buscar audiências: ", error);
+            const container = document.getElementById('audiencias-list-container');
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências. Verifique se o índice do Firestore foi criado.</p>`;
+        });
+}
+
+function renderAudienciasList(audiencias, processoId) {
+    const container = document.getElementById('audiencias-list-container');
+    if (!container) return;
+    container.dataset.processoId = processoId;
+    if (audiencias.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhuma audiência agendada para este processo.</p>`;
+        return;
+    }
+    let tableHTML = `<table class="data-table"><thead><tr><th>Data e Hora</th><th>Local</th><th>Observações</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    audiencias.forEach(item => {
+        const data = new Date(item.dataHora.seconds * 1000);
+        const dataFormatada = data.toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+        tableHTML += `
+            <tr data-id="${item.id}">
+                <td>${dataFormatada}</td>
+                <td>${item.local || 'Não informado'}</td>
+                <td style="white-space: pre-wrap;">${item.observacoes || ''}</td>
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                </td>
+            </tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    container.querySelector('tbody').addEventListener('click', (event) => handleAudienciaAction(event, audiencias));
+}
+
+function handleAudienciaAction(event, audiencias) {
+    const button = event.target;
+    const action = button.dataset.action;
+    if (!action) return;
+    const row = button.closest('tr');
+    const audienciaId = row.dataset.id;
+    const audienciaData = audiencias.find(a => a.id === audienciaId);
+    if (action === 'edit') {
+        const container = document.getElementById('audiencias-list-container');
+        const processoId = container.dataset.processoId;
+        renderAudienciaFormModal(processoId, audienciaData);
+    } else if (action === 'delete') {
+        handleDeleteAudiencia(audienciaId);
+    }
+}
+
+function handleSaveAudiencia(processoId, audienciaId = null) {
+    const dataHoraInput = document.getElementById('audiencia-data-hora').value;
+    const local = document.getElementById('audiencia-local').value.trim();
+    const observacoes = document.getElementById('audiencia-obs').value.trim();
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+    if (!dataHoraInput) {
+        errorMessage.textContent = 'O campo Data e Hora é obrigatório.';
+        return;
+    }
+    const processo = processosCache.find(p => p.id === processoId);
+    const devedor = devedoresCache.find(d => d.id === processo.devedorId);
+    const audienciaData = {
+        processoId,
+        dataHora: new Date(dataHoraInput),
+        local,
+        observacoes,
+        numeroProcesso: processo ? processo.numeroProcesso : 'Não encontrado',
+        razaoSocialDevedor: devedor ? devedor.razaoSocial : 'Não encontrado',
+        devedorId: devedor ? devedor.id : null
+    };
+    let promise;
+    if (audienciaId) {
+        audienciaData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("audiencias").doc(audienciaId).update(audienciaData);
+    } else {
+        audienciaData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("audiencias").add(audienciaData);
+    }
+    promise.then(() => {
+        showToast(`Audiência ${audienciaId ? 'atualizada' : 'agendada'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+    }).catch(error => {
+        console.error("Erro ao salvar audiência:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar.";
+    });
+}
+
+function handleDeleteAudiencia(audienciaId) {
+    if (confirm("Tem certeza que deseja cancelar esta audiência?")) {
+        db.collection("audiencias").doc(audienciaId).delete()
+            .then(() => showToast("Audiência cancelada com sucesso."))
+            .catch(error => {
+                console.error("Erro ao excluir audiência:", error);
+                showToast("Erro ao cancelar a audiência.", "error");
+            });
+    }
 }
 
 function handleSaveProcesso(devedorId, processoId = null) {
@@ -953,12 +1414,10 @@ function handleSaveProcesso(devedorId, processoId = null) {
     const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
-    
     if (!numeroProcesso || !exequenteId) { 
         errorMessage.textContent = 'Número do Processo e Exequente são obrigatórios.';
         return; 
     }
-    
     const processoData = {
         devedorId,
         numeroProcesso: numeroProcesso.replace(/\D/g, ''),
@@ -970,7 +1429,6 @@ function handleSaveProcesso(devedorId, processoId = null) {
         cdas: document.getElementById('cdas').value,
         uidUsuario: auth.currentUser.uid
     };
-    
     if (tipoProcesso === 'apenso') {
         const processoPilotoId = document.getElementById('processo-piloto')?.value;
         if (!processoPilotoId) {
@@ -981,11 +1439,9 @@ function handleSaveProcesso(devedorId, processoId = null) {
     } else {
         processoData.processoPilotoId = null; 
     }
-    
     const promise = processoId
         ? db.collection("processos").doc(processoId).update({...processoData, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()})
         : db.collection("processos").add({...processoData, criadoEm: firebase.firestore.FieldValue.serverTimestamp()});
-        
     promise.then(() => {
         renderDevedorDetailPage(devedorId);
         setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100);
@@ -996,9 +1452,41 @@ function handleSaveProcesso(devedorId, processoId = null) {
 }
 
 // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
-function renderLoginForm() { document.title = 'SASIF | Login'; loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`; document.getElementById('login-btn').addEventListener('click', handleLogin); document.getElementById('signup-btn').addEventListener('click', handleSignUp); }
-function handleLogin() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.signInWithEmailAndPassword(email, password).catch(error => { errorMessage.textContent = 'E-mail ou senha incorretos.'; }); }
-function handleSignUp() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.createUserWithEmailAndPassword(email, password).catch(error => { if (error.code === 'auth/weak-password') errorMessage.textContent = 'A senha deve ter no mínimo 6 caracteres.'; else if (error.code === 'auth/email-already-in-use') errorMessage.textContent = 'Este e-mail já está em uso.'; else errorMessage.textContent = 'Ocorreu um erro ao tentar cadastrar.'; }); }
+function renderLoginForm() {
+    document.title = 'SASIF | Login';
+    loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`;
+    document.getElementById('login-btn').addEventListener('click', handleLogin);
+    document.getElementById('signup-btn').addEventListener('click', handleSignUp);
+}
+
+function handleLogin() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const errorMessage = document.getElementById('error-message');
+    if (!email || !password) {
+        errorMessage.textContent = 'Por favor, preencha e-mail e senha.';
+        return;
+    }
+    auth.signInWithEmailAndPassword(email, password).catch(error => {
+        errorMessage.textContent = 'E-mail ou senha incorretos.';
+    });
+}
+
+function handleSignUp() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const errorMessage = document.getElementById('error-message');
+    if (!email || !password) {
+        errorMessage.textContent = 'Por favor, preencha e-mail e senha.';
+        return;
+    }
+    auth.createUserWithEmailAndPassword(email, password).catch(error => {
+        if (error.code === 'auth/weak-password') errorMessage.textContent = 'A senha deve ter no mínimo 6 caracteres.';
+        else if (error.code === 'auth/email-already-in-use') errorMessage.textContent = 'Este e-mail já está em uso.';
+        else errorMessage.textContent = 'Ocorreu um erro ao tentar cadastrar.';
+    });
+}
+
 function setupListeners() {
     db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
         devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1009,31 +1497,48 @@ function setupListeners() {
             setupDashboardWidgets();
         }
     });
-
     db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => {
         exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache);
     });
-
     db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
         motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
     });
-    
-    db.collection("diligenciasMensais").orderBy("ordem", "asc").onSnapshot((snapshot) => {
+    db.collection("diligenciasMensais").orderBy("diaDoMes", "asc").onSnapshot((snapshot) => {
         diligenciasCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(document.title.includes('Diligências Mensais')) renderDiligenciasList(diligenciasCache);
     });
 }
-function setupProcessosListener(devedorId) { if (processosListenerUnsubscribe) processosListenerUnsubscribe(); processosListenerUnsubscribe = db.collection("processos").where("devedorId", "==", devedorId).onSnapshot((snapshot) => { processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderProcessosList(processosCache); }, error => { console.error("Erro ao buscar processos: ", error); if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; }); }
+
+function setupProcessosListener(devedorId) {
+    if (processosListenerUnsubscribe) processosListenerUnsubscribe();
+    processosListenerUnsubscribe = db.collection("processos").where("devedorId", "==", devedorId).onSnapshot((snapshot) => {
+        processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderProcessosList(processosCache);
+    }, error => {
+        console.error("Erro ao buscar processos: ", error);
+        if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`;
+    });
+}
+
 function initApp(user) {
     userEmailSpan.textContent = user.email;
     logoutButton.addEventListener('click', () => { auth.signOut(); });
-    
-    // Primeiro, navega para o dashboard para garantir que a estrutura HTML exista.
     navigateTo('dashboard');
-    
-    // Depois, inicia os listeners que irão popular a tela.
     setupListeners();
 }
-document.addEventListener('DOMContentLoaded', () => { auth.onAuthStateChanged(user => { if (user) { appContainer.classList.remove('hidden'); loginContainer.classList.add('hidden'); initApp(user); } else { appContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); renderLoginForm(); } }); });
+
+document.addEventListener('DOMContentLoaded', () => {
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            appContainer.classList.remove('hidden');
+            loginContainer.classList.add('hidden');
+            initApp(user);
+        } else {
+            appContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+            renderLoginForm();
+        }
+    });
+});

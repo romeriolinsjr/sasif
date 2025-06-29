@@ -683,3 +683,12 @@ tr.cumprido .diligencia-descricao {
     text-decoration: line-through;
     color: #888;
 }
+/* Adicionar no final do style.css */
+.view-diligencia-link {
+    text-decoration: none;
+    color: var(--cor-primaria);
+    font-weight: 500;
+}
+.view-diligencia-link:hover {
+    text-decoration: underline;
+}
