@@ -674,21 +674,3 @@ body {
     margin-top: 4px;
     padding-left: 22px; /* Alinha com o texto do devedor */
 }
-/* Adicionar no final do style.css */
-.status-badge.status-cumprido { background-color: #2e7d32; }
-.status-badge.status-pendente { background-color: #f57f17; }
-.btn-marcar-cumprido { background-color: var(--cor-sucesso); color: white; }
-.btn-desmarcar { background-color: #6c757d; color: white; }
-tr.cumprido .diligencia-descricao {
-    text-decoration: line-through;
-    color: #888;
-}
-/* Adicionar no final do style.css */
-.view-diligencia-link {
-    text-decoration: none;
-    color: var(--cor-primaria);
-    font-weight: 500;
-}
-.view-diligencia-link:hover {
-    text-decoration: underline;
-}
