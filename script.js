@@ -604,7 +604,8 @@ function renderProcessoDetailPage(processoId) {
         
         contentArea.innerHTML = `
             <div class="dashboard-actions">
-                <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
+            <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
+            ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autonomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
             </div>
             
             <div class="detail-card">
@@ -662,6 +663,11 @@ function renderProcessoDetailPage(processoId) {
         setupPenhorasListener(processoId);
         document.getElementById('add-audiencia-btn').addEventListener('click', () => renderAudienciaFormModal(processoId));
         setupAudienciasListener(processoId);
+            if (document.getElementById('promote-piloto-btn')) {
+            document.getElementById('promote-piloto-btn').addEventListener('click', () => {
+                handlePromoteToPiloto(processo.id);
+            });
+        }
     }).catch(error => { //...
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
@@ -1424,6 +1430,64 @@ function handleProcessoAction(event) {
 }
 function handleEditProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (processo) renderProcessoForm(processo.devedorId, processo); else showToast("Processo não encontrado.", "error"); }
 function handleDeleteProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (confirm(`Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`)) db.collection("processos").doc(processoId).delete().then(() => showToast("Processo excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
+async function handlePromoteToPiloto(processoId) {
+    const processoAlvo = processosCache.find(p => p.id === processoId);
+    if (!processoAlvo) {
+        showToast("Processo alvo não encontrado no cache.", "error");
+        return;
+    }
+
+    const confirmMessage = `Tem certeza que deseja promover o processo ${formatProcessoForDisplay(processoAlvo.numeroProcesso)} a novo Piloto? \n\nEsta ação reorganizará o grupo de processos ao qual ele pertence.`;
+
+    if (!confirm(confirmMessage)) {
+        return; // Usuário cancelou
+    }
+
+    const batch = db.batch(); // Inicia um Write Batch
+
+    try {
+        // 1. Promove o processo alvo a 'piloto'
+        const processoAlvoRef = db.collection("processos").doc(processoAlvo.id);
+        batch.update(processoAlvoRef, {
+            tipoProcesso: 'piloto',
+            processoPilotoId: null
+        });
+
+        // 2. Se o processo alvo era um 'apenso', reorganiza seu antigo grupo
+        if (processoAlvo.tipoProcesso === 'apenso' && processoAlvo.processoPilotoId) {
+            const antigoPilotoId = processoAlvo.processoPilotoId;
+            
+            // 2a. Rebaixa o antigo piloto para ser um apenso do novo piloto
+            const antigoPilotoRef = db.collection("processos").doc(antigoPilotoId);
+            batch.update(antigoPilotoRef, {
+                tipoProcesso: 'apenso',
+                processoPilotoId: processoAlvo.id // Vincula ao novo piloto
+            });
+
+            // 2b. Re-vincula todos os 'irmãos' (outros apensos do mesmo grupo) ao novo piloto
+            const irmaosApensos = processosCache.filter(p => 
+                p.processoPilotoId === antigoPilotoId && p.id !== processoAlvo.id
+            );
+
+            irmaosApensos.forEach(irmao => {
+                const irmaoRef = db.collection("processos").doc(irmao.id);
+                batch.update(irmaoRef, { processoPilotoId: processoAlvo.id });
+            });
+        }
+        // Se for 'autonomo', não há grupo para reorganizar, então o trabalho termina no passo 1.
+
+        // 3. Executa todas as operações em uma única transação
+        await batch.commit();
+        showToast("Processo promovido a Piloto com sucesso!", "success");
+        
+        // Atualiza a visualização para refletir as mudanças
+        renderDevedorDetailPage(processoAlvo.devedorId);
+
+    } catch (error) {
+        console.error("Erro ao promover processo a piloto: ", error);
+        showToast("Ocorreu um erro crítico durante a promoção. Os dados não foram alterados.", "error");
+    }
+}
 function handleRegistrarAnalise(devedorId) { if (confirm("Deseja registrar a data de análise para hoje?")) { db.collection("grandes_devedores").doc(devedorId).update({ dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp() }).then(() => showToast("Data de análise registrada com sucesso!")).catch(err => { console.error("Erro ao registrar análise: ", err); showToast("Erro ao registrar análise.", "error"); }); } }
 
 // --- FORMULÁRIOS: DEVEDORES ---
