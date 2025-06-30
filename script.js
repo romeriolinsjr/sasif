@@ -566,7 +566,7 @@ function renderProcessosList(processos) {
             <td>${exequente ? exequente.nome : 'N/A'}</td>
             <td>${item.tipoProcesso.charAt(0).toUpperCase() + item.tipoProcesso.slice(1)}</td>
             <td><span class="status-badge status-${(item.status || 'Ativo').toLowerCase()}">${statusText}</span></td>
-            <td>${formatCurrency(item.valorDivida)}</td>
+            <td>${formatCurrency(item.valorAtual ? item.valorAtual.valor : item.valorDivida)}</td>
             <td class="actions-cell">
                 <button class="action-btn btn-edit" data-id="${item.id}">Editar</button>
                 <button class="action-btn btn-delete" data-id="${item.id}">Excluir</button>
@@ -639,8 +639,14 @@ ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" cl
                     <div><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</div>
                     <div><strong>Grande Devedor:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</div>
                     <div><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</div>
-                    <div><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorDivida)}</div>
-                </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida)}</div>
+                        <div>
+                            <button id="update-valor-btn" class="action-btn btn-edit" style="margin-left: 0;">Atualizar</button>
+                            <button id="view-history-btn" class="action-btn btn-secondary" style="background-color: #6c757d;">Histórico</button>
+                        </div>
+                    </div>
+                    </div>
                 <div class="detail-full-width">
                     <strong>CDA(s):</strong> 
                     <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
@@ -698,6 +704,14 @@ ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" cl
                 handleUnattachProcesso(processo.id);
             });
         }
+        // Adicione este bloco no final da cadeia de listeners, antes do .catch
+        document.getElementById('update-valor-btn').addEventListener('click', () => {
+            renderValorUpdateModal(processo.id);
+        });
+
+        document.getElementById('view-history-btn').addEventListener('click', () => {
+            renderValorHistoryModal(processo.id);
+        });
     }).catch(error => { //...
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
@@ -1541,6 +1555,123 @@ function handleUnattachProcesso(processoId) {
         showToast("Ocorreu um erro ao desapensar o processo.", "error");
     });
 }
+
+function renderValorUpdateModal(processoId) {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>Atualizar Valor da Dívida</h3>
+            <div class="form-group">
+                <label for="novo-valor">Novo Valor (R$)</label>
+                <input type="number" id="novo-valor" placeholder="0.00" step="0.01" required>
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-new-valor-btn" class="btn-primary">Salvar Atualização</button>
+                <button id="cancel-valor-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    document.getElementById('save-new-valor-btn').addEventListener('click', () => handleSaveValorUpdate(processoId));
+    document.getElementById('cancel-valor-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+}
+
+async function handleSaveValorUpdate(processoId) {
+    const novoValorInput = document.getElementById('novo-valor').value;
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+
+    if (!novoValorInput) {
+        errorMessage.textContent = 'O campo Novo Valor é obrigatório.';
+        return;
+    }
+    const novoValor = parseFloat(novoValorInput);
+
+    const batch = db.batch();
+    const processoRef = db.collection("processos").doc(processoId);
+    const historicoRef = processoRef.collection("historicoValores").doc();
+
+    // 1. Atualiza o valor no documento principal do processo
+    batch.update(processoRef, {
+        "valorAtual.valor": novoValor,
+        "valorAtual.data": firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 2. Adiciona um novo registro na subcoleção de histórico
+    batch.set(historicoRef, {
+        valor: novoValor,
+        data: firebase.firestore.FieldValue.serverTimestamp(),
+        tipo: 'Atualização Manual'
+    });
+
+    try {
+        await batch.commit();
+        showToast("Valor da dívida atualizado com sucesso!");
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+        
+        // Recarrega os detalhes do processo para refletir o novo valor
+        renderProcessoDetailPage(processoId); 
+    } catch (error) {
+        console.error("Erro ao atualizar valor: ", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar a atualização.";
+    }
+}
+
+async function renderValorHistoryModal(processoId) {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>Histórico de Valores da Dívida</h3>
+            <div id="history-list-container"><p>Carregando histórico...</p></div>
+            <div class="form-buttons" style="justify-content: flex-end; margin-top: 20px;">
+                <button id="close-history-modal" class="btn-secondary">Fechar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalOverlay);
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    document.getElementById('close-history-modal').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+    // Busca os dados da subcoleção e renderiza a tabela
+    try {
+        const snapshot = await db.collection("processos").doc(processoId).collection("historicoValores").orderBy("data", "desc").get();
+        const historyContainer = document.getElementById('history-list-container');
+        
+        if (snapshot.empty) {
+            historyContainer.innerHTML = `<p class="empty-list-message">Nenhum histórico de valores encontrado.</p>`;
+            return;
+        }
+
+        let tableHTML = `<table class="data-table"><thead><tr><th>Data</th><th>Valor</th><th>Tipo</th></tr></thead><tbody>`;
+        snapshot.docs.forEach(doc => {
+            const item = doc.data();
+            const data = item.data ? new Date(item.data.seconds * 1000).toLocaleString('pt-BR') : 'N/A';
+            tableHTML += `
+                <tr>
+                    <td>${data}</td>
+                    <td>${formatCurrency(item.valor)}</td>
+                    <td>${item.tipo}</td>
+                </tr>
+            `;
+        });
+        tableHTML += `</tbody></table>`;
+        historyContainer.innerHTML = tableHTML;
+
+    } catch (error) {
+        console.error("Erro ao buscar histórico de valores: ", error);
+        document.getElementById('history-list-container').innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar o histórico.</p>`;
+    }
+}
+
 function handleRegistrarAnalise(devedorId) { if (confirm("Deseja registrar a data de análise para hoje?")) { db.collection("grandes_devedores").doc(devedorId).update({ dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp() }).then(() => showToast("Data de análise registrada com sucesso!")).catch(err => { console.error("Erro ao registrar análise: ", err); showToast("Erro ao registrar análise.", "error"); }); } }
 
 // --- FORMULÁRIOS: DEVEDORES ---
@@ -1788,12 +1919,14 @@ function renderProcessoForm(devedorId, processo = null) {
     document.getElementById('cancel-btn').addEventListener('click', () => renderDevedorDetailPage(devedorId));
 }
 
-function handleSaveProcesso(devedorId, processoId = null) {
+// Substitua a função inteira
+async function handleSaveProcesso(devedorId, processoId = null) {
     const numeroProcesso = document.getElementById('numero-processo').value;
     const exequenteId = document.getElementById('exequente').value;
     const tipoProcesso = document.getElementById('tipo-processo').value;
     const status = document.getElementById('status-processo').value;
     const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
+    const valorInput = parseFloat(document.getElementById('valor-divida').value) || 0;
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
     
@@ -1809,10 +1942,17 @@ function handleSaveProcesso(devedorId, processoId = null) {
         tipoProcesso,
         status,
         motivoSuspensaoId: status === 'Suspenso' ? motivoSuspensaoId : null,
-        valorDivida: parseFloat(document.getElementById('valor-divida').value) || 0,
         cdas: document.getElementById('cdas').value,
-        uidUsuario: auth.currentUser.uid
+        uidUsuario: auth.currentUser.uid,
+        // Nova estrutura para o valor
+        valorAtual: {
+            valor: valorInput,
+            data: firebase.firestore.FieldValue.serverTimestamp()
+        }
     };
+    
+    // Removendo o campo antigo para manter a consistência
+    delete processoData.valorDivida;
     
     if (tipoProcesso === 'apenso') {
         const processoPilotoId = document.getElementById('processo-piloto')?.value;
@@ -1825,17 +1965,41 @@ function handleSaveProcesso(devedorId, processoId = null) {
         processoData.processoPilotoId = null; 
     }
     
-    const promise = processoId
-        ? db.collection("processos").doc(processoId).update({...processoData, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()})
-        : db.collection("processos").add({...processoData, criadoEm: firebase.firestore.FieldValue.serverTimestamp()});
+    const batch = db.batch();
+    
+    try {
+        if (processoId) {
+            // Editando um processo existente
+            const processoRef = db.collection("processos").doc(processoId);
+            processoData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+            batch.update(processoRef, processoData);
+
+            // Ao editar, podemos considerar se o valor foi alterado e adicionar ao histórico.
+            // Por simplicidade agora, vamos apenas atualizar. A lógica de histórico na edição pode vir depois.
+        } else {
+            // Criando um novo processo
+            const processoRef = db.collection("processos").doc(); // Gera um novo ID
+            processoData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+            batch.set(processoRef, processoData);
+
+            // Adiciona a primeira entrada no histórico
+            const historicoRef = processoRef.collection("historicoValores").doc();
+            batch.set(historicoRef, {
+                valor: valorInput,
+                data: firebase.firestore.FieldValue.serverTimestamp(),
+                tipo: 'Valor de Causa'
+            });
+        }
         
-    promise.then(() => {
+        await batch.commit();
+        
         renderDevedorDetailPage(devedorId);
         setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100);
-    }).catch(err => {
+
+    } catch (err) {
         console.error("Erro ao salvar processo: ", err);
         errorMessage.textContent = 'Ocorreu um erro ao salvar.';
-    });
+    }
 }
 
 // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
