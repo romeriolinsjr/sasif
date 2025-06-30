@@ -1559,12 +1559,17 @@ function handleUnattachProcesso(processoId) {
 function renderValorUpdateModal(processoId) {
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
+    // CÓDIGO DE SUBSTITUIÇÃO
     modalOverlay.innerHTML = `
         <div class="modal-content">
             <h3>Atualizar Valor da Dívida</h3>
             <div class="form-group">
                 <label for="novo-valor">Novo Valor (R$)</label>
                 <input type="number" id="novo-valor" placeholder="0.00" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="data-calculo">Data do Cálculo (Obrigatório)</label>
+                <input type="date" id="data-calculo" required>
             </div>
             <div id="error-message"></div>
             <div class="form-buttons">
@@ -1582,31 +1587,36 @@ function renderValorUpdateModal(processoId) {
     modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 }
 
+// CÓDIGO DE SUBSTITUIÇÃO
 async function handleSaveValorUpdate(processoId) {
     const novoValorInput = document.getElementById('novo-valor').value;
+    const dataCalculoInput = document.getElementById('data-calculo').value;
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
 
-    if (!novoValorInput) {
-        errorMessage.textContent = 'O campo Novo Valor é obrigatório.';
+    if (!novoValorInput || !dataCalculoInput) {
+        errorMessage.textContent = 'Ambos os campos, Novo Valor e Data do Cálculo, são obrigatórios.';
         return;
     }
     const novoValor = parseFloat(novoValorInput);
+    const dataCalculo = new Date(dataCalculoInput + "T00:00:00");
 
     const batch = db.batch();
     const processoRef = db.collection("processos").doc(processoId);
     const historicoRef = processoRef.collection("historicoValores").doc();
 
+    const dataParaSalvar = firebase.firestore.Timestamp.fromDate(dataCalculo);
+
     // 1. Atualiza o valor no documento principal do processo
     batch.update(processoRef, {
         "valorAtual.valor": novoValor,
-        "valorAtual.data": firebase.firestore.FieldValue.serverTimestamp()
+        "valorAtual.data": dataParaSalvar
     });
 
     // 2. Adiciona um novo registro na subcoleção de histórico
     batch.set(historicoRef, {
         valor: novoValor,
-        data: firebase.firestore.FieldValue.serverTimestamp(),
+        data: dataParaSalvar,
         tipo: 'Atualização Manual'
     });
 
@@ -1615,7 +1625,6 @@ async function handleSaveValorUpdate(processoId) {
         showToast("Valor da dívida atualizado com sucesso!");
         document.body.removeChild(document.querySelector('.modal-overlay'));
         
-        // Recarrega os detalhes do processo para refletir o novo valor
         renderProcessoDetailPage(processoId); 
     } catch (error) {
         console.error("Erro ao atualizar valor: ", error);
@@ -1654,7 +1663,7 @@ async function renderValorHistoryModal(processoId) {
         let tableHTML = `<table class="data-table"><thead><tr><th>Data</th><th>Valor</th><th>Tipo</th></tr></thead><tbody>`;
         snapshot.docs.forEach(doc => {
             const item = doc.data();
-            const data = item.data ? new Date(item.data.seconds * 1000).toLocaleString('pt-BR') : 'N/A';
+            const data = item.data ? new Date(item.data.seconds * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A';
             tableHTML += `
                 <tr>
                     <td>${data}</td>
