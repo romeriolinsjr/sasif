@@ -381,15 +381,18 @@ function renderDiligenciasList(diligencias) {
         let acoesBtn = '';
         let linhaStyle = '';
 
+        // CÓDIGO DE SUBSTITUIÇÃO
         if (isCumprida) {
             const dataCumprimento = new Date(item.historicoCumprimentos[anoMesAtual].seconds * 1000);
-            const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR');
+            const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-            acoesBtn = `<button class="action-btn" data-action="desfazer" data-id="${item.id}">Desfazer</button>`;
-            linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"'; // Estilo para cumprido
+            // CORREÇÃO AQUI: Adicionamos as classes 'action-btn' e 'btn-secondary' ao botão "Desfazer"
+            acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}">Desfazer</button>`;
+            linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"';
         } else {
-            statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`; // Reutilizando a classe de suspenso para 'Pendente'
-            acoesBtn = `<button class="action-btn btn-primary" style="background-color: var(--cor-sucesso);" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
+            statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`;
+            // CORREÇÃO AQUI: Usamos a classe 'btn-sucesso' que vamos criar, em vez de estilo inline. E o texto para "Cumprir".
+            acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
         }
         
         tableHTML += `
@@ -399,11 +402,12 @@ function renderDiligenciasList(diligencias) {
                 <td>${item.processoVinculado ? formatProcessoForDisplay(item.processoVinculado) : 'N/A'}</td>
                 <td>${statusBadge}</td>
                 <td class="actions-cell">
-                    ${acoesBtn}
-                    <button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button>
-                    <button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button>
-                </td>
-            </tr>
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        ${acoesBtn}
+                        <button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button>
+                        <button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button>
+                </div>
+            </td>
         `;
     });
 

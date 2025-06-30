@@ -734,3 +734,13 @@ body {
 .action-btn.btn-secondary:hover {
     background-color: #5a6268;
 }
+/* Adicionar ao final do style.css para o botão 'Cumprir' */
+
+.action-btn.btn-sucesso {
+    background-color: var(--cor-sucesso);
+    color: var(--cor-texto-claro);
+}
+
+.action-btn.btn-sucesso:hover {
+    background-color: #1e8e3e; /* Um verde um pouco mais escuro para o hover */
+}
