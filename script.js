@@ -511,7 +511,30 @@ function renderReadOnlyTextModal(title, content) {
 }
 
 // --- DETALHES DO DEVEDOR E PROCESSOS ---
-function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; contentArea.innerHTML = `<div class="detail-header-card"><p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p></div><div class="dashboard-actions"><button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button><button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button></div><h2>Lista de Processos</h2><div id="processos-list-container"></div>`; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
+function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; // Substitua pelo seguinte trecho completo:
+        contentArea.innerHTML = `
+            <div class="detail-header-card">
+                <p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p>
+                ${devedor.nomeFantasia ? `<p><strong>Nome Fantasia:</strong> ${devedor.nomeFantasia}</p>` : ''}
+            </div>
+
+            ${ devedor.observacoes ? `
+                <div class="detail-card">
+                    <h3>Observações sobre o Devedor</h3>
+                    <div class="detail-full-width">
+                        <p>${devedor.observacoes.replace(/\n/g, '<br>')}</p>
+                    </div>
+                </div>
+            ` : '' }
+            
+            <div class="dashboard-actions">
+                <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
+                <button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button>
+            </div>
+
+            <h2>Lista de Processos</h2>
+            <div id="processos-list-container"></div>
+        `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
 function renderProcessosList(processos) {
     const container = document.getElementById('processos-list-container');
     if (!container) return;
@@ -605,7 +628,8 @@ function renderProcessoDetailPage(processoId) {
         contentArea.innerHTML = `
             <div class="dashboard-actions">
             <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
-            ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autonomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
+${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autonomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
+${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
             </div>
             
             <div class="detail-card">
@@ -666,6 +690,12 @@ function renderProcessoDetailPage(processoId) {
             if (document.getElementById('promote-piloto-btn')) {
             document.getElementById('promote-piloto-btn').addEventListener('click', () => {
                 handlePromoteToPiloto(processo.id);
+            });
+        }
+        // ADICIONE O CÓDIGO DO NOVO LISTENER AQUI
+        if (document.getElementById('unattach-processo-btn')) {
+            document.getElementById('unattach-processo-btn').addEventListener('click', () => {
+                handleUnattachProcesso(processo.id);
             });
         }
     }).catch(error => { //...
@@ -1487,6 +1517,29 @@ async function handlePromoteToPiloto(processoId) {
         console.error("Erro ao promover processo a piloto: ", error);
         showToast("Ocorreu um erro crítico durante a promoção. Os dados não foram alterados.", "error");
     }
+}
+function handleUnattachProcesso(processoId) {
+    const processo = processosCache.find(p => p.id === processoId);
+    if (!processo) {
+        showToast("Processo não encontrado.", "error");
+        return;
+    }
+
+    if (!confirm(`Tem certeza que deseja desapensar o processo ${formatProcessoForDisplay(processo.numeroProcesso)}? \n\nEle se tornará um processo Autônomo.`)) {
+        return; // Usuário cancelou
+    }
+
+    db.collection("processos").doc(processoId).update({
+        tipoProcesso: 'autonomo',
+        processoPilotoId: firebase.firestore.FieldValue.delete()
+    }).then(() => {
+        showToast("Processo desapensado com sucesso!", "success");
+        // Recarrega a página de detalhes do devedor para ver a lista atualizada
+        renderDevedorDetailPage(processo.devedorId);
+    }).catch(error => {
+        console.error("Erro ao desapensar processo: ", error);
+        showToast("Ocorreu um erro ao desapensar o processo.", "error");
+    });
 }
 function handleRegistrarAnalise(devedorId) { if (confirm("Deseja registrar a data de análise para hoje?")) { db.collection("grandes_devedores").doc(devedorId).update({ dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp() }).then(() => showToast("Data de análise registrada com sucesso!")).catch(err => { console.error("Erro ao registrar análise: ", err); showToast("Erro ao registrar análise.", "error"); }); } }
 
