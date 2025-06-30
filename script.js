@@ -389,7 +389,7 @@ function renderDiligenciasList(diligencias) {
             linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"'; // Estilo para cumprido
         } else {
             statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`; // Reutilizando a classe de suspenso para 'Pendente'
-            acoesBtn = `<button class="action-btn btn-primary" style="background-color: var(--cor-sucesso);" data-action="cumprir" data-id="${item.id}">Cumprir Hoje</button>`;
+            acoesBtn = `<button class="action-btn btn-primary" style="background-color: var(--cor-sucesso);" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
         }
         
         tableHTML += `
@@ -633,25 +633,33 @@ ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" cl
             </div>
             
             <div class="detail-card">
-                <h3>Detalhes do Processo</h3>
-                <div class="detail-grid">
-                    <div><strong>Número:</strong> ${formatProcessoForDisplay(processo.numeroProcesso)}</div>
-                    <div><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</div>
-                    <div><strong>Grande Devedor:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</div>
-                    <div><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</div>
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida)}</div>
-                        <div>
-                            <button id="update-valor-btn" class="action-btn btn-edit" style="margin-left: 0;">Atualizar</button>
-                            <button id="view-history-btn" class="action-btn btn-secondary" style="background-color: #6c757d;">Histórico</button>
-                        </div>
-                    </div>
-                    </div>
-                <div class="detail-full-width">
-                    <strong>CDA(s):</strong> 
-                    <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
+    <h3>Detalhes do Processo</h3>
+    <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
+        
+        <!-- Coluna Esquerda -->
+        <div>
+            <p><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</p>
+            <p><strong>Executado:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</p>
+        </div>
+
+        <!-- Coluna Direita -->
+        <div>
+            <p><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</p>
+            <div class="valor-divida-container">
+                <p><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida)}</p>
+                <div class="valor-divida-actions">
+                    <button id="update-valor-btn" class="action-btn btn-edit">Atualizar</button>
+                    <button id="view-history-btn" class="action-btn btn-secondary">Histórico</button>
                 </div>
             </div>
+        </div>
+
+    </div>
+    <div class="detail-full-width">
+        <strong>CDA(s):</strong> 
+        <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
+    </div>
+</div>
 
             <div class="content-section">
                 <div class="section-header">
@@ -1559,7 +1567,6 @@ function handleUnattachProcesso(processoId) {
 function renderValorUpdateModal(processoId) {
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
-    // CÓDIGO DE SUBSTITUIÇÃO
     modalOverlay.innerHTML = `
         <div class="modal-content">
             <h3>Atualizar Valor da Dívida</h3>
@@ -1587,7 +1594,6 @@ function renderValorUpdateModal(processoId) {
     modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 }
 
-// CÓDIGO DE SUBSTITUIÇÃO
 async function handleSaveValorUpdate(processoId) {
     const novoValorInput = document.getElementById('novo-valor').value;
     const dataCalculoInput = document.getElementById('data-calculo').value;

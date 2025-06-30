@@ -674,3 +674,63 @@ body {
     margin-top: 4px;
     padding-left: 22px; /* Alinha com o texto do devedor */
 }
+/* Garante que os botões de ação na página de detalhes do processo tenham a mesma aparência */
+#update-valor-btn.btn-edit {
+    background-color: #ffc107; /* Amarelo */
+    color: var(--cor-texto-escuro);
+}
+
+#view-history-btn.btn-secondary {
+    background-color: #6c757d; /* Cinza */
+    color: var(--cor-texto-claro);
+}
+
+#view-history-btn.btn-secondary:hover {
+    background-color: #5a6268;
+}
+/* Adicionar ao final do style.css */
+
+.valor-divida-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Permite que os botões quebrem a linha em telas muito pequenas */
+    gap: 10px;
+}
+
+.valor-divida-container p {
+    margin: 0; /* Remove a margem padrão do parágrafo para melhor alinhamento */
+}
+
+.valor-divida-actions {
+    display: flex;
+    gap: 8px; /* Espaçamento entre os botões */
+}
+
+/* Garante que todos os action-btn tenham o mesmo padding, fonte e altura */
+.action-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5; /* Garante altura de linha consistente */
+    white-space: nowrap; /* Evita que o texto do botão quebre linha */
+    margin-left: 0; /* Sobrescreve o margin-left anterior, se houver */
+}
+
+/* Cores específicas para os botões */
+.action-btn.btn-edit {
+    background-color: #ffc107;
+    color: var(--cor-texto-escuro);
+}
+
+.action-btn.btn-secondary {
+    background-color: #6c757d;
+    color: var(--cor-texto-claro);
+}
+
+.action-btn.btn-secondary:hover {
+    background-color: #5a6268;
+}
