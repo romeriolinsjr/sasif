@@ -546,27 +546,60 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
         `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
 
         function renderProcessosList(processos) {
-    // --- LÓGICA DE CÁLCULO E RENDERIZAÇÃO DO RESUMO ---
+
+              // --- LÓGICA DE CÁLCULO E RENDERIZAÇÃO DO RESUMO ---
     const totalProcessos = processos.length;
-    const valorTotalDivida = processos.reduce((total, processo) => {
+
+    // Objeto para armazenar os totais por exequenteId
+    const totaisPorExequente = {};
+
+    processos.forEach(processo => {
         const valor = processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0);
-        return total + valor;
-    }, 0);
+        const exequenteId = processo.exequenteId;
+
+        if (exequenteId) {
+            if (totaisPorExequente[exequenteId]) {
+                totaisPorExequente[exequenteId] += valor;
+            } else {
+                totaisPorExequente[exequenteId] = valor;
+            }
+        }
+    });
+
+    const valorTotalGeral = Object.values(totaisPorExequente).reduce((total, valor) => total + valor, 0);
+
+    // Gera o HTML para a lista detalhada de exequentes
+    let detalhamentoHTML = '';
+    for (const exequenteId in totaisPorExequente) {
+        const exequente = exequentesCache.find(e => e.id === exequenteId);
+        const nomeExequente = exequente ? exequente.nome : 'Exequente não identificado';
+        detalhamentoHTML += `
+            <p style="margin-left: 20px; margin-top: 8px;">
+                ↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])}
+            </p>
+        `;
+    }
 
     const resumoContainer = document.getElementById('resumo-financeiro-container');
     if (resumoContainer) {
-         resumoContainer.innerHTML = `
+        resumoContainer.innerHTML = `
             <div class="detail-card" style="margin-top: 20px;">
                 <h3>Resumo Financeiro e Processual</h3>
-                <div class="detail-grid">
-                    <div><strong>Processos Vinculados:</strong> ${totalProcessos}</div>
+                <div class="detail-grid" style="row-gap: 5px;">
+                    <div>
+                        <strong>Processos Vinculados:</strong> ${totalProcessos}
+                    </div>
                     <div class="info-tooltip-container">
-                        <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalDivida)}
+                        <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)}
                         <span class="info-icon">i</span>
                         <div class="info-tooltip-text">
                             Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.
                         </div>
                     </div>
+                </div>
+                <!-- Div para o detalhamento que será inserido aqui -->
+                <div id="detalhamento-exequente">
+                    ${detalhamentoHTML}
                 </div>
             </div>
         `;
@@ -1521,7 +1554,53 @@ function handleProcessoAction(event) {
     }
 }
 function handleEditProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (processo) renderProcessoForm(processo.devedorId, processo); else showToast("Processo não encontrado.", "error"); }
-function handleDeleteProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (confirm(`Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`)) db.collection("processos").doc(processoId).delete().then(() => showToast("Processo excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
+async function handleDeleteProcesso(processoId) {
+    const processo = processosCache.find(p => p.id === processoId);
+    if (!processo) {
+        showToast("Processo não encontrado para exclusão.", "error");
+        return;
+    }
+
+    let confirmMessage = `Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`;
+    let isPiloto = processo.tipoProcesso === 'piloto';
+    
+    // Mensagem de alerta especial para processos piloto
+    if (isPiloto) {
+        const apensos = processosCache.filter(p => p.processoPilotoId === processo.id);
+        if (apensos.length > 0) {
+            confirmMessage = `ATENÇÃO: Você está excluindo um Processo Piloto com ${apensos.length} apenso(s).\n\nAo confirmar, TODOS os apensos serão excluídos permanentemente.\n\nPara evitar isso, promova um dos apensos a novo piloto ANTES de excluir este.\n\nDeseja continuar com a exclusão de todos os ${apensos.length + 1} processos?`;
+        }
+    }
+
+    if (!confirm(confirmMessage)) {
+        return; // Usuário cancelou
+    }
+
+    try {
+        const batch = db.batch();
+        const processoRef = db.collection("processos").doc(processoId);
+        
+        // Se for piloto, primeiro deleta todos os apensos
+        if (isPiloto) {
+            const apensos = processosCache.filter(p => p.processoPilotoId === processo.id);
+            apensos.forEach(apenso => {
+                const apensoRef = db.collection("processos").doc(apenso.id);
+                batch.delete(apensoRef);
+            });
+        }
+        
+        // Por fim, deleta o processo principal (seja ele piloto, apenso ou autônomo)
+        batch.delete(processoRef);
+
+        await batch.commit();
+        showToast("Processo(s) excluído(s) com sucesso!");
+        // Não é necessário chamar renderDevedorDetailPage aqui, pois o listener onSnapshot fará isso automaticamente.
+
+    } catch (error) {
+        console.error("Erro ao excluir processo(s):", error);
+        showToast("Ocorreu um erro ao excluir o(s) processo(s).", "error");
+    }
+}
 async function handlePromoteToPiloto(processoId) {
     const processoAlvo = processosCache.find(p => p.id === processoId);
     if (!processoAlvo) {
@@ -1916,8 +1995,8 @@ function renderProcessoForm(devedorId, processo = null) {
 
             <div class="form-group">
                 <label for="valor-divida">Valor da Dívida</label>
-                <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? processo.valorDivida : ''}">
-            </div>
+                <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? (processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida) : ''}">
+                </div>
             <div class="form-group">
                 <label for="cdas">CDA(s)</label>
                 <textarea id="cdas" rows="3">${isEditing ? (processo.cdas || '') : ''}</textarea>
