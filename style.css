@@ -744,3 +744,52 @@ body {
 .action-btn.btn-sucesso:hover {
     background-color: #1e8e3e; /* Um verde um pouco mais escuro para o hover */
 }
+.info-tooltip-container {
+    position: relative; /* Necessário para posicionar o texto do tooltip */
+    display: inline-flex; /* Alinha o ícone ao lado do texto */
+    align-items: center;
+    gap: 8px;
+}
+
+.info-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: #6c757d; /* Cor cinza, igual ao botão 'Histórico' */
+    color: white;
+    font-weight: bold;
+    font-family: 'Georgia', serif; /* Fonte serifada para um 'i' mais clássico */
+    font-style: italic;
+    text-align: center;
+    line-height: 18px;
+    cursor: help; /* Muda o cursor para indicar que há ajuda */
+    font-size: 14px;
+}
+
+.info-tooltip-text {
+    visibility: hidden; /* Esconde o texto por padrão */
+    width: 250px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px;
+    
+    /* Posicionamento do tooltip */
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; /* Posiciona acima do ícone */
+    left: 50%;
+    margin-left: -125px; /* Centraliza o tooltip (metade da largura) */
+
+    /* Efeito de fade */
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Mostra o texto do tooltip ao passar o mouse sobre o contêiner */
+.info-tooltip-container:hover .info-tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}

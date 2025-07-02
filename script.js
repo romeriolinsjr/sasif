@@ -522,6 +522,9 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
                 ${devedor.nomeFantasia ? `<p><strong>Nome Fantasia:</strong> ${devedor.nomeFantasia}</p>` : ''}
             </div>
 
+            <!-- Container vazio que será preenchido pela renderProcessosList -->
+            <div id="resumo-financeiro-container"></div>
+
             ${ devedor.observacoes ? `
                 <div class="detail-card">
                     <h3>Observações sobre o Devedor</h3>
@@ -537,9 +540,40 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
             </div>
 
             <h2>Lista de Processos</h2>
-            <div id="processos-list-container"></div>
+            <div id="processos-list-container">
+                <p class="empty-list-message">Carregando processos...</p>
+            </div>
         `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
-function renderProcessosList(processos) {
+
+        function renderProcessosList(processos) {
+    // --- LÓGICA DE CÁLCULO E RENDERIZAÇÃO DO RESUMO ---
+    const totalProcessos = processos.length;
+    const valorTotalDivida = processos.reduce((total, processo) => {
+        const valor = processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0);
+        return total + valor;
+    }, 0);
+
+    const resumoContainer = document.getElementById('resumo-financeiro-container');
+    if (resumoContainer) {
+         resumoContainer.innerHTML = `
+            <div class="detail-card" style="margin-top: 20px;">
+                <h3>Resumo Financeiro e Processual</h3>
+                <div class="detail-grid">
+                    <div><strong>Processos Vinculados:</strong> ${totalProcessos}</div>
+                    <div class="info-tooltip-container">
+                        <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalDivida)}
+                        <span class="info-icon">i</span>
+                        <div class="info-tooltip-text">
+                            Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    // --- FIM DA LÓGICA DO RESUMO ---
+
+    // --- LÓGICA PARA RENDERIZAR A LISTA DE PROCESSOS (código original) ---
     const container = document.getElementById('processos-list-container');
     if (!container) return;
 
@@ -559,18 +593,19 @@ function renderProcessosList(processos) {
     itemsOrdenados.forEach(item => {
         const exequente = exequentesCache.find(ex => ex.id === item.exequenteId);
         
-        // Lógica de status para piloto/autônomo
         const motivo = item.status === 'Suspenso' && item.motivoSuspensaoId 
             ? motivosSuspensaoCache.find(m => m.id === item.motivoSuspensaoId)
             : null;
         const statusText = motivo ? `Suspenso (${motivo.descricao})` : (item.status || 'Ativo');
+
+        const valorExibido = item.valorAtual ? item.valorAtual.valor : (item.valorDivida || 0);
 
         const itemHTML = `
             <td>${item.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(item.numeroProcesso)}</a></td>
             <td>${exequente ? exequente.nome : 'N/A'}</td>
             <td>${item.tipoProcesso.charAt(0).toUpperCase() + item.tipoProcesso.slice(1)}</td>
             <td><span class="status-badge status-${(item.status || 'Ativo').toLowerCase()}">${statusText}</span></td>
-            <td>${formatCurrency(item.valorAtual ? item.valorAtual.valor : item.valorDivida)}</td>
+            <td>${formatCurrency(valorExibido)}</td>
             <td class="actions-cell">
                 <button class="action-btn btn-edit" data-id="${item.id}">Editar</button>
                 <button class="action-btn btn-delete" data-id="${item.id}">Excluir</button>
@@ -582,18 +617,19 @@ function renderProcessosList(processos) {
             apensosMap.get(item.id).forEach(apenso => {
                 const exApenso = exequentesCache.find(ex => ex.id === apenso.exequenteId);
 
-                // Lógica de status para processo apenso
                 const motivoApenso = apenso.status === 'Suspenso' && apenso.motivoSuspensaoId 
                     ? motivosSuspensaoCache.find(m => m.id === apenso.motivoSuspensaoId)
                     : null;
                 const statusTextApenso = motivoApenso ? `Suspenso (${motivoApenso.descricao})` : (apenso.status || 'Ativo');
+
+                const valorApensoExibido = apenso.valorAtual ? apenso.valorAtual.valor : (apenso.valorDivida || 0);
 
                 const apensoHTML = `
                     <td><a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(apenso.numeroProcesso)}</a></td>
                     <td>${exApenso ? exApenso.nome : 'N/A'}</td>
                     <td>Apenso</td>
                     <td><span class="status-badge status-${(apenso.status || 'Ativo').toLowerCase()}">${statusTextApenso}</span></td>
-                    <td>${formatCurrency(apenso.valorDivida)}</td>
+                    <td>${formatCurrency(valorApensoExibido)}</td>
                     <td class="actions-cell">
                         <button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button>
                         <button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button>
