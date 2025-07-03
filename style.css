@@ -876,3 +876,11 @@ body {
     background-color: #eef1f5;
     border-bottom: 1px solid var(--cor-borda);
 }
+.clickable-status {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.clickable-status:hover {
+    background-color: #e8f5e9; /* Verde bem claro para indicar ação positiva */
+}

@@ -173,6 +173,9 @@ function renderDashboard() {
     setupDashboardWidgets();
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'renderDevedoresList' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
     if (!container) return;
@@ -181,10 +184,40 @@ function renderDevedoresList(devedores) {
         return;
     }
     let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Razão Social</th><th>CNPJ</th><th>Prioridade</th><th>Status Análise</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    
     devedores.forEach((devedor, index) => {
-        const analise = getAnaliseStatus(devedor);
-        tableHTML += `<tr data-id="${devedor.id}" class="clickable-row"><td class="number-cell">${index + 1}</td><td>${devedor.razaoSocial}</td><td>${formatCNPJForDisplay(devedor.cnpj)}</td><td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td><td><span class="status-dot ${analise.status}"></span>${analise.text}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button><button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button></td></tr>`;
+        const analise = getAnaliseStatus(devedor); // Declaração correta, dentro do loop
+
+        // Define a célula de status condicionalmente
+        let statusCellHTML = '';
+        if (analise.status !== 'status-ok') {
+            // Se não estiver OK, a célula é clicável para registrar a análise
+            statusCellHTML = `
+                <td class="status-cell clickable-status" data-action="registrar-analise" data-id="${devedor.id}" title="Clique para registrar a análise hoje">
+                    <span class="status-dot ${analise.status}"></span>${analise.text}
+                </td>`;
+        } else {
+            // Se estiver OK, a célula é apenas informativa
+            statusCellHTML = `
+                <td class="status-cell">
+                    <span class="status-dot ${analise.status}"></span>${analise.text}
+                </td>`;
+        }
+        
+        tableHTML += `
+            <tr data-id="${devedor.id}" class="clickable-row">
+                <td class="number-cell">${index + 1}</td>
+                <td>${devedor.razaoSocial}</td>
+                <td>${formatCNPJForDisplay(devedor.cnpj)}</td>
+                <td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td>
+                ${statusCellHTML}
+                <td class="actions-cell">
+                    <button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button>
+                    <button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button>
+                </td>
+            </tr>`;
     });
+
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
     container.querySelector('tbody').addEventListener('click', handleDevedorAction);
@@ -1662,7 +1695,36 @@ function renderAnalisePendenteWidget(devedores) {
 }
 
 // --- HANDLERS (CRUD) ---
-function handleDevedorAction(event) { const target = event.target; if (target.classList.contains('action-btn')) { const devedorId = target.dataset.id; if (target.classList.contains('btn-delete')) handleDeleteDevedor(devedorId); else if (target.classList.contains('btn-edit')) handleEditDevedor(devedorId); } else { const row = target.closest('tr'); if (row && row.dataset.id) showDevedorPage(row.dataset.id); } }
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'handleDevedorAction' INTEIRA PELA VERSÃO CORRIGIDA
+// =================================================================================
+function handleDevedorAction(event) {
+    const target = event.target;
+    const actionTarget = target.closest('[data-action]'); // Procura o elemento mais próximo com um data-action
+
+    // Se um elemento com data-action foi clicado...
+    if (actionTarget) {
+        const action = actionTarget.dataset.action;
+        const devedorId = actionTarget.dataset.id;
+        
+        if (action === 'registrar-analise') {
+            event.stopPropagation(); // Impede que o clique na célula também acione o clique na linha
+            handleRegistrarAnalise(devedorId);
+        } else if (action === 'edit') {
+            handleEditDevedor(devedorId);
+        } else if (action === 'delete') {
+            handleDeleteDevedor(devedorId);
+        }
+        return; // Ação tratada, encerra a função
+    }
+
+    // Se nenhum elemento de ação foi clicado, verifica se foi um clique para ver detalhes
+    const row = target.closest('tr.clickable-row');
+    if (row) {
+        const devedorId = row.dataset.id;
+        showDevedorPage(devedorId);
+    }
+}
 function handleEditDevedor(devedorId) { db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (doc.exists) renderDevedorForm({ id: doc.id, ...doc.data() }); }); }
 function handleDeleteDevedor(devedorId) { if (confirm("Tem certeza que deseja excluir este Grande Devedor?")) db.collection("grandes_devedores").doc(devedorId).delete().then(() => showToast("Devedor excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
 function handleProcessoAction(event) {
@@ -2042,7 +2104,16 @@ async function renderValorHistoryModal(processoId) {
     }
 }
 
-function handleRegistrarAnalise(devedorId) { if (confirm("Deseja registrar a data de análise para hoje?")) { db.collection("grandes_devedores").doc(devedorId).update({ dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp() }).then(() => showToast("Data de análise registrada com sucesso!")).catch(err => { console.error("Erro ao registrar análise: ", err); showToast("Erro ao registrar análise.", "error"); }); } }
+function handleRegistrarAnalise(devedorId) {
+    db.collection("grandes_devedores").doc(devedorId).update({
+        dataUltimaAnalise: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        showToast("Data de análise registrada!");
+    }).catch(err => {
+        console.error("Erro ao registrar análise: ", err);
+        showToast("Erro ao registrar análise.", "error");
+    });
+}
 
 // --- FORMULÁRIOS: DEVEDORES ---
 function renderDevedorForm(devedor = null) { const isEditing = devedor !== null; const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const razaoSocial = isEditing ? devedor.razaoSocial : ''; const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : ''; const nomeFantasia = isEditing ? devedor.nomeFantasia : ''; const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1'; const observacoes = isEditing ? devedor.observacoes : ''; contentArea.innerHTML = `<div class="form-container" data-id="${isEditing ? devedor.id : ''}"><div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div><div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div><div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div><div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div><div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('nivel-prioridade').value = nivelPrioridade; document.getElementById('save-devedor-btn').addEventListener('click', () => { isEditing ? handleUpdateDevedor(devedor.id) : handleSaveDevedor(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('dashboard')); }
