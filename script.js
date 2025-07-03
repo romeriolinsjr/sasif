@@ -242,14 +242,23 @@ function renderDiligenciasPage() {
     setupDiligenciasListener(); // <-- ATIVAR O LISTENER AQUI
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'renderDiligenciaFormModal' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function renderDiligenciaFormModal(diligencia = null) {
     const isEditing = diligencia !== null;
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
 
+    // Formata a data para o input type="date" (YYYY-MM-DD)
+    let dataAlvoFormatada = '';
+    if (isEditing && diligencia.dataAlvo) {
+        dataAlvoFormatada = new Date(diligencia.dataAlvo.seconds * 1000).toISOString().split('T')[0];
+    }
+
     modalOverlay.innerHTML = `
         <div class="modal-content modal-large">
-            <h3>${isEditing ? 'Editar' : 'Adicionar'} Diligência Mensal</h3>
+            <h3>${isEditing ? 'Editar' : 'Adicionar'} Diligência</h3>
             
             <div class="form-group">
                 <label for="diligencia-titulo">Título da Diligência (Obrigatório)</label>
@@ -257,10 +266,15 @@ function renderDiligenciaFormModal(diligencia = null) {
             </div>
             
             <div class="form-group">
-                <label for="diligencia-dia">Dia Alvo do Mês (1-31, Obrigatório)</label>
-                <input type="number" id="diligencia-dia" min="1" max="31" value="${isEditing ? diligencia.diaDoMes : ''}" required>
+                <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label>
+                <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required>
             </div>
             
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="diligencia-recorrente" ${isEditing && diligencia.isRecorrente ? 'checked' : ''}>
+                <label for="diligencia-recorrente" style="margin-bottom: 0;">Diligência Recorrente (repete todo mês)</label>
+            </div>
+
             <div class="form-group">
                 <label for="diligencia-processo">Processo Vinculado (Opcional)</label>
                 <input type="text" id="diligencia-processo" placeholder="Formato: 0000000-00.0000.0.00.0000" value="${isEditing && diligencia.processoVinculado ? formatProcessoForDisplay(diligencia.processoVinculado) : ''}">
@@ -268,7 +282,7 @@ function renderDiligenciaFormModal(diligencia = null) {
             
             <div class="form-group">
                 <label for="diligencia-descricao">Descrição Completa (Opcional)</label>
-                <textarea id="diligencia-descricao" rows="5">${isEditing ? diligencia.descricao : ''}</textarea>
+                <textarea id="diligencia-descricao" rows="4">${isEditing ? diligencia.descricao : ''}</textarea>
             </div>
 
             <div id="error-message"></div>
@@ -281,7 +295,6 @@ function renderDiligenciaFormModal(diligencia = null) {
 
     document.body.appendChild(modalOverlay);
     
-    // Adiciona máscara ao campo de processo
     document.getElementById('diligencia-processo').addEventListener('input', (e) => maskProcesso(e.target));
 
     const closeModal = () => document.body.removeChild(modalOverlay);
@@ -290,28 +303,32 @@ function renderDiligenciaFormModal(diligencia = null) {
         handleSaveDiligencia(isEditing ? diligencia.id : null);
     });
     document.getElementById('cancel-diligencia-btn').addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', (e) => {
-        if (e.target === modalOverlay) closeModal();
-    });
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'handleSaveDiligencia' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function handleSaveDiligencia(diligenciaId = null) {
     const titulo = document.getElementById('diligencia-titulo').value.trim();
-    const diaDoMes = parseInt(document.getElementById('diligencia-dia').value, 10);
+    const dataAlvoInput = document.getElementById('diligencia-data-alvo').value;
+    const isRecorrente = document.getElementById('diligencia-recorrente').checked;
     const processoVinculadoInput = document.getElementById('diligencia-processo').value.trim();
     const descricao = document.getElementById('diligencia-descricao').value.trim();
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
 
-    // Validações
-    if (!titulo || !diaDoMes) {
-        errorMessage.textContent = 'Título e Dia Alvo são obrigatórios.';
+    if (!titulo || !dataAlvoInput) {
+        errorMessage.textContent = 'Título e Data Alvo são obrigatórios.';
         return;
     }
-    if (isNaN(diaDoMes) || diaDoMes < 1 || diaDoMes > 31) {
-        errorMessage.textContent = 'O Dia Alvo deve ser um número entre 1 e 31.';
+    
+    const dataAlvo = new Date(dataAlvoInput + "T00:00:00");
+    if (isNaN(dataAlvo.getTime())) {
+        errorMessage.textContent = 'Data Alvo inválida.';
         return;
     }
+
     const processoVinculado = processoVinculadoInput.replace(/\D/g, '');
     if (processoVinculado && processoVinculado.length !== 20) {
         errorMessage.textContent = 'O Número do Processo, se preenchido, deve ser válido.';
@@ -320,21 +337,20 @@ function handleSaveDiligencia(diligenciaId = null) {
 
     const data = {
         titulo,
-        diaDoMes,
-        processoVinculado: processoVinculado || null, // Salva null se estiver vazio
+        dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo), // Novo campo de data
+        isRecorrente, // Novo campo booleano
+        processoVinculado: processoVinculado || null,
         descricao,
         userId: auth.currentUser.uid
     };
 
     let promise;
     if (diligenciaId) {
-        // Editando - ainda não vamos usar, mas a estrutura já está pronta
         data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
         promise = db.collection("diligenciasMensais").doc(diligenciaId).update(data);
     } else {
-        // Criando
         data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
-        data.historicoCumprimentos = {}; // Inicia o histórico vazio
+        data.historicoCumprimentos = {};
         promise = db.collection("diligenciasMensais").add(data);
     }
 
@@ -347,13 +363,18 @@ function handleSaveDiligencia(diligenciaId = null) {
     });
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'setupDiligenciasListener' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function setupDiligenciasListener() {
-    if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe(); // Limpa listener anterior
+    if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe();
 
     const userId = auth.currentUser.uid;
+    // Temporariamente, removemos a ordenação por 'dataAlvo' para evitar erros com dados antigos.
+    // A ordenação será feita no cliente.
     diligenciasListenerUnsubscribe = db.collection("diligenciasMensais")
         .where("userId", "==", userId)
-        .orderBy("diaDoMes", "asc")
+        // .orderBy("dataAlvo", "asc") // <<<< Linha comentada para evitar erro de índice
         .onSnapshot((snapshot) => {
             diligenciasCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderDiligenciasList(diligenciasCache);
@@ -364,69 +385,68 @@ function setupDiligenciasListener() {
         });
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'renderDiligenciasList' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function renderDiligenciasList(diligencias) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
 
     if (diligencias.length === 0) {
-        container.innerHTML = `<p class="empty-list-message">Nenhuma diligência mensal cadastrada. Clique em "Adicionar Diligência" para começar.</p>`;
+        container.innerHTML = `<p class="empty-list-message">Nenhuma diligência cadastrada. Clique em "Adicionar Diligência" para começar.</p>`;
         return;
     }
+
+    // Ordena os dados no cliente para garantir consistência
+    diligencias.sort((a, b) => {
+        const dataA = a.dataAlvo ? a.dataAlvo.seconds : 0;
+        const dataB = b.dataAlvo ? b.dataAlvo.seconds : 0;
+        return dataA - dataB;
+    });
 
     const hoje = new Date();
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    let tableHTML = `
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Dia Alvo</th>
-                    <th>Título da Diligência</th>
-                    <th>Processo Vinculado</th>
-                    <th>Status (Mês Atual)</th>
-                    <th class="actions-cell">Ações</th>
-                </tr>
-            </thead>
-            <tbody>`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Diligência</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
 
     diligencias.forEach(item => {
-        const isCumprida = item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
+        // CORREÇÃO: Verifica se o campo 'dataAlvo' existe antes de usá-lo
+        if (!item.dataAlvo) {
+            console.warn(`Diligência antiga encontrada sem 'dataAlvo'. ID: ${item.id}`);
+            return; // Pula a renderização de dados antigos e inconsistentes
+        }
+        
+        const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
+        if (isCumpridaUnica) {
+            return;
+        }
+
+        const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
+        const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
+        
         let statusBadge = '';
         let acoesBtn = '';
         let linhaStyle = '';
+        let tipoDiligencia = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
+        let dataAlvoFormatada = dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
-        // CÓDIGO DE SUBSTITUIÇÃO
-        if (isCumprida) {
+        if (isCumpridaRecorrente) {
             const dataCumprimento = new Date(item.historicoCumprimentos[anoMesAtual].seconds * 1000);
             const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-            // CORREÇÃO AQUI: Adicionamos as classes 'action-btn' e 'btn-secondary' ao botão "Desfazer"
             acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}">Desfazer</button>`;
             linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"';
         } else {
             statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`;
-            // CORREÇÃO AQUI: Usamos a classe 'btn-sucesso' que vamos criar, em vez de estilo inline. E o texto para "Cumprir".
             acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
         }
         
-        tableHTML += `
-            <tr ${linhaStyle}>
-                <td style="text-align: center; font-weight: 500;">${item.diaDoMes}</td>
-                <td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td>
-                <td>${item.processoVinculado ? formatProcessoForDisplay(item.processoVinculado) : 'N/A'}</td>
-                <td>${statusBadge}</td>
-                <td class="actions-cell">
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                        ${acoesBtn}
-                        <button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button>
-                        <button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button>
-                </div>
-            </td>
-        `;
+        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoDiligencia}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; gap: 8px;">${acoesBtn}<button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button><button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button></div></td></tr>`;
     });
 
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
+    
     container.querySelector('tbody').addEventListener('click', handleDiligenciaAction);
 }
 
@@ -1443,13 +1463,14 @@ function handleDeleteAudiencia(audienciaId) {
 function setupDashboardWidgets() {
     const hoje = new Date();
     
+    // CÓDIGO DE SUBSTITUIÇÃO
     // --- Widget de Próximas Diligências ---
     db.collection("diligenciasMensais")
       .where("userId", "==", auth.currentUser.uid)
-      .orderBy("diaDoMes", "asc")
       .get()
       .then((snapshot) => {
           const diligencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          // A ordenação será feita dentro da função renderProximasDiligenciasWidget
           renderProximasDiligenciasWidget(diligencias);
       })
       .catch(error => {
@@ -1478,70 +1499,68 @@ function setupDashboardWidgets() {
     renderAnalisePendenteWidget(devedoresCache);
 }
 
-// ADICIONE ESTA NOVA FUNÇÃO COMPLETA
+// =================================================================================
+// VERSÃO FINAL E LIMPA DA FUNÇÃO (OPCIONAL, PARA LIMPAR O CONSOLE)
+// =================================================================================
 function renderProximasDiligenciasWidget(diligencias) {
     const container = document.getElementById('diligencias-widget-container');
     if (!container) return;
 
     const hoje = new Date();
-    const diaHoje = hoje.getDate();
+    hoje.setHours(0, 0, 0, 0);
+
+    const cincoDiasFrente = new Date(hoje);
+    cincoDiasFrente.setDate(hoje.getDate() + 5);
+
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
     
-    // 1. Filtra as diligências que devem aparecer
     const diligenciasParaExibir = diligencias.filter(item => {
-        // Regra 1: Não pode já ter sido cumprida este mês
-        const isCumprida = item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
-        if (isCumprida) return false;
+        if (!item.dataAlvo) return false;
 
-        // Regra 2: O 'dia alvo' deve ser nos próximos 5 dias (incluindo hoje)
-        const diaAlvo = item.diaDoMes;
-        const diffDias = diaAlvo - diaHoje;
-        
-        // Se a diligência já passou este mês, ela continua aparecendo como atrasada
-        // Se ainda não chegou, ela aparece se a diferença for de até 5 dias
-        return diffDias <= 5;
+        if (item.isRecorrente) {
+            if (item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual]) return false;
+        } else {
+            if (item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0) return false;
+        }
+
+        const dataAlvoOriginal = new Date(item.dataAlvo.seconds * 1000);
+        let dataRelevante = item.isRecorrente 
+            ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvoOriginal.getDate())
+            : dataAlvoOriginal;
+        dataRelevante.setHours(0, 0, 0, 0);
+
+        return dataRelevante <= cincoDiasFrente;
+    });
+
+    diligenciasParaExibir.sort((a, b) => {
+        // Ordena pela data relevante calculada
+        const dataA = a.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), new Date(a.dataAlvo.seconds * 1000).getDate()) : new Date(a.dataAlvo.seconds * 1000);
+        const dataB = b.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), new Date(b.dataAlvo.seconds * 1000).getDate()) : new Date(b.dataAlvo.seconds * 1000);
+        return dataA - dataB;
     });
 
     let contentHTML = '';
     if (diligenciasParaExibir.length === 0) {
-        contentHTML = '<p class="empty-list-message">Nenhuma diligência próxima ou em atraso. Bom trabalho!</p>';
+        contentHTML = '<p class="empty-list-message">Nenhuma diligência próxima ou em atraso.</p>';
     } else {
         diligenciasParaExibir.forEach(item => {
-            const diaAlvo = item.diaDoMes;
-            const isAtrasada = diaAlvo < diaHoje;
-
-            // Define o estilo visual com base no atraso
+            const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
+            const dataRelevante = item.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvo.getDate()) : dataAlvo;
+            dataRelevante.setHours(0,0,0,0);
+            
+            const isAtrasada = dataRelevante < hoje;
             const itemStyle = isAtrasada ? 'style="background-color: #ffebee;"' : '';
-            const statusText = isAtrasada ? `(Atrasada desde o dia ${diaAlvo})` : `(Vence dia ${diaAlvo})`;
+            const vencimentoLabel = `Vencimento: ${dataRelevante.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`;
 
-            contentHTML += `
-                <div class="analise-item" ${itemStyle} data-id="${item.id}">
-                    <div class="analise-item-devedor">
-                        ${isAtrasada ? '<span class="status-dot status-expired"></span>' : '<span class="status-dot status-warning"></span>'}
-                        ${item.titulo}
-                    </div>
-                    <div class="analise-item-detalhes">
-                        <strong>Processo:</strong> ${item.processoVinculado ? formatProcessoForDisplay(item.processoVinculado) : 'N/A'} <br>
-                        <strong>Status:</strong> ${statusText}
-                    </div>
-                </div>
-            `;
+            contentHTML += `<div class="analise-item" ${itemStyle} data-id="${item.id}"><div class="analise-item-devedor">${isAtrasada ? '<span class="status-dot status-expired"></span>' : '<span class="status-dot status-warning"></span>'} ${item.titulo} ${item.isRecorrente ? '(Recorrente)' : ''}</div><div class="analise-item-detalhes"><strong>${vencimentoLabel}</strong></div></div>`;
         });
     }
-
-    container.innerHTML = `
-        <div class="widget-card">
-            <h3>Próximas Diligências (5 dias)</h3>
-            ${contentHTML}
-        </div>
-    `;
     
-    // Adiciona listener para levar à página de diligências ao clicar
+    container.innerHTML = `<div class="widget-card"><h3>Próximas Diligências</h3>${contentHTML}</div>`;
+    
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
         const item = event.target.closest('.analise-item');
-        if (item) {
-            navigateTo('diligencias');
-        }
+        if (item) navigateTo('diligencias');
     });
 }
 
