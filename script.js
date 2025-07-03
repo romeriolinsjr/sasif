@@ -595,24 +595,31 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
 
     const resumoContainer = document.getElementById('resumo-financeiro-container');
     if (resumoContainer) {
+        // CÓDIGO DE SUBSTITUIÇÃO
         resumoContainer.innerHTML = `
             <div class="detail-card" style="margin-top: 20px;">
                 <h3>Resumo Financeiro e Processual</h3>
-                <div class="detail-grid" style="row-gap: 5px;">
+                <div class="detail-grid" style="align-items: flex-start;">
+
+                    <!-- Coluna Esquerda: Informações Financeiras -->
+                    <div>
+                        <div class="info-tooltip-container" style="margin-bottom: 10px;">
+                            <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)}
+                            <span class="info-icon">i</span>
+                            <div class="info-tooltip-text">
+                                Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.
+                            </div>
+                        </div>
+                        <div id="detalhamento-exequente">
+                            ${detalhamentoHTML}
+                        </div>
+                    </div>
+
+                    <!-- Coluna Direita: Informações Quantitativas -->
                     <div>
                         <strong>Processos Vinculados:</strong> ${totalProcessos}
                     </div>
-                    <div class="info-tooltip-container">
-                        <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)}
-                        <span class="info-icon">i</span>
-                        <div class="info-tooltip-text">
-                            Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.
-                        </div>
-                    </div>
-                </div>
-                <!-- Div para o detalhamento que será inserido aqui -->
-                <div id="detalhamento-exequente">
-                    ${detalhamentoHTML}
+
                 </div>
             </div>
         `;
@@ -1352,6 +1359,9 @@ function handleAudienciaAction(event, audiencias) {
     }
 }
 
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'handleSaveAudiencia' INTEIRA PELA VERSÃO FINAL
+// =================================================================================
 function handleSaveAudiencia(processoId, audienciaId = null) {
     const dataHoraInput = document.getElementById('audiencia-data-hora').value;
     const local = document.getElementById('audiencia-local').value.trim();
@@ -1364,21 +1374,39 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
         return;
     }
 
-    // --- LÓGICA NOVA: BUSCAR DADOS PARA DESNORMALIZAÇÃO ---
+    // --- VALIDAÇÃO COMBINADA (ROBUSTA) ---
+    const dataDaAudiencia = new Date(dataHoraInput);
+
+    // 1. Verifica se a data é sintaticamente válida
+    if (isNaN(dataDaAudiencia.getTime())) {
+        errorMessage.textContent = 'A data ou hora inserida é inválida. Por favor, verifique.';
+        return;
+    }
+
+    // 2. Verifica se o ano está dentro de um intervalo razoável
+    const ano = dataDaAudiencia.getFullYear();
+    if (ano < 1900 || ano > 2100) {
+        errorMessage.textContent = 'Por favor, insira um ano válido (entre 1900 e 2100).';
+        return;
+    }
+    // --- FIM DA VALIDAÇÃO COMBINADA ---
+
+
     const processo = processosCache.find(p => p.id === processoId);
+    if (!processo) {
+        errorMessage.textContent = 'Erro: Processo associado não encontrado.';
+        return;
+    }
     const devedor = devedoresCache.find(d => d.id === processo.devedorId);
-    // --------------------------------------------------------
     
     const audienciaData = {
         processoId,
-        dataHora: new Date(dataHoraInput),
+        dataHora: dataDaAudiencia, // Usa o objeto Date que já validamos
         local,
         observacoes,
-        // --- CAMPOS NOVOS PARA O DASHBOARD ---
-        numeroProcesso: processo ? processo.numeroProcesso : 'Não encontrado',
+        numeroProcesso: processo.numeroProcesso,
         razaoSocialDevedor: devedor ? devedor.razaoSocial : 'Não encontrado',
         devedorId: devedor ? devedor.id : null
-        // ------------------------------------
     };
 
     let promise;
@@ -2166,7 +2194,9 @@ function renderProcessoForm(devedorId, processo = null) {
     document.getElementById('cancel-btn').addEventListener('click', () => renderDevedorDetailPage(devedorId));
 }
 
-// Substitua a função inteira
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'handleSaveProcesso' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 async function handleSaveProcesso(devedorId, processoId = null) {
     const numeroProcesso = document.getElementById('numero-processo').value;
     const exequenteId = document.getElementById('exequente').value;
@@ -2191,15 +2221,11 @@ async function handleSaveProcesso(devedorId, processoId = null) {
         motivoSuspensaoId: status === 'Suspenso' ? motivoSuspensaoId : null,
         cdas: document.getElementById('cdas').value,
         uidUsuario: auth.currentUser.uid,
-        // Nova estrutura para o valor
         valorAtual: {
             valor: valorInput,
             data: firebase.firestore.FieldValue.serverTimestamp()
         }
     };
-    
-    // Removendo o campo antigo para manter a consistência
-    delete processoData.valorDivida;
     
     if (tipoProcesso === 'apenso') {
         const processoPilotoId = document.getElementById('processo-piloto')?.value;
@@ -2208,6 +2234,16 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             return;
         }
         processoData.processoPilotoId = processoPilotoId;
+
+        // --- NOVA LÓGICA DE VALIDAÇÃO DE EXEQUENTES ---
+        const pilotoSelecionado = processosCache.find(p => p.id === processoPilotoId);
+        
+        if (pilotoSelecionado && pilotoSelecionado.exequenteId !== exequenteId) {
+            errorMessage.textContent = 'Não é permitido apensar um processo a um piloto com exequentes diferentes.';
+            return; // Interrompe o salvamento
+        }
+        // --- FIM DA NOVA LÓGICA DE VALIDAÇÃO ---
+
     } else {
         processoData.processoPilotoId = null; 
     }
@@ -2216,20 +2252,27 @@ async function handleSaveProcesso(devedorId, processoId = null) {
     
     try {
         if (processoId) {
-            // Editando um processo existente
             const processoRef = db.collection("processos").doc(processoId);
             processoData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
-            batch.update(processoRef, processoData);
 
-            // Ao editar, podemos considerar se o valor foi alterado e adicionar ao histórico.
-            // Por simplicidade agora, vamos apenas atualizar. A lógica de histórico na edição pode vir depois.
+            const processoOriginal = processosCache.find(p => p.id === processoId);
+            // Se o valor foi alterado na edição, adiciona ao histórico
+            const valorOriginal = processoOriginal.valorAtual ? processoOriginal.valorAtual.valor : (processoOriginal.valorDivida || 0);
+            if(valorInput !== valorOriginal) {
+                const historicoRef = processoRef.collection("historicoValores").doc();
+                batch.set(historicoRef, {
+                    valor: valorInput,
+                    data: firebase.firestore.FieldValue.serverTimestamp(),
+                    tipo: 'Atualização Manual (Edição)'
+                });
+            }
+
+            batch.update(processoRef, processoData);
         } else {
-            // Criando um novo processo
-            const processoRef = db.collection("processos").doc(); // Gera um novo ID
+            const processoRef = db.collection("processos").doc();
             processoData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
             batch.set(processoRef, processoData);
 
-            // Adiciona a primeira entrada no histórico
             const historicoRef = processoRef.collection("historicoValores").doc();
             batch.set(historicoRef, {
                 valor: valorInput,
