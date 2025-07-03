@@ -207,6 +207,19 @@ function renderGrandesDevedoresPage() {
     renderDevedoresList(devedoresCache);
 }
 
+// ADICIONE ESTA NOVA FUNÇÃO
+function showDevedorPage(devedorId) {
+    // Primeiro, limpa os listeners antigos para evitar vazamentos de memória
+    if (processosListenerUnsubscribe) processosListenerUnsubscribe();
+    if (corresponsaveisListenerUnsubscribe) corresponsaveisListenerUnsubscribe();
+    if (penhorasListenerUnsubscribe) penhorasListenerUnsubscribe();
+    if (audienciasListenerUnsubscribe) audienciasListenerUnsubscribe();
+    if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe();
+
+    // Renderiza a página
+    renderDevedorDetailPage(devedorId);
+}
+
 function renderDiligenciasPage() {
     pageTitle.textContent = 'Controle de Diligências do Mês';
     document.title = 'SASIF | Diligências Mensais';
@@ -1519,7 +1532,7 @@ function renderAnalisePendenteWidget(devedores) {
 }
 
 // --- HANDLERS (CRUD) ---
-function handleDevedorAction(event) { const target = event.target; if (target.classList.contains('action-btn')) { const devedorId = target.dataset.id; if (target.classList.contains('btn-delete')) handleDeleteDevedor(devedorId); else if (target.classList.contains('btn-edit')) handleEditDevedor(devedorId); } else { const row = target.closest('tr'); if (row && row.dataset.id) renderDevedorDetailPage(row.dataset.id); } }
+function handleDevedorAction(event) { const target = event.target; if (target.classList.contains('action-btn')) { const devedorId = target.dataset.id; if (target.classList.contains('btn-delete')) handleDeleteDevedor(devedorId); else if (target.classList.contains('btn-edit')) handleEditDevedor(devedorId); } else { const row = target.closest('tr'); if (row && row.dataset.id) showDevedorPage(row.dataset.id); } }
 function handleEditDevedor(devedorId) { db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (doc.exists) renderDevedorForm({ id: doc.id, ...doc.data() }); }); }
 function handleDeleteDevedor(devedorId) { if (confirm("Tem certeza que deseja excluir este Grande Devedor?")) db.collection("grandes_devedores").doc(devedorId).delete().then(() => showToast("Devedor excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
 function handleProcessoAction(event) {
@@ -1681,6 +1694,99 @@ function handleUnattachProcesso(processoId) {
         console.error("Erro ao desapensar processo: ", error);
         showToast("Ocorreu um erro ao desapensar o processo.", "error");
     });
+}
+
+// ===================================================
+// ADICIONE ESTE BLOCO APÓS handleUnattachProcesso
+// ===================================================
+function setupGlobalSearch() {
+    const searchInput = document.getElementById('global-search-input');
+    const resultsContainer = document.getElementById('search-results-container');
+
+    if (!searchInput || !resultsContainer) return;
+
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase().trim();
+
+        if (searchTerm.length < 3) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+        
+         // Busca nos devedores
+        const devedoresFound = devedoresCache.filter(devedor => 
+            devedor.razaoSocial.toLowerCase().includes(searchTerm)
+        ).slice(0, 5);
+
+        // Busca nos processos (só se o termo de busca contiver algum número)
+        let processosFound = [];
+        const searchTermNumeros = searchTerm.replace(/\D/g, '');
+        if (searchTermNumeros.length > 0) {
+            processosFound = processosCache.filter(processo => 
+                processo.numeroProcesso.replace(/\D/g, '').includes(searchTermNumeros)
+            ).slice(0, 5);
+        }
+
+        renderSearchResults(devedoresFound, processosFound);
+    });
+
+    // Esconde os resultados se clicar fora
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target)) {
+            resultsContainer.style.display = 'none';
+        }
+    });
+
+    searchInput.addEventListener('focus', (e) => {
+        if (e.target.value.length >= 3) {
+            resultsContainer.style.display = 'block';
+        }
+    });
+}
+
+function renderSearchResults(devedores, processos) {
+    const resultsContainer = document.getElementById('search-results-container');
+    resultsContainer.innerHTML = '';
+
+    if (devedores.length === 0 && processos.length === 0) {
+        resultsContainer.innerHTML = `<div class="search-result-item"><span class="search-result-subtitle">Nenhum resultado encontrado.</span></div>`;
+        resultsContainer.style.display = 'block';
+        return;
+    }
+
+    if (devedores.length > 0) {
+        resultsContainer.innerHTML += `<div class="search-results-header">Grandes Devedores</div>`;
+        devedores.forEach(devedor => {
+            const item = document.createElement('div');
+            item.className = 'search-result-item';
+            item.innerHTML = `<span class="search-result-title">${devedor.razaoSocial}</span><span class="search-result-subtitle">${formatCNPJForDisplay(devedor.cnpj)}</span>`;
+          // CÓDIGO DE SUBSTITUIÇÃO
+            item.addEventListener('click', () => {
+                showDevedorPage(devedor.id); // <-- MUDANÇA AQUI
+                document.getElementById('global-search-input').value = '';
+                resultsContainer.style.display = 'none';
+            });
+            resultsContainer.appendChild(item);
+        });
+    }
+
+    if (processos.length > 0) {
+        resultsContainer.innerHTML += `<div class="search-results-header">Processos</div>`;
+        processos.forEach(processo => {
+            const devedor = devedoresCache.find(d => d.id === processo.devedorId);
+            const item = document.createElement('div');
+            item.className = 'search-result-item';
+            item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso)}</span><span class="search-result-subtitle">Devedor: ${devedor ? devedor.razaoSocial : 'N/A'}</span>`;
+            item.addEventListener('click', () => {
+                navigateTo('processoDetail', { id: processo.id });
+                document.getElementById('global-search-input').value = '';
+                resultsContainer.style.display = 'none';
+            });
+            resultsContainer.appendChild(item);
+        });
+    }
+
+    resultsContainer.style.display = 'block';
 }
 
 function renderValorUpdateModal(processoId) {
@@ -1939,6 +2045,10 @@ function handleDeleteMotivo(motivoId) {
 }
 
 // --- FORMULÁRIOS E HANDLERS: PROCESSOS ---
+
+// =================================================================================
+// SUBSTITUA A FUNÇÃO 'renderProcessoForm' INTEIRA POR ESTA VERSÃO
+// =================================================================================
 function renderProcessoForm(devedorId, processo = null) {
     const isEditing = processo !== null;
     pageTitle.textContent = isEditing ? 'Editar Processo' : 'Novo Processo';
@@ -1995,8 +2105,8 @@ function renderProcessoForm(devedorId, processo = null) {
 
             <div class="form-group">
                 <label for="valor-divida">Valor da Dívida</label>
-                <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? (processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida) : ''}">
-                </div>
+                <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? (processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0)) : ''}">
+            </div>
             <div class="form-group">
                 <label for="cdas">CDA(s)</label>
                 <textarea id="cdas" rows="3">${isEditing ? (processo.cdas || '') : ''}</textarea>
@@ -2014,6 +2124,9 @@ function renderProcessoForm(devedorId, processo = null) {
         document.getElementById('tipo-processo').value = processo.tipoProcesso;
         document.getElementById('exequente').value = processo.exequenteId;
         document.getElementById('status-processo').value = processo.status || 'Ativo';
+        if (processo.motivoSuspensaoId) {
+             document.getElementById('motivo-suspensao').value = processo.motivoSuspensaoId;
+        }
     }
     
     // Lógica para mostrar/esconder o seletor de motivo
@@ -2164,6 +2277,9 @@ function initApp(user) {
     userEmailSpan.textContent = user.email;
     logoutButton.addEventListener('click', () => { auth.signOut(); });
     
+    // Configura a busca global
+    setupGlobalSearch();
+
     // Primeiro, navega para o dashboard para garantir que a estrutura HTML exista.
     navigateTo('dashboard');
     

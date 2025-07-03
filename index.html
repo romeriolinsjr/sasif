@@ -27,12 +27,20 @@
 
         <main id="main-content">
             <header id="main-header">
-                <h2 id="page-title">Dashboard</h2>
-                <div id="user-info">
-                    <span id="user-email"></span>
-                    <button id="logout-button">Sair</button>
-                </div>
-            </header>
+    <div class="header-left">
+        <h2 id="page-title">Dashboard</h2>
+    </div>
+    <div class="header-center">
+        <div id="search-container">
+            <input type="search" id="global-search-input" placeholder="Buscar devedor ou processo...">
+            <div id="search-results-container"></div>
+        </div>
+    </div>
+    <div id="user-info">
+        <span id="user-email"></span>
+        <button id="logout-button">Sair</button>
+    </div>
+</header>
             <div id="content-area">
                 <!-- O conteúdo de cada página será renderizado aqui -->
             </div>
