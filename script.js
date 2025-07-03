@@ -163,8 +163,9 @@ function renderDashboard() {
     
     contentArea.innerHTML = `
         <div id="dashboard-widgets-container">
-            <div id="audiencias-widget-container"></div>
+            <div id="diligencias-widget-container"></div>
             <div id="analises-widget-container"></div>
+            <div id="audiencias-widget-container"></div>
         </div>
     `;
     
@@ -1438,9 +1439,26 @@ function handleDeleteAudiencia(audienciaId) {
     }
 }
 
+// CÓDIGO DE SUBSTITUIÇÃO COMPLETO PARA a função
 function setupDashboardWidgets() {
-    // --- Widget de Próximas Audiências ---
     const hoje = new Date();
+    
+    // --- Widget de Próximas Diligências ---
+    db.collection("diligenciasMensais")
+      .where("userId", "==", auth.currentUser.uid)
+      .orderBy("diaDoMes", "asc")
+      .get()
+      .then((snapshot) => {
+          const diligencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          renderProximasDiligenciasWidget(diligencias);
+      })
+      .catch(error => {
+          console.error("Erro ao buscar diligências para o dashboard:", error);
+          const container = document.getElementById('diligencias-widget-container');
+          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Diligências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
+      });
+
+    // --- Widget de Próximas Audiências ---
     db.collection("audiencias")
       .where("dataHora", ">=", hoje)
       .orderBy("dataHora", "asc")
@@ -1448,7 +1466,6 @@ function setupDashboardWidgets() {
       .get()
       .then((snapshot) => {
           const audienciasFuturas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          // Renderiza APENAS o widget de audiências
           renderProximasAudienciasWidget(audienciasFuturas);
       })
       .catch(error => {
@@ -1458,8 +1475,74 @@ function setupDashboardWidgets() {
       });
 
     // --- Widget de Análises Pendentes ---
-    // Renderiza APENAS o widget de análises usando os dados do cache
     renderAnalisePendenteWidget(devedoresCache);
+}
+
+// ADICIONE ESTA NOVA FUNÇÃO COMPLETA
+function renderProximasDiligenciasWidget(diligencias) {
+    const container = document.getElementById('diligencias-widget-container');
+    if (!container) return;
+
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    
+    // 1. Filtra as diligências que devem aparecer
+    const diligenciasParaExibir = diligencias.filter(item => {
+        // Regra 1: Não pode já ter sido cumprida este mês
+        const isCumprida = item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
+        if (isCumprida) return false;
+
+        // Regra 2: O 'dia alvo' deve ser nos próximos 5 dias (incluindo hoje)
+        const diaAlvo = item.diaDoMes;
+        const diffDias = diaAlvo - diaHoje;
+        
+        // Se a diligência já passou este mês, ela continua aparecendo como atrasada
+        // Se ainda não chegou, ela aparece se a diferença for de até 5 dias
+        return diffDias <= 5;
+    });
+
+    let contentHTML = '';
+    if (diligenciasParaExibir.length === 0) {
+        contentHTML = '<p class="empty-list-message">Nenhuma diligência próxima ou em atraso. Bom trabalho!</p>';
+    } else {
+        diligenciasParaExibir.forEach(item => {
+            const diaAlvo = item.diaDoMes;
+            const isAtrasada = diaAlvo < diaHoje;
+
+            // Define o estilo visual com base no atraso
+            const itemStyle = isAtrasada ? 'style="background-color: #ffebee;"' : '';
+            const statusText = isAtrasada ? `(Atrasada desde o dia ${diaAlvo})` : `(Vence dia ${diaAlvo})`;
+
+            contentHTML += `
+                <div class="analise-item" ${itemStyle} data-id="${item.id}">
+                    <div class="analise-item-devedor">
+                        ${isAtrasada ? '<span class="status-dot status-expired"></span>' : '<span class="status-dot status-warning"></span>'}
+                        ${item.titulo}
+                    </div>
+                    <div class="analise-item-detalhes">
+                        <strong>Processo:</strong> ${item.processoVinculado ? formatProcessoForDisplay(item.processoVinculado) : 'N/A'} <br>
+                        <strong>Status:</strong> ${statusText}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    container.innerHTML = `
+        <div class="widget-card">
+            <h3>Próximas Diligências (5 dias)</h3>
+            ${contentHTML}
+        </div>
+    `;
+    
+    // Adiciona listener para levar à página de diligências ao clicar
+    container.querySelector('.widget-card')?.addEventListener('click', (event) => {
+        const item = event.target.closest('.analise-item');
+        if (item) {
+            navigateTo('diligencias');
+        }
+    });
 }
 
 function renderProximasAudienciasWidget(audiencias) {
