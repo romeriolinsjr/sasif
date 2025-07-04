@@ -1913,9 +1913,7 @@ function handleUnattachProcesso(processoId) {
     });
 }
 
-// ===================================================
-// ADICIONE ESTE BLOCO APÓS handleUnattachProcesso
-// ===================================================
+// CÓDIGO PARA SUBSTITUIR
 function setupGlobalSearch() {
     const searchInput = document.getElementById('global-search-input');
     const resultsContainer = document.getElementById('search-results-container');
@@ -1934,7 +1932,8 @@ function setupGlobalSearch() {
 
         // Debounce: espera 300ms após o usuário parar de digitar para fazer a busca
         searchTimeout = setTimeout(async () => {
-            const isProcesso = /[\d.-]/.test(searchTerm);
+            // A REGRA FOI ALTERADA AQUI: agora só ativa com a presença de um dígito.
+            const isProcesso = /\d/.test(searchTerm);
             let devedoresFound = [];
             let processosFound = [];
 
@@ -1943,8 +1942,7 @@ function setupGlobalSearch() {
                 const processosRef = db.collection('processos');
                 const query = processosRef
                     .where('numeroProcesso', '>=', searchTerm.replace(/\D/g, ''))
-                    .where('numeroProcesso', '<=', searchTerm.replace(/\D/g, '') + '\uf8ff')
-                    .limit(5);
+                    .where('numeroProcesso', '<=', searchTerm.replace(/\D/g, '') + '\uf8ff');
                 
                 const snapshot = await query.get();
                 for (const doc of snapshot.docs) {
@@ -1959,7 +1957,7 @@ function setupGlobalSearch() {
                 devedoresFound = devedoresCache.filter(devedor => 
                     devedor.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()))
-                ).slice(0, 5);
+                );
             }
             renderSearchResults(devedoresFound, processosFound);
         }, 300);
