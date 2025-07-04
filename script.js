@@ -2494,9 +2494,55 @@ async function handleSaveProcesso(devedorId, processoId = null) {
 }
 
 // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
-function renderLoginForm() { document.title = 'SASIF | Login'; loginContainer.innerHTML = `<h1>SASIF</h1><p>Acesso ao Sistema de Acompanhamento</p><div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Senha</label><input type="password" id="password" required></div><div id="error-message"></div><div class="form-buttons"><button id="login-btn">Entrar</button><button id="signup-btn">Cadastrar</button></div>`; document.getElementById('login-btn').addEventListener('click', handleLogin); document.getElementById('signup-btn').addEventListener('click', handleSignUp); }
+function renderLoginForm() {
+    document.title = 'SASIF | Login';
+    loginContainer.innerHTML = `
+        <h1>SASIF</h1>
+        <p>Acesso ao Sistema de Acompanhamento</p>
+        <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Senha</label>
+            <input type="password" id="password" required>
+        </div>
+        <a href="#" id="forgot-password-link" class="forgot-password-link">Esqueci minha senha</a>
+        <div id="error-message"></div>
+        <div class="form-buttons">
+            <button id="login-btn">Entrar</button>
+        </div>`;
+        
+    document.getElementById('login-btn').addEventListener('click', handleLogin);
+    document.getElementById('forgot-password-link').addEventListener('click', handlePasswordResetRequest);
+}
 function handleLogin() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.signInWithEmailAndPassword(email, password).catch(error => { errorMessage.textContent = 'E-mail ou senha incorretos.'; }); }
-function handleSignUp() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.createUserWithEmailAndPassword(email, password).catch(error => { if (error.code === 'auth/weak-password') errorMessage.textContent = 'A senha deve ter no mínimo 6 caracteres.'; else if (error.code === 'auth/email-already-in-use') errorMessage.textContent = 'Este e-mail já está em uso.'; else errorMessage.textContent = 'Ocorreu um erro ao tentar cadastrar.'; }); }
+function handlePasswordResetRequest(event) {
+    event.preventDefault();
+    const email = document.getElementById('email').value;
+    const errorMessage = document.getElementById('error-message');
+    
+    if (!email) {
+        errorMessage.textContent = 'Por favor, digite seu e-mail no campo acima para redefinir a senha.';
+        return;
+    }
+
+    auth.sendPasswordResetEmail(email)
+        .then(() => {
+            showToast("E-mail de redefinição de senha enviado com sucesso!");
+            errorMessage.textContent = 'Verifique sua caixa de entrada para o link de redefinição.';
+            errorMessage.style.color = 'var(--cor-sucesso)';
+        })
+        .catch(error => {
+            console.error("Erro ao enviar e-mail de redefinição:", error);
+            if (error.code === 'auth/user-not-found') {
+                errorMessage.textContent = 'Nenhum usuário encontrado com este e-mail.';
+            } else {
+                errorMessage.textContent = 'Ocorreu um erro ao tentar enviar o e-mail.';
+            }
+            errorMessage.style.color = 'var(--cor-erro)';
+        });
+}
 function setupListeners() {
 db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
     devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

@@ -178,14 +178,6 @@ body {
     background-color: var(--cor-secundaria);
 }
 
-#signup-btn {
-    background-color: #e0e0e0;
-    color: var(--cor-texto-escuro);
-}
-#signup-btn:hover {
-    background-color: #bdbdbd;
-}
-
 #error-message {
     color: var(--cor-erro);
     margin-top: 16px;
@@ -806,4 +798,19 @@ body {
 .info-icon:hover + .info-tooltip-text {
     visibility: visible;
     opacity: 1;
+}
+
+/* --- LINK DE RECUPERAÇÃO DE SENHA --- */
+.forgot-password-link {
+    display: block;
+    margin-top: 16px;
+    text-align: right;
+    font-size: 14px;
+    color: var(--cor-secundaria);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.forgot-password-link:hover {
+    text-decoration: underline;
 }
