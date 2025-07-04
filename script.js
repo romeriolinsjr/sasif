@@ -602,15 +602,14 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
             ` : '' }
             
             <div class="dashboard-actions">
-                <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
-                <button id="registrar-analise-btn" class="btn-primary">Registrar Análise Hoje</button>
+                 <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
             </div>
 
             <h2>Lista de Processos</h2>
             <div id="processos-list-container">
                 <p class="empty-list-message">Carregando processos...</p>
             </div>
-        `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); document.getElementById('registrar-analise-btn').addEventListener('click', () => handleRegistrarAnalise(devedorId)); setupProcessosListener(devedorId); }); }
+        `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); setupProcessosListener(devedorId); }); }
 
         function renderProcessosList(processos) {
 
