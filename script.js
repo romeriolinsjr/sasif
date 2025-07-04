@@ -427,7 +427,6 @@ function renderDiligenciasList(diligencias) {
         return;
     }
 
-    // Ordena os dados no cliente para garantir consistência
     diligencias.sort((a, b) => {
         const dataA = a.dataAlvo ? a.dataAlvo.seconds : 0;
         const dataB = b.dataAlvo ? b.dataAlvo.seconds : 0;
@@ -440,29 +439,29 @@ function renderDiligenciasList(diligencias) {
     let tableHTML = `<table class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Diligência</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
 
     diligencias.forEach(item => {
-        // CORREÇÃO: Verifica se o campo 'dataAlvo' existe antes de usá-lo
         if (!item.dataAlvo) {
             console.warn(`Diligência antiga encontrada sem 'dataAlvo'. ID: ${item.id}`);
-            return; // Pula a renderização de dados antigos e inconsistentes
-        }
-        
-        const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
-        if (isCumpridaUnica) {
             return;
         }
 
-        const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
+        // Bloco Corrigido
+        const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
         const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
+        const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
+        // Fim do Bloco Corrigido
         
+        const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
         let statusBadge = '';
         let acoesBtn = '';
         let linhaStyle = '';
         let tipoDiligencia = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
         let dataAlvoFormatada = dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
-        if (isCumpridaRecorrente) {
-            const dataCumprimento = new Date(item.historicoCumprimentos[anoMesAtual].seconds * 1000);
+        if (isCumprida) {
+            const dataCumprimentoTimestamp = isCumpridaUnica ? Object.values(item.historicoCumprimentos)[0] : item.historicoCumprimentos[anoMesAtual];
+            const dataCumprimento = new Date(dataCumprimentoTimestamp.seconds * 1000);
             const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
             acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}">Desfazer</button>`;
             linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"';
@@ -579,16 +578,28 @@ function renderReadOnlyTextModal(title, content) {
 }
 
 // --- DETALHES DO DEVEDOR E PROCESSOS ---
-function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregando...'; document.title = 'SASIF | Carregando...'; renderSidebar(null); db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (!doc.exists) { showToast("Devedor não encontrado.", "error"); navigateTo('dashboard'); return; } const devedor = { id: doc.id, ...doc.data() }; pageTitle.textContent = devedor.razaoSocial; document.title = `SASIF | ${devedor.razaoSocial}`; // Substitua pelo seguinte trecho completo:
+// ==========================================================
+// 1. SUBSTITUA ESTA FUNÇÃO
+// ==========================================================
+function renderDevedorDetailPage(devedorId) {
+    pageTitle.textContent = 'Carregando...';
+    document.title = 'SASIF | Carregando...';
+    renderSidebar(null);
+    db.collection("grandes_devedores").doc(devedorId).get().then(doc => {
+        if (!doc.exists) {
+            showToast("Devedor não encontrado.", "error");
+            navigateTo('dashboard');
+            return;
+        }
+        const devedor = { id: doc.id, ...doc.data() };
+        pageTitle.textContent = devedor.razaoSocial;
+        document.title = `SASIF | ${devedor.razaoSocial}`;
         contentArea.innerHTML = `
             <div class="detail-header-card">
                 <p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p>
                 ${devedor.nomeFantasia ? `<p><strong>Nome Fantasia:</strong> ${devedor.nomeFantasia}</p>` : ''}
             </div>
-
-            <!-- Container vazio que será preenchido pela renderProcessosList -->
             <div id="resumo-financeiro-container"></div>
-
             ${ devedor.observacoes ? `
                 <div class="detail-card">
                     <h3>Observações sobre o Devedor</h3>
@@ -597,16 +608,19 @@ function renderDevedorDetailPage(devedorId) { pageTitle.textContent = 'Carregand
                     </div>
                 </div>
             ` : '' }
-            
             <div class="dashboard-actions">
                  <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
             </div>
-
             <h2>Lista de Processos</h2>
             <div id="processos-list-container">
                 <p class="empty-list-message">Carregando processos...</p>
             </div>
-        `; document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId)); setupProcessosListener(devedorId); }); }
+        `;
+        // A chamada agora passa 'null' para indicar que é um novo processo
+        document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId, null));
+        setupProcessosListener(devedorId);
+    });
+}
 
         function renderProcessosList(processos) {
 
@@ -1754,7 +1768,22 @@ function handleProcessoAction(event) {
         });
     }
 }
-function handleEditProcesso(processoId) { const processo = processosCache.find(p => p.id === processoId); if (processo) renderProcessoForm(processo.devedorId, processo); else showToast("Processo não encontrado.", "error"); }
+async function handleEditProcesso(processoId) {
+    // Busca a versão mais recente do processo diretamente do banco
+    try {
+        const doc = await db.collection("processos").doc(processoId).get();
+        if (doc.exists) {
+            const processo = { id: doc.id, ...doc.data() };
+            // Chama o formulário com dados frescos
+            renderProcessoForm(processo.devedorId, processo);
+        } else {
+            showToast("Processo não encontrado no banco de dados.", "error");
+        }
+    } catch (error) {
+        console.error("Erro ao buscar processo para edição:", error);
+        showToast("Erro ao carregar dados do processo.", "error");
+    }
+}
 async function handleDeleteProcesso(processoId) {
     const processo = processosCache.find(p => p.id === processoId);
     if (!processo) {
@@ -2122,10 +2151,10 @@ function handleRegistrarAnalise(devedorId) {
 }
 
 // --- FORMULÁRIOS: DEVEDORES ---
-function renderDevedorForm(devedor = null) { const isEditing = devedor !== null; const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const razaoSocial = isEditing ? devedor.razaoSocial : ''; const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : ''; const nomeFantasia = isEditing ? devedor.nomeFantasia : ''; const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1'; const observacoes = isEditing ? devedor.observacoes : ''; contentArea.innerHTML = `<div class="form-container" data-id="${isEditing ? devedor.id : ''}"><div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div><div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div><div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div><div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div><div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('nivel-prioridade').value = nivelPrioridade; document.getElementById('save-devedor-btn').addEventListener('click', () => { isEditing ? handleUpdateDevedor(devedor.id) : handleSaveDevedor(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('dashboard')); }
+function renderDevedorForm(devedor = null) { const isEditing = devedor !== null; const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const razaoSocial = isEditing ? devedor.razaoSocial : ''; const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : ''; const nomeFantasia = isEditing ? devedor.nomeFantasia : ''; const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1'; const observacoes = isEditing ? devedor.observacoes : ''; contentArea.innerHTML = `<div class="form-container" data-id="${isEditing ? devedor.id : ''}"><div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div><div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div><div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div><div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div><div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('nivel-prioridade').value = nivelPrioridade; document.getElementById('save-devedor-btn').addEventListener('click', () => { isEditing ? handleUpdateDevedor(devedor.id) : handleSaveDevedor(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('grandesDevedores')); }
 function getDevedorDataFromForm() { const razaoSocial = document.getElementById('razao-social').value; const cnpj = document.getElementById('cnpj').value; const errorMessage = document.getElementById('error-message'); errorMessage.textContent = ''; if (!razaoSocial || !cnpj) { errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.'; return null; } if (cnpj.replace(/\D/g, '').length !== 14) { errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.'; return null; } return { razaoSocial, cnpj: cnpj.replace(/\D/g, ''), nomeFantasia: document.getElementById('nome-fantasia').value, nivelPrioridade: parseInt(document.getElementById('nivel-prioridade').value), observacoes: document.getElementById('observacoes').value }; }
-function handleSaveDevedor() { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp(); devedorData.uidUsuario = auth.currentUser.uid; db.collection("grandes_devedores").add(devedorData).then(() => { navigateTo('dashboard'); setTimeout(() => showToast("Grande Devedor salvo com sucesso!"), 100); }); }
-function handleUpdateDevedor(devedorId) { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("grandes_devedores").doc(devedorId).update(devedorData).then(() => { navigateTo('dashboard'); setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100); }); }
+function handleSaveDevedor() { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp(); devedorData.uidUsuario = auth.currentUser.uid; db.collection("grandes_devedores").add(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Grande Devedor salvo com sucesso!"), 100); }); }
+function handleUpdateDevedor(devedorId) { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("grandes_devedores").doc(devedorId).update(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100); }); }
 
 // --- PÁGINA: EXEQUENTES ---
 function renderExequentesPage() { pageTitle.textContent = 'Exequentes'; document.title = 'SASIF | Exequentes'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-exequente-btn" class="btn-primary">Cadastrar Novo Exequente</button></div><h2>Lista de Exequentes</h2><div id="exequentes-list-container"></div>`; document.getElementById('add-exequente-btn').addEventListener('click', () => renderExequenteForm()); renderExequentesList(exequentesCache); }
@@ -2253,17 +2282,14 @@ function handleDeleteMotivo(motivoId) {
 
 // --- FORMULÁRIOS E HANDLERS: PROCESSOS ---
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'renderProcessoForm' INTEIRA POR ESTA VERSÃO
-// =================================================================================
+// ==========================================================
+// VERSÃO LIMPA E FUNCIONAL - SUBSTITUA A FUNÇÃO INTEIRA
+// ==========================================================
 function renderProcessoForm(devedorId, processo = null) {
     const isEditing = processo !== null;
     pageTitle.textContent = isEditing ? 'Editar Processo' : 'Novo Processo';
     document.title = `SASIF | ${pageTitle.textContent}`;
-    
-    // Prepara as opções para os seletores
-    const pilotosDoDevedor = processosCache.filter(p => p.tipoProcesso === 'piloto' && p.id !== (processo ? processo.id : null));
-    const pilotoOptions = pilotosDoDevedor.map(p => `<option value="${p.id}" ${isEditing && processo.processoPilotoId === p.id ? 'selected' : ''}>${formatProcessoForDisplay(p.numeroProcesso)}</option>`).join('');
+
     const exequenteOptions = exequentesCache.map(ex => `<option value="${ex.id}" ${isEditing && processo.exequenteId === ex.id ? 'selected' : ''}>${ex.nome}</option>`).join('');
     const motivosOptions = motivosSuspensaoCache.map(m => `<option value="${m.id}" ${isEditing && processo.motivoSuspensaoId === m.id ? 'selected' : ''}>${m.descricao}</option>`).join('');
 
@@ -2286,9 +2312,7 @@ function renderProcessoForm(devedorId, processo = null) {
                 </select>
             </div>
             <div id="piloto-select-container"></div>
-            
             <hr style="margin: 20px 0;">
-
             <div class="form-group">
                 <label for="status-processo">Status</label>
                 <select id="status-processo">
@@ -2301,15 +2325,10 @@ function renderProcessoForm(devedorId, processo = null) {
             <div id="motivo-suspensao-container" class="hidden">
                 <div class="form-group">
                     <label for="motivo-suspensao">Motivo da Suspensão</label>
-                    <select id="motivo-suspensao">
-                        <option value="">Selecione o motivo...</option>
-                        ${motivosOptions}
-                    </select>
+                    <select id="motivo-suspensao"><option value="">Selecione o motivo...</option>${motivosOptions}</select>
                 </div>
             </div>
-
             <hr style="margin: 20px 0;">
-
             <div class="form-group">
                 <label for="valor-divida">Valor da Dívida</label>
                 <input type="number" id="valor-divida" placeholder="0.00" step="0.01" value="${isEditing ? (processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0)) : ''}">
@@ -2318,58 +2337,63 @@ function renderProcessoForm(devedorId, processo = null) {
                 <label for="cdas">CDA(s)</label>
                 <textarea id="cdas" rows="3">${isEditing ? (processo.cdas || '') : ''}</textarea>
             </div>
-
             <div id="error-message"></div>
             <div class="form-buttons">
                 <button id="save-processo-btn" class="btn-primary">Salvar</button>
                 <button id="cancel-btn">Cancelar</button>
             </div>
         </div>`;
-    
-    // Popula os valores iniciais dos seletores
-    if (isEditing) {
-        document.getElementById('tipo-processo').value = processo.tipoProcesso;
-        document.getElementById('exequente').value = processo.exequenteId;
-        document.getElementById('status-processo').value = processo.status || 'Ativo';
-        if (processo.motivoSuspensaoId) {
-             document.getElementById('motivo-suspensao').value = processo.motivoSuspensaoId;
-        }
-    }
-    
-    // Lógica para mostrar/esconder o seletor de motivo
+
+    const tipoProcessoSelect = document.getElementById('tipo-processo');
+    const exequenteSelect = document.getElementById('exequente');
     const statusSelect = document.getElementById('status-processo');
     const motivoContainer = document.getElementById('motivo-suspensao-container');
+    const pilotoContainer = document.getElementById('piloto-select-container');
 
-    const toggleMotivoSelect = () => {
-        if (statusSelect.value === 'Suspenso') {
-            motivoContainer.classList.remove('hidden');
-        } else {
-            motivoContainer.classList.add('hidden');
+    if (isEditing) {
+        tipoProcessoSelect.value = processo.tipoProcesso;
+        exequenteSelect.value = processo.exequenteId;
+        statusSelect.value = processo.status || 'Ativo';
+        if (processo.motivoSuspensaoId) {
+            document.getElementById('motivo-suspensao').value = processo.motivoSuspensaoId;
         }
-    };
-
-    toggleMotivoSelect(); // Verifica o estado inicial
-    statusSelect.addEventListener('change', toggleMotivoSelect);
-
-    // Lógica para o seletor de piloto (já existente)
-    const tipoProcessoSelect = document.getElementById('tipo-processo');
-    function togglePilotoSelect() {
-        const container = document.getElementById('piloto-select-container');
-        if (tipoProcessoSelect.value === 'apenso') {
-            if (pilotosDoDevedor.length > 0) {
-                container.innerHTML = `<div class="form-group"><label for="processo-piloto">Vincular ao Piloto</label><select id="processo-piloto"><option value="">Selecione o piloto...</option>${pilotoOptions}</select></div>`;
-                if (isEditing && processo.processoPilotoId) document.getElementById('processo-piloto').value = processo.processoPilotoId;
-            } else {
-                container.innerHTML = `<p class="empty-list-message" style="margin-top:10px;">Não há processos piloto cadastrados para este devedor.</p>`;
-            }
-        } else { container.innerHTML = ''; }
     }
-    
+
+    function toggleMotivoSelect() {
+        motivoContainer.classList.toggle('hidden', statusSelect.value !== 'Suspenso');
+    }
+
+    function togglePilotoSelect() {
+        const exequenteIdSelecionado = exequenteSelect.value;
+        if (tipoProcessoSelect.value === 'apenso') {
+            const pilotosDisponiveis = processosCache.filter(p =>
+                p.tipoProcesso === 'piloto' &&
+                p.exequenteId === exequenteIdSelecionado &&
+                p.id !== (isEditing ? processo.id : null)
+            );
+
+            if (pilotosDisponiveis.length > 0) {
+                const pilotoOptionsHTML = pilotosDisponiveis.map(p => `<option value="${p.id}">${formatProcessoForDisplay(p.numeroProcesso)}</option>`).join('');
+                pilotoContainer.innerHTML = `<div class="form-group"><label for="processo-piloto">Vincular ao Piloto</label><select id="processo-piloto"><option value="">Selecione...</option>${pilotoOptionsHTML}</select></div>`;
+                if (isEditing && processo.processoPilotoId) {
+                    document.getElementById('processo-piloto').value = processo.processoPilotoId;
+                }
+            } else {
+                pilotoContainer.innerHTML = `<p class="empty-list-message" style="margin-top:10px;">Não há processos piloto cadastrados para o exequente selecionado.</p>`;
+            }
+        } else {
+            pilotoContainer.innerHTML = '';
+        }
+    }
+
+    toggleMotivoSelect();
     togglePilotoSelect();
+
+    statusSelect.addEventListener('change', toggleMotivoSelect);
     tipoProcessoSelect.addEventListener('change', togglePilotoSelect);
-    
-    // Listeners dos botões
-    document.getElementById('save-processo-btn').addEventListener('click', () => handleSaveProcesso(devedorId, processo ? processo.id : null));
+    exequenteSelect.addEventListener('change', togglePilotoSelect);
+
+    document.getElementById('save-processo-btn').addEventListener('click', () => handleSaveProcesso(devedorId, isEditing ? processo.id : null));
     document.getElementById('cancel-btn').addEventListener('click', () => renderDevedorDetailPage(devedorId));
 }
 
