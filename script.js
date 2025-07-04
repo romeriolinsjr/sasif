@@ -186,20 +186,17 @@ function renderDevedoresList(devedores) {
     let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Razão Social</th><th>CNPJ</th><th>Prioridade</th><th>Status Análise</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
     
     devedores.forEach((devedor, index) => {
-        const analise = getAnaliseStatus(devedor); // Declaração correta, dentro do loop
+        const analise = getAnaliseStatus(devedor); 
 
-        // Define a célula de status condicionalmente
         let statusCellHTML = '';
         if (analise.status !== 'status-ok') {
-            // Se não estiver OK, a célula é clicável para registrar a análise
             statusCellHTML = `
-                <td class="status-cell clickable-status" data-action="registrar-analise" data-id="${devedor.id}" title="Clique para registrar a análise hoje">
+                <td class="clickable-status" data-action="registrar-analise" data-id="${devedor.id}" title="Clique para registrar a análise hoje">
                     <span class="status-dot ${analise.status}"></span>${analise.text}
                 </td>`;
         } else {
-            // Se estiver OK, a célula é apenas informativa
             statusCellHTML = `
-                <td class="status-cell">
+                <td>
                     <span class="status-dot ${analise.status}"></span>${analise.text}
                 </td>`;
         }
@@ -212,8 +209,8 @@ function renderDevedoresList(devedores) {
                 <td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td>
                 ${statusCellHTML}
                 <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-id="${devedor.id}">Editar</button>
-                    <button class="action-btn btn-delete" data-id="${devedor.id}">Excluir</button>
+                    <button class="action-btn btn-edit" data-id="${devedor.id}" data-action="edit">Editar</button>
+                    <button class="action-btn btn-delete" data-id="${devedor.id}" data-action="delete">Excluir</button>
                 </td>
             </tr>`;
     });
@@ -1893,50 +1890,62 @@ function handleUnattachProcesso(processoId) {
 function setupGlobalSearch() {
     const searchInput = document.getElementById('global-search-input');
     const resultsContainer = document.getElementById('search-results-container');
+    let searchTimeout;
 
     if (!searchInput || !resultsContainer) return;
 
     searchInput.addEventListener('input', (e) => {
-        const searchTerm = e.target.value.toLowerCase().trim();
-
+        clearTimeout(searchTimeout);
+        const searchTerm = e.target.value.trim();
+        
         if (searchTerm.length < 3) {
             resultsContainer.style.display = 'none';
             return;
         }
-        
-         // Busca nos devedores
-        const devedoresFound = devedoresCache.filter(devedor => 
-            devedor.razaoSocial.toLowerCase().includes(searchTerm)
-        ).slice(0, 5);
 
-        // Busca nos processos (só se o termo de busca contiver algum número)
-        let processosFound = [];
-        const searchTermNumeros = searchTerm.replace(/\D/g, '');
-        if (searchTermNumeros.length > 0) {
-            processosFound = processosCache.filter(processo => 
-                processo.numeroProcesso.replace(/\D/g, '').includes(searchTermNumeros)
-            ).slice(0, 5);
-        }
+        // Debounce: espera 300ms após o usuário parar de digitar para fazer a busca
+        searchTimeout = setTimeout(async () => {
+            const isProcesso = /[\d.-]/.test(searchTerm);
+            let devedoresFound = [];
+            let processosFound = [];
 
-        renderSearchResults(devedoresFound, processosFound);
+            if (isProcesso) {
+                // Busca processos no Firestore
+                const processosRef = db.collection('processos');
+                const query = processosRef
+                    .where('numeroProcesso', '>=', searchTerm.replace(/\D/g, ''))
+                    .where('numeroProcesso', '<=', searchTerm.replace(/\D/g, '') + '\uf8ff')
+                    .limit(5);
+                
+                const snapshot = await query.get();
+                for (const doc of snapshot.docs) {
+                    const processo = { ...doc.data(), id: doc.id };
+                    const devedor = devedoresCache.find(d => d.id === processo.devedorId);
+                    if (devedor) {
+                        processosFound.push({ ...processo, devedorNome: devedor.razaoSocial });
+                    }
+                }
+            } else {
+                // Busca devedores no cache (rápido e eficiente)
+                devedoresFound = devedoresCache.filter(devedor => 
+                    devedor.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()))
+                ).slice(0, 5);
+            }
+            renderSearchResults(devedoresFound, processosFound);
+        }, 300);
     });
 
-    // Esconde os resultados se clicar fora
     document.addEventListener('click', (e) => {
         if (!searchInput.contains(e.target)) {
             resultsContainer.style.display = 'none';
-        }
-    });
-
-    searchInput.addEventListener('focus', (e) => {
-        if (e.target.value.length >= 3) {
-            resultsContainer.style.display = 'block';
         }
     });
 }
 
 function renderSearchResults(devedores, processos) {
     const resultsContainer = document.getElementById('search-results-container');
+    const searchInput = document.getElementById('global-search-input');
     resultsContainer.innerHTML = '';
 
     if (devedores.length === 0 && processos.length === 0) {
@@ -1951,10 +1960,9 @@ function renderSearchResults(devedores, processos) {
             const item = document.createElement('div');
             item.className = 'search-result-item';
             item.innerHTML = `<span class="search-result-title">${devedor.razaoSocial}</span><span class="search-result-subtitle">${formatCNPJForDisplay(devedor.cnpj)}</span>`;
-          // CÓDIGO DE SUBSTITUIÇÃO
             item.addEventListener('click', () => {
-                showDevedorPage(devedor.id); // <-- MUDANÇA AQUI
-                document.getElementById('global-search-input').value = '';
+                showDevedorPage(devedor.id);
+                searchInput.value = '';
                 resultsContainer.style.display = 'none';
             });
             resultsContainer.appendChild(item);
@@ -1964,13 +1972,12 @@ function renderSearchResults(devedores, processos) {
     if (processos.length > 0) {
         resultsContainer.innerHTML += `<div class="search-results-header">Processos</div>`;
         processos.forEach(processo => {
-            const devedor = devedoresCache.find(d => d.id === processo.devedorId);
             const item = document.createElement('div');
             item.className = 'search-result-item';
-            item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso)}</span><span class="search-result-subtitle">Devedor: ${devedor ? devedor.razaoSocial : 'N/A'}</span>`;
+            item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso)}</span><span class="search-result-subtitle">Devedor: ${processo.devedorNome}</span>`;
             item.addEventListener('click', () => {
                 navigateTo('processoDetail', { id: processo.id });
-                document.getElementById('global-search-input').value = '';
+                searchInput.value = '';
                 resultsContainer.style.display = 'none';
             });
             resultsContainer.appendChild(item);
