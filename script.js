@@ -1,4 +1,7 @@
-// Suas credenciais do Firebase
+// ==================================================================
+// SCRIPT.JS COMPLETO - VERSÃO SINCRONIZADA
+// ==================================================================
+
 const firebaseConfig = {
     apiKey: "AIzaSyBKDnfYqBV7lF_8o-LGuaLn_VIrb2keyh0",
     authDomain: "sasif-app.firebaseapp.com",
@@ -8,12 +11,10 @@ const firebaseConfig = {
     appId: "1:695074109375:web:0b564986ef12555091d30a"
 };
 
-// Inicializa o Firebase
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Elementos da UI
 const appContainer = document.getElementById('app-container');
 const loginContainer = document.getElementById('login-container');
 const userEmailSpan = document.getElementById('user-email');
@@ -22,16 +23,17 @@ const contentArea = document.getElementById('content-area');
 const pageTitle = document.getElementById('page-title');
 const mainNav = document.getElementById('main-nav');
 
-// Variáveis de Cache e Listeners
 let devedoresCache = [];
 let exequentesCache = [];
 let processosCache = [];
-let diligenciasCache = []; // <-- ADICIONAR
+let diligenciasCache = [];
+let motivosSuspensaoCache = [];
 let processosListenerUnsubscribe = null;
 let corresponsaveisListenerUnsubscribe = null;
-let diligenciasListenerUnsubscribe = null; // <-- ADICIONAR
+let penhorasListenerUnsubscribe = null;
+let audienciasListenerUnsubscribe = null;
+let diligenciasListenerUnsubscribe = null;
 
-// --- FUNÇÕES DE UTILIDADE ---
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -91,15 +93,14 @@ function getAnaliseStatus(devedor) {
 
 function maskDocument(input, tipoPessoa) {
     let value = input.value.replace(/\D/g, '');
-
-    if (tipoPessoa === 'juridica') { // Se for Pessoa Jurídica, aplica máscara de CNPJ
-        value = value.substring(0, 14); // Limita a 14 dígitos
+    if (tipoPessoa === 'juridica') {
+        value = value.substring(0, 14);
         value = value.replace(/^(\d{2})(\d)/, '$1.$2');
         value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
         value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
         value = value.replace(/(\d{4})(\d)/, '$1-$2');
-    } else { // Se for Pessoa Física (ou qualquer outro caso), aplica máscara de CPF
-        value = value.substring(0, 11); // Limita a 11 dígitos
+    } else {
+        value = value.substring(0, 11);
         value = value.replace(/(\d{3})(\d)/, '$1.$2');
         value = value.replace(/(\d{3})(\d)/, '$1.$2');
         value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
@@ -110,19 +111,33 @@ function maskDocument(input, tipoPessoa) {
 function formatDocumentForDisplay(doc) {
     if (!doc) return 'Não informado';
     doc = doc.replace(/\D/g, '');
-    if (doc.length === 11) { // CPF
+    if (doc.length === 11) {
         return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
-    if (doc.length === 14) { // CNPJ
+    if (doc.length === 14) {
         return doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
     }
-    return doc; // Retorna o número sem formatação se não for nem CPF nem CNPJ
+    return doc;
 }
 
-// --- NAVEGAÇÃO ---
-// --- NAVEGAÇÃO ---
-function renderSidebar(activePage) { const pages = [{ id: 'dashboard', name: 'Dashboard' }, { id: 'grandesDevedores', name: 'Grandes Devedores' }, { id: 'diligencias', name: 'Diligências Mensais' }, { id: 'exequentes', name: 'Exequentes' }, { id: 'motivos', name: 'Motivos de Suspensão' }];
-mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`; mainNav.querySelectorAll('.nav-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(e.target.dataset.page); }); }); }
+function renderSidebar(activePage) {
+    const pages = [
+        { id: 'dashboard', name: 'Dashboard' },
+        { id: 'grandesDevedores', name: 'Grandes Devedores' },
+        { id: 'importacao', name: 'Importação em Lote' },
+        { id: 'diligencias', name: 'Diligências Mensais' },
+        { id: 'exequentes', name: 'Exequentes' },
+        { id: 'motivos', name: 'Motivos de Suspensão' }
+    ];
+    mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`;
+    mainNav.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateTo(e.target.dataset.page);
+        });
+    });
+}
+
 function navigateTo(page, params = {}) {
     if (processosListenerUnsubscribe) { processosListenerUnsubscribe(); processosListenerUnsubscribe = null; }
     if (corresponsaveisListenerUnsubscribe) { corresponsaveisListenerUnsubscribe(); corresponsaveisListenerUnsubscribe = null; }
@@ -137,6 +152,9 @@ function navigateTo(page, params = {}) {
             break;
         case 'grandesDevedores':
             renderGrandesDevedoresPage();
+            break;
+        case 'importacao':
+            renderImportacaoPage();
             break;
         case 'diligencias':
             renderDiligenciasPage();
@@ -155,8 +173,6 @@ function navigateTo(page, params = {}) {
     }
 }
 
-// --- DASHBOARD / DEVEDORES ---
-
 function renderDashboard() {
     pageTitle.textContent = 'Dashboard';
     document.title = 'SASIF | Dashboard';
@@ -169,13 +185,9 @@ function renderDashboard() {
         </div>
     `;
     
-    // Dispara a busca e renderização dos widgets toda vez que o dashboard é exibido.
     setupDashboardWidgets();
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'renderDevedoresList' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 function renderDevedoresList(devedores) {
     const container = document.getElementById('devedores-list-container');
     if (!container) return;
@@ -234,20 +246,16 @@ function renderGrandesDevedoresPage() {
     
     document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
     
-    // Renderiza a lista com os dados do cache
     renderDevedoresList(devedoresCache);
 }
 
-// ADICIONE ESTA NOVA FUNÇÃO
 function showDevedorPage(devedorId) {
-    // Primeiro, limpa os listeners antigos para evitar vazamentos de memória
     if (processosListenerUnsubscribe) processosListenerUnsubscribe();
     if (corresponsaveisListenerUnsubscribe) corresponsaveisListenerUnsubscribe();
     if (penhorasListenerUnsubscribe) penhorasListenerUnsubscribe();
     if (audienciasListenerUnsubscribe) audienciasListenerUnsubscribe();
     if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe();
 
-    // Renderiza a página
     renderDevedorDetailPage(devedorId);
 }
 
@@ -269,18 +277,14 @@ function renderDiligenciasPage() {
         renderDiligenciaFormModal();
     });
 
-    setupDiligenciasListener(); // <-- ATIVAR O LISTENER AQUI
+    setupDiligenciasListener();
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'renderDiligenciaFormModal' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 function renderDiligenciaFormModal(diligencia = null) {
     const isEditing = diligencia !== null;
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
 
-    // Formata a data para o input type="date" (YYYY-MM-DD)
     let dataAlvoFormatada = '';
     if (isEditing && diligencia.dataAlvo) {
         dataAlvoFormatada = new Date(diligencia.dataAlvo.seconds * 1000).toISOString().split('T')[0];
@@ -336,9 +340,6 @@ function renderDiligenciaFormModal(diligencia = null) {
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'handleSaveDiligencia' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 function handleSaveDiligencia(diligenciaId = null) {
     const titulo = document.getElementById('diligencia-titulo').value.trim();
     const dataAlvoInput = document.getElementById('diligencia-data-alvo').value;
@@ -367,8 +368,8 @@ function handleSaveDiligencia(diligenciaId = null) {
 
     const data = {
         titulo,
-        dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo), // Novo campo de data
-        isRecorrente, // Novo campo booleano
+        dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo),
+        isRecorrente,
         processoVinculado: processoVinculado || null,
         descricao,
         userId: auth.currentUser.uid
@@ -393,18 +394,12 @@ function handleSaveDiligencia(diligenciaId = null) {
     });
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'setupDiligenciasListener' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 function setupDiligenciasListener() {
     if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe();
 
     const userId = auth.currentUser.uid;
-    // Temporariamente, removemos a ordenação por 'dataAlvo' para evitar erros com dados antigos.
-    // A ordenação será feita no cliente.
     diligenciasListenerUnsubscribe = db.collection("diligenciasMensais")
         .where("userId", "==", userId)
-        // .orderBy("dataAlvo", "asc") // <<<< Linha comentada para evitar erro de índice
         .onSnapshot((snapshot) => {
             diligenciasCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderDiligenciasList(diligenciasCache);
@@ -415,9 +410,6 @@ function setupDiligenciasListener() {
         });
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'renderDiligenciasList' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 function renderDiligenciasList(diligencias) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
@@ -444,11 +436,9 @@ function renderDiligenciasList(diligencias) {
             return;
         }
 
-        // Bloco Corrigido
         const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
         const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
         const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-        // Fim do Bloco Corrigido
         
         const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
         let statusBadge = '';
@@ -576,10 +566,11 @@ function renderReadOnlyTextModal(title, content) {
         if (e.target === modalOverlay) closeModal();
     });
 }
-
-// --- DETALHES DO DEVEDOR E PROCESSOS ---
 // ==========================================================
-// 1. SUBSTITUA ESTA FUNÇÃO
+// FIM DA PARTE 1
+// ==========================================================
+// ==========================================================
+// INÍCIO DA PARTE 2
 // ==========================================================
 function renderDevedorDetailPage(devedorId) {
     pageTitle.textContent = 'Carregando...';
@@ -616,18 +607,13 @@ function renderDevedorDetailPage(devedorId) {
                 <p class="empty-list-message">Carregando processos...</p>
             </div>
         `;
-        // A chamada agora passa 'null' para indicar que é um novo processo
         document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId, null));
         setupProcessosListener(devedorId);
     });
 }
 
-        function renderProcessosList(processos) {
-
-              // --- LÓGICA DE CÁLCULO E RENDERIZAÇÃO DO RESUMO ---
+function renderProcessosList(processos) {
     const totalProcessos = processos.length;
-
-    // Objeto para armazenar os totais por exequenteId
     const totaisPorExequente = {};
 
     processos.forEach(processo => {
@@ -645,62 +631,59 @@ function renderDevedorDetailPage(devedorId) {
 
     const valorTotalGeral = Object.values(totaisPorExequente).reduce((total, valor) => total + valor, 0);
 
-    // Gera o HTML para a lista detalhada de exequentes
     let detalhamentoHTML = '';
     for (const exequenteId in totaisPorExequente) {
         const exequente = exequentesCache.find(e => e.id === exequenteId);
         const nomeExequente = exequente ? exequente.nome : 'Exequente não identificado';
-        detalhamentoHTML += `
-            <p style="margin-left: 20px; margin-top: 8px;">
-                ↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])}
-            </p>
-        `;
+        detalhamentoHTML += `<p style="margin-left: 20px; margin-top: 8px;">↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])}</p>`;
     }
 
     const resumoContainer = document.getElementById('resumo-financeiro-container');
     if (resumoContainer) {
-        // CÓDIGO DE SUBSTITUIÇÃO
         resumoContainer.innerHTML = `
             <div class="detail-card" style="margin-top: 20px;">
                 <h3>Resumo Financeiro e Processual</h3>
                 <div class="detail-grid" style="align-items: flex-start;">
-
-                    <!-- Coluna Esquerda: Informações Financeiras -->
                     <div>
                         <div class="info-tooltip-container" style="margin-bottom: 10px;">
                             <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)}
                             <span class="info-icon">i</span>
-                            <div class="info-tooltip-text">
-                                Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.
-                            </div>
+                            <div class="info-tooltip-text">Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.</div>
                         </div>
-                        <div id="detalhamento-exequente">
-                            ${detalhamentoHTML}
-                        </div>
+                        <div id="detalhamento-exequente">${detalhamentoHTML}</div>
                     </div>
-
-                    <!-- Coluna Direita: Informações Quantitativas -->
-                    <div>
-                        <strong>Processos Vinculados:</strong> ${totalProcessos}
-                    </div>
-
+                    <div><strong>Processos Vinculados:</strong> ${totalProcessos}</div>
                 </div>
-            </div>
-        `;
+            </div>`;
     }
-    // --- FIM DA LÓGICA DO RESUMO ---
 
-    // --- LÓGICA PARA RENDERIZAR A LISTA DE PROCESSOS (código original) ---
     const container = document.getElementById('processos-list-container');
     if (!container) return;
-
-    const autonomos = processos.filter(p => p.tipoProcesso === 'autonomo').sort((a,b) => (a.criadoEm.seconds < b.criadoEm.seconds) ? 1 : -1);
-    const pilotos = processos.filter(p => p.tipoProcesso === 'piloto').sort((a,b) => (a.criadoEm.seconds < b.criadoEm.seconds) ? 1 : -1);
-    const apensosMap = processos.filter(p => p.tipoProcesso === 'apenso').reduce((map, apenso) => { const pilotoId = apenso.processoPilotoId; if (!map.has(pilotoId)) map.set(pilotoId, []); map.get(pilotoId).push(apenso); return map; }, new Map());
     
-    const itemsOrdenados = [...autonomos, ...pilotos];
+    let itemsParaOrdenar = processos.filter(p => p.tipoProcesso === 'autônomo' || p.tipoProcesso === 'piloto');
+const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
+    
+    itemsParaOrdenar.sort((a, b) => {
+        const exequenteA = exequentesCache.find(ex => ex.id === a.exequenteId)?.nome || '';
+        const exequenteB = exequentesCache.find(ex => ex.id === b.exequenteId)?.nome || '';
+        if (exequenteA < exequenteB) return -1;
+        if (exequenteA > exequenteB) return 1;
 
-    if (itemsOrdenados.length === 0) {
+        const timeA = a.criadoEm ? a.criadoEm.seconds : 0;
+        const timeB = b.criadoEm ? b.criadoEm.seconds : 0;
+        return timeB - timeA;
+    });
+
+    const apensosMap = apensos.reduce((map, apenso) => {
+        const pilotoId = apenso.processoPilotoId;
+        if (!map.has(pilotoId)) map.set(pilotoId, []);
+        map.get(pilotoId).push(apenso);
+        return map;
+    }, new Map());
+    
+    const itemsOrdenados = itemsParaOrdenar;
+
+    if (itemsOrdenados.length === 0 && apensos.length === 0) {
         container.innerHTML = `<p class="empty-list-message">Nenhum processo cadastrado.</p>`;
         return;
     }
@@ -709,12 +692,8 @@ function renderDevedorDetailPage(devedorId) {
 
     itemsOrdenados.forEach(item => {
         const exequente = exequentesCache.find(ex => ex.id === item.exequenteId);
-        
-        const motivo = item.status === 'Suspenso' && item.motivoSuspensaoId 
-            ? motivosSuspensaoCache.find(m => m.id === item.motivoSuspensaoId)
-            : null;
+        const motivo = item.status === 'Suspenso' && item.motivoSuspensaoId ? motivosSuspensaoCache.find(m => m.id === item.motivoSuspensaoId) : null;
         const statusText = motivo ? `Suspenso (${motivo.descricao})` : (item.status || 'Ativo');
-
         const valorExibido = item.valorAtual ? item.valorAtual.valor : (item.valorDivida || 0);
 
         const itemHTML = `
@@ -733,12 +712,8 @@ function renderDevedorDetailPage(devedorId) {
         if (item.tipoProcesso === 'piloto' && apensosMap.has(item.id)) {
             apensosMap.get(item.id).forEach(apenso => {
                 const exApenso = exequentesCache.find(ex => ex.id === apenso.exequenteId);
-
-                const motivoApenso = apenso.status === 'Suspenso' && apenso.motivoSuspensaoId 
-                    ? motivosSuspensaoCache.find(m => m.id === apenso.motivoSuspensaoId)
-                    : null;
+                const motivoApenso = apenso.status === 'Suspenso' && apenso.motivoSuspensaoId ? motivosSuspensaoCache.find(m => m.id === apenso.motivoSuspensaoId) : null;
                 const statusTextApenso = motivoApenso ? `Suspenso (${motivoApenso.descricao})` : (apenso.status || 'Ativo');
-
                 const valorApensoExibido = apenso.valorAtual ? apenso.valorAtual.valor : (apenso.valorDivida || 0);
 
                 const apensoHTML = `
@@ -762,7 +737,6 @@ function renderDevedorDetailPage(devedorId) {
     container.querySelector('tbody').addEventListener('click', handleProcessoAction);
 }
 
-// --- DETALHES DO PROCESSO, CORRESPONSÁVEIS, ETC ---
 function renderProcessoDetailPage(processoId) {
     pageTitle.textContent = 'Carregando Processo...';
     document.title = 'SASIF | Carregando...';
@@ -784,48 +758,42 @@ function renderProcessoDetailPage(processoId) {
         
         contentArea.innerHTML = `
             <div class="dashboard-actions">
-            <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
-${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autonomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
-${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
+                <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
+                ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
+                ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
+                <button id="delete-processo-btn" class="btn-primary" style="background-color: var(--cor-erro); margin-left: auto;">Excluir Processo</button>
             </div>
             
             <div class="detail-card">
-    <h3>Detalhes do Processo</h3>
-    <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
-        
-        <!-- Coluna Esquerda -->
-        <div>
-            <p><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</p>
-            <p><strong>Executado:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</p>
-        </div>
-
-        <!-- Coluna Direita -->
-        <div>
-            <p><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</p>
-            <div class="valor-divida-container">
-                <p><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida)}</p>
-                <div class="valor-divida-actions">
-                    <button id="update-valor-btn" class="action-btn btn-edit">Atualizar</button>
-                    <button id="view-history-btn" class="action-btn btn-secondary">Histórico</button>
+                <h3>Detalhes do Processo</h3>
+                <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
+                    <div>
+                        <p><strong>Exequente:</strong> ${exequente ? exequente.nome : 'N/A'}</p>
+                        <p><strong>Executado:</strong> ${devedor ? devedor.razaoSocial : 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p><strong>Tipo:</strong> ${processo.tipoProcesso.charAt(0).toUpperCase() + processo.tipoProcesso.slice(1)}</p>
+                        <div class="valor-divida-container">
+                            <p><strong>Valor da Dívida:</strong> ${formatCurrency(processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida)}</p>
+                            <div class="valor-divida-actions">
+                                <button id="update-valor-btn" class="action-btn btn-edit">Atualizar</button>
+                                <button id="view-history-btn" class="action-btn btn-secondary">Histórico</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-full-width">
+                    <strong>CDA(s):</strong> 
+                    <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
                 </div>
             </div>
-        </div>
-
-    </div>
-    <div class="detail-full-width">
-        <strong>CDA(s):</strong> 
-        <p>${processo.cdas ? processo.cdas.replace(/\n/g, '<br>') : 'Nenhuma CDA cadastrada.'}</p>
-    </div>
-</div>
 
             <div class="content-section">
                 <div class="section-header">
                     <h2>Corresponsáveis Tributários</h2>
                     <button id="add-corresponsavel-btn" class="btn-primary">Adicionar</button>
                 </div>
-                <div id="corresponsaveis-list-container">
-                    <!-- A lista de corresponsáveis será renderizada aqui -->
-                </div>
+                <div id="corresponsaveis-list-container"></div>
             </div>
 
             <div class="content-section">
@@ -833,18 +801,14 @@ ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" cl
                     <h2>Penhoras Realizadas</h2>
                     <button id="add-penhora-btn" class="btn-primary">Adicionar</button>
                 </div>
-                <div id="penhoras-list-container">
-                    <!-- A lista de penhoras será renderizada aqui -->
-                </div>
+                <div id="penhoras-list-container"></div>
             </div>
-                        <div class="content-section">
+            <div class="content-section">
                 <div class="section-header">
                     <h2>Audiências Agendadas</h2>
                     <button id="add-audiencia-btn" class="btn-primary">Adicionar</button>
                 </div>
-                <div id="audiencias-list-container">
-                    <!-- A lista de audiências será renderizada aqui -->
-                </div>
+                <div id="audiencias-list-container"></div>
             </div>
         `;
 
@@ -858,26 +822,27 @@ ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" cl
         setupPenhorasListener(processoId);
         document.getElementById('add-audiencia-btn').addEventListener('click', () => renderAudienciaFormModal(processoId));
         setupAudienciasListener(processoId);
-            if (document.getElementById('promote-piloto-btn')) {
+
+        if (document.getElementById('promote-piloto-btn')) {
             document.getElementById('promote-piloto-btn').addEventListener('click', () => {
                 handlePromoteToPiloto(processo.id);
             });
         }
-        // ADICIONE O CÓDIGO DO NOVO LISTENER AQUI
         if (document.getElementById('unattach-processo-btn')) {
             document.getElementById('unattach-processo-btn').addEventListener('click', () => {
                 handleUnattachProcesso(processo.id);
             });
         }
-        // Adicione este bloco no final da cadeia de listeners, antes do .catch
         document.getElementById('update-valor-btn').addEventListener('click', () => {
             renderValorUpdateModal(processo.id);
         });
-
         document.getElementById('view-history-btn').addEventListener('click', () => {
             renderValorHistoryModal(processo.id);
         });
-    }).catch(error => { //...
+        document.getElementById('delete-processo-btn').addEventListener('click', () => {
+            handleDeleteProcesso(processo.id); 
+        });
+
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
         showToast("Erro ao carregar o processo.", "error");
@@ -924,32 +889,27 @@ function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
     const tipoPessoaSelect = document.getElementById('tipo-pessoa');
     const documentoInput = document.getElementById('corresponsavel-documento');
     
-    // Define o valor inicial do seletor
     tipoPessoaSelect.value = tipoPessoa;
 
-    // Função para ajustar o campo de documento
     const updateDocumentField = () => {
         if (tipoPessoaSelect.value === 'fisica') {
             documentoInput.placeholder = 'Digite o CPF';
         } else {
             documentoInput.placeholder = 'Digite o CNPJ';
         }
-        documentoInput.value = ''; // Limpa o campo ao trocar o tipo
+        documentoInput.value = '';
     };
 
-    updateDocumentField(); // Chama a função uma vez para o estado inicial
+    updateDocumentField();
     
-    // Adiciona o listener para a máscara e para a troca de tipo
     documentoInput.addEventListener('input', () => maskDocument(documentoInput, tipoPessoaSelect.value));
     tipoPessoaSelect.addEventListener('change', updateDocumentField);
     
-    // Se estiver editando, não limpa o campo inicial
     if(isEditing) {
         documentoInput.value = formatDocumentForDisplay(corresponsavel.cpfCnpj);
     } else {
         updateDocumentField();
     }
-
 
     const closeModal = () => document.body.removeChild(modalOverlay);
     
@@ -1046,16 +1006,14 @@ function handleSaveCorresponsavel(processoId, corresponsavelId = null) {
     const data = {
         processoId,
         nome,
-        cpfCnpj: documento.replace(/\D/g, '') // Salva apenas os números
+        cpfCnpj: documento.replace(/\D/g, '')
     };
 
     let promise;
     if (corresponsavelId) {
-        // Editando
         data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
         promise = db.collection("corresponsaveis").doc(corresponsavelId).update(data);
     } else {
-        // Criando
         data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
         promise = db.collection("corresponsaveis").add(data);
     }
@@ -1080,21 +1038,15 @@ function handleDeleteCorresponsavel(corresponsavelId) {
     }
 }
 
-// --- GERENCIAMENTO DE PENHORAS ---
-
-let penhorasListenerUnsubscribe = null;
-
 function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) {
     const isEditing = penhora !== null;
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
 
-    // Define o conteúdo e os botões com base no modo (leitura ou edição)
     let formContentHTML = '';
     let formButtonsHTML = '';
 
     if (isReadOnly) {
-        // --- MODO DE VISUALIZAÇÃO ---
         formContentHTML = `
             <div class="form-group">
                 <label>Descrição Completa do Bem</label>
@@ -1103,7 +1055,6 @@ function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) 
         `;
         formButtonsHTML = `<button id="close-penhora-btn" class="btn-primary">Fechar</button>`;
     } else {
-        // --- MODO DE CRIAÇÃO/EDIÇÃO ---
         formContentHTML = `
             <div class="form-group">
                 <label for="penhora-descricao">Descrição do Bem (Obrigatório)</label>
@@ -1139,7 +1090,6 @@ function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) 
 
     const closeModal = () => document.body.removeChild(modalOverlay);
 
-    // Adiciona os listeners apropriados
     if (isReadOnly) {
         document.getElementById('close-penhora-btn').addEventListener('click', closeModal);
     } else {
@@ -1168,7 +1118,7 @@ function setupPenhorasListener(processoId) {
         }, error => {
             console.error("Erro ao buscar penhoras: ", error);
             const container = document.getElementById('penhoras-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras. Verifique se o índice do Firestore foi criado (veja o console do navegador).</p>`;
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras.</p>`;
         });
 }
 
@@ -1240,10 +1190,8 @@ function handlePenhoraAction(event) {
     };
 
     if (action === 'view') {
-        // Abre o modal em modo SOMENTE LEITURA
         renderPenhoraFormModal(processoId, penhoraData, true);
     } else if (action === 'edit') {
-        // Abre o modal em modo de EDIÇÃO
         renderPenhoraFormModal(processoId, penhoraData, false);
     } else if (action === 'delete') {
         handleDeletePenhora(penhoraId);
@@ -1298,16 +1246,11 @@ function handleDeletePenhora(penhoraId) {
     }
 }
 
-// --- GERENCIAMENTO DE AUDIÊNCIAS ---
-
-let audienciasListenerUnsubscribe = null;
-
 function renderAudienciaFormModal(processoId, audiencia = null) {
     const isEditing = audiencia !== null;
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay';
 
-    // Para o campo de data e hora, precisamos do formato YYYY-MM-DDTHH:MM
     let dataHora = '';
     if (isEditing && audiencia.dataHora) {
         dataHora = new Date(audiencia.dataHora.seconds * 1000).toISOString().slice(0, 16);
@@ -1363,7 +1306,7 @@ function setupAudienciasListener(processoId) {
         }, error => {
             console.error("Erro ao buscar audiências: ", error);
             const container = document.getElementById('audiencias-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências. Verifique se o índice do Firestore foi criado.</p>`;
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências.</p>`;
         });
 }
 
@@ -1423,9 +1366,6 @@ function handleAudienciaAction(event, audiencias) {
     }
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'handleSaveAudiencia' INTEIRA PELA VERSÃO FINAL
-// =================================================================================
 function handleSaveAudiencia(processoId, audienciaId = null) {
     const dataHoraInput = document.getElementById('audiencia-data-hora').value;
     const local = document.getElementById('audiencia-local').value.trim();
@@ -1438,23 +1378,18 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
         return;
     }
 
-    // --- VALIDAÇÃO COMBINADA (ROBUSTA) ---
     const dataDaAudiencia = new Date(dataHoraInput);
 
-    // 1. Verifica se a data é sintaticamente válida
     if (isNaN(dataDaAudiencia.getTime())) {
         errorMessage.textContent = 'A data ou hora inserida é inválida. Por favor, verifique.';
         return;
     }
 
-    // 2. Verifica se o ano está dentro de um intervalo razoável
     const ano = dataDaAudiencia.getFullYear();
     if (ano < 1900 || ano > 2100) {
         errorMessage.textContent = 'Por favor, insira um ano válido (entre 1900 e 2100).';
         return;
     }
-    // --- FIM DA VALIDAÇÃO COMBINADA ---
-
 
     const processo = processosCache.find(p => p.id === processoId);
     if (!processo) {
@@ -1465,7 +1400,7 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
     
     const audienciaData = {
         processoId,
-        dataHora: dataDaAudiencia, // Usa o objeto Date que já validamos
+        dataHora: dataDaAudiencia,
         local,
         observacoes,
         numeroProcesso: processo.numeroProcesso,
@@ -1502,18 +1437,14 @@ function handleDeleteAudiencia(audienciaId) {
     }
 }
 
-// CÓDIGO DE SUBSTITUIÇÃO COMPLETO PARA a função
 function setupDashboardWidgets() {
     const hoje = new Date();
     
-    // CÓDIGO DE SUBSTITUIÇÃO
-    // --- Widget de Próximas Diligências ---
     db.collection("diligenciasMensais")
       .where("userId", "==", auth.currentUser.uid)
       .get()
       .then((snapshot) => {
           const diligencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          // A ordenação será feita dentro da função renderProximasDiligenciasWidget
           renderProximasDiligenciasWidget(diligencias);
       })
       .catch(error => {
@@ -1522,7 +1453,6 @@ function setupDashboardWidgets() {
           if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Diligências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
       });
 
-    // --- Widget de Próximas Audiências ---
     db.collection("audiencias")
       .where("dataHora", ">=", hoje)
       .orderBy("dataHora", "asc")
@@ -1538,13 +1468,9 @@ function setupDashboardWidgets() {
           if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
       });
 
-    // --- Widget de Análises Pendentes ---
     renderAnalisePendenteWidget(devedoresCache);
 }
 
-// =================================================================================
-// VERSÃO FINAL E LIMPA DA FUNÇÃO (OPCIONAL, PARA LIMPAR O CONSOLE)
-// =================================================================================
 function renderProximasDiligenciasWidget(diligencias) {
     const container = document.getElementById('diligencias-widget-container');
     if (!container) return;
@@ -1576,7 +1502,6 @@ function renderProximasDiligenciasWidget(diligencias) {
     });
 
     diligenciasParaExibir.sort((a, b) => {
-        // Ordena pela data relevante calculada
         const dataA = a.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), new Date(a.dataAlvo.seconds * 1000).getDate()) : new Date(a.dataAlvo.seconds * 1000);
         const dataB = b.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), new Date(b.dataAlvo.seconds * 1000).getDate()) : new Date(b.dataAlvo.seconds * 1000);
         return dataA - dataB;
@@ -1617,13 +1542,12 @@ function renderProximasAudienciasWidget(audiencias) {
     } else {
         const hoje = new Date();
         const umaSemana = new Date();
-        umaSemana.setDate(hoje.getDate() + 8); // Pega os próximos 8 dias
+        umaSemana.setDate(hoje.getDate() + 8);
 
         audiencias.forEach(item => {
             const data = new Date(item.dataHora.seconds * 1000);
             const dataFormatada = data.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' });
             
-            // Verifica se a audiência é na próxima semana para dar destaque
             const isDestaque = data < umaSemana;
 
             contentHTML += `
@@ -1651,21 +1575,18 @@ function renderAnalisePendenteWidget(devedores) {
     const container = document.getElementById('analises-widget-container');
     if (!container) return;
 
-    // Filtra devedores que precisam de atenção
     const devedoresParaAnalise = devedores.map(devedor => {
         return {
             ...devedor,
-            analise: getAnaliseStatus(devedor) // Reutiliza nossa função de status!
+            analise: getAnaliseStatus(devedor)
         };
     }).filter(d => d.analise.status === 'status-expired' || d.analise.status === 'status-warning');
     
-    // Ordena por urgência: primeiro os vencidos, depois os com alerta
     devedoresParaAnalise.sort((a, b) => {
         if (a.analise.status === 'status-expired' && b.analise.status !== 'status-expired') return -1;
         if (a.analise.status !== 'status-expired' && b.analise.status === 'status-expired') return 1;
-        return 0; // Mantém a ordem original entre os de mesmo status
+        return 0;
     });
-
 
     let contentHTML = '';
     if (devedoresParaAnalise.length === 0) {
@@ -1686,7 +1607,6 @@ function renderAnalisePendenteWidget(devedores) {
         });
     }
 
-    // Cria o novo widget e o adiciona ao container
     const widgetHTML = `
         <div class="widget-card">
             <h3>Análises Pendentes</h3>
@@ -1695,7 +1615,6 @@ function renderAnalisePendenteWidget(devedores) {
     `;
     container.innerHTML = widgetHTML;
 
-    // Adiciona um listener para que o item seja clicável
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
         const item = event.target.closest('.analise-item');
         if (item && item.dataset.id) {
@@ -1704,39 +1623,46 @@ function renderAnalisePendenteWidget(devedores) {
     });
 }
 
-// --- HANDLERS (CRUD) ---
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'handleDevedorAction' INTEIRA PELA VERSÃO CORRIGIDA
-// =================================================================================
 function handleDevedorAction(event) {
     const target = event.target;
-    const actionTarget = target.closest('[data-action]'); // Procura o elemento mais próximo com um data-action
+    const actionTarget = target.closest('[data-action]'); 
 
-    // Se um elemento com data-action foi clicado...
     if (actionTarget) {
         const action = actionTarget.dataset.action;
         const devedorId = actionTarget.dataset.id;
         
         if (action === 'registrar-analise') {
-            event.stopPropagation(); // Impede que o clique na célula também acione o clique na linha
+            event.stopPropagation(); 
             handleRegistrarAnalise(devedorId);
         } else if (action === 'edit') {
             handleEditDevedor(devedorId);
         } else if (action === 'delete') {
             handleDeleteDevedor(devedorId);
         }
-        return; // Ação tratada, encerra a função
+        return; 
     }
 
-    // Se nenhum elemento de ação foi clicado, verifica se foi um clique para ver detalhes
     const row = target.closest('tr.clickable-row');
     if (row) {
         const devedorId = row.dataset.id;
         showDevedorPage(devedorId);
     }
 }
-function handleEditDevedor(devedorId) { db.collection("grandes_devedores").doc(devedorId).get().then(doc => { if (doc.exists) renderDevedorForm({ id: doc.id, ...doc.data() }); }); }
-function handleDeleteDevedor(devedorId) { if (confirm("Tem certeza que deseja excluir este Grande Devedor?")) db.collection("grandes_devedores").doc(devedorId).delete().then(() => showToast("Devedor excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); }
+
+function handleEditDevedor(devedorId) {
+    db.collection("grandes_devedores").doc(devedorId).get().then(doc => {
+        if (doc.exists) renderDevedorForm({ id: doc.id, ...doc.data() });
+    });
+}
+
+function handleDeleteDevedor(devedorId) {
+    if (confirm("Tem certeza que deseja excluir este Grande Devedor?")) {
+        db.collection("grandes_devedores").doc(devedorId).delete()
+            .then(() => showToast("Devedor excluído com sucesso."))
+            .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
+    }
+}
+
 function handleProcessoAction(event) {
     event.preventDefault(); 
     const target = event.target;
@@ -1768,13 +1694,12 @@ function handleProcessoAction(event) {
         });
     }
 }
+
 async function handleEditProcesso(processoId) {
-    // Busca a versão mais recente do processo diretamente do banco
     try {
         const doc = await db.collection("processos").doc(processoId).get();
         if (doc.exists) {
             const processo = { id: doc.id, ...doc.data() };
-            // Chama o formulário com dados frescos
             renderProcessoForm(processo.devedorId, processo);
         } else {
             showToast("Processo não encontrado no banco de dados.", "error");
@@ -1784,53 +1709,63 @@ async function handleEditProcesso(processoId) {
         showToast("Erro ao carregar dados do processo.", "error");
     }
 }
+
 async function handleDeleteProcesso(processoId) {
-    const processo = processosCache.find(p => p.id === processoId);
-    if (!processo) {
-        showToast("Processo não encontrado para exclusão.", "error");
+    const processoRef = db.collection("processos").doc(processoId);
+    let processo;
+    try {
+        const doc = await processoRef.get();
+        if (!doc.exists) {
+            showToast("Erro: Processo não encontrado no banco de dados.", "error");
+            return;
+        }
+        processo = { id: doc.id, ...doc.data() };
+    } catch (error) {
+        console.error("Erro ao buscar processo para exclusão:", error);
+        showToast("Erro de comunicação com o banco de dados.", "error");
         return;
     }
 
     let confirmMessage = `Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`;
-    let isPiloto = processo.tipoProcesso === 'piloto';
     
-    // Mensagem de alerta especial para processos piloto
+    const isPiloto = processo.tipoProcesso === 'piloto';
+    let apensosParaExcluir = [];
+
     if (isPiloto) {
-        const apensos = processosCache.filter(p => p.processoPilotoId === processo.id);
-        if (apensos.length > 0) {
-            confirmMessage = `ATENÇÃO: Você está excluindo um Processo Piloto com ${apensos.length} apenso(s).\n\nAo confirmar, TODOS os apensos serão excluídos permanentemente.\n\nPara evitar isso, promova um dos apensos a novo piloto ANTES de excluir este.\n\nDeseja continuar com a exclusão de todos os ${apensos.length + 1} processos?`;
+        const apensosSnapshot = await db.collection("processos").where("processoPilotoId", "==", processo.id).get();
+        apensosParaExcluir = apensosSnapshot.docs;
+        
+        if (apensosParaExcluir.length > 0) {
+            confirmMessage = `ATENÇÃO: Você está excluindo um Processo Piloto com ${apensosParaExcluir.length} apenso(s).\n\nAo confirmar, TODOS os apensos serão excluídos permanentemente.\n\nDeseja continuar com a exclusão de todos os ${apensosParaExcluir.length + 1} processos?`;
         }
     }
 
     if (!confirm(confirmMessage)) {
-        return; // Usuário cancelou
+        return;
     }
 
     try {
         const batch = db.batch();
-        const processoRef = db.collection("processos").doc(processoId);
         
-        // Se for piloto, primeiro deleta todos os apensos
-        if (isPiloto) {
-            const apensos = processosCache.filter(p => p.processoPilotoId === processo.id);
-            apensos.forEach(apenso => {
-                const apensoRef = db.collection("processos").doc(apenso.id);
-                batch.delete(apensoRef);
+        if (isPiloto && apensosParaExcluir.length > 0) {
+            apensosParaExcluir.forEach(apensoDoc => {
+                batch.delete(apensoDoc.ref);
             });
         }
         
-        // Por fim, deleta o processo principal (seja ele piloto, apenso ou autônomo)
         batch.delete(processoRef);
 
         await batch.commit();
         showToast("Processo(s) excluído(s) com sucesso!");
-        // Não é necessário chamar renderDevedorDetailPage aqui, pois o listener onSnapshot fará isso automaticamente.
+
+        renderDevedorDetailPage(processo.devedorId);
 
     } catch (error) {
         console.error("Erro ao excluir processo(s):", error);
         showToast("Ocorreu um erro ao excluir o(s) processo(s).", "error");
     }
 }
+
 async function handlePromoteToPiloto(processoId) {
     const processoAlvo = processosCache.find(p => p.id === processoId);
     if (!processoAlvo) {
@@ -1841,31 +1776,27 @@ async function handlePromoteToPiloto(processoId) {
     const confirmMessage = `Tem certeza que deseja promover o processo ${formatProcessoForDisplay(processoAlvo.numeroProcesso)} a novo Piloto? \n\nEsta ação reorganizará o grupo de processos ao qual ele pertence.`;
 
     if (!confirm(confirmMessage)) {
-        return; // Usuário cancelou
+        return;
     }
 
-    const batch = db.batch(); // Inicia um Write Batch
+    const batch = db.batch();
 
     try {
-        // 1. Promove o processo alvo a 'piloto'
         const processoAlvoRef = db.collection("processos").doc(processoAlvo.id);
         batch.update(processoAlvoRef, {
             tipoProcesso: 'piloto',
             processoPilotoId: null
         });
 
-        // 2. Se o processo alvo era um 'apenso', reorganiza seu antigo grupo
         if (processoAlvo.tipoProcesso === 'apenso' && processoAlvo.processoPilotoId) {
             const antigoPilotoId = processoAlvo.processoPilotoId;
             
-            // 2a. Rebaixa o antigo piloto para ser um apenso do novo piloto
             const antigoPilotoRef = db.collection("processos").doc(antigoPilotoId);
             batch.update(antigoPilotoRef, {
                 tipoProcesso: 'apenso',
-                processoPilotoId: processoAlvo.id // Vincula ao novo piloto
+                processoPilotoId: processoAlvo.id
             });
 
-            // 2b. Re-vincula todos os 'irmãos' (outros apensos do mesmo grupo) ao novo piloto
             const irmaosApensos = processosCache.filter(p => 
                 p.processoPilotoId === antigoPilotoId && p.id !== processoAlvo.id
             );
@@ -1875,13 +1806,10 @@ async function handlePromoteToPiloto(processoId) {
                 batch.update(irmaoRef, { processoPilotoId: processoAlvo.id });
             });
         }
-        // Se for 'autonomo', não há grupo para reorganizar, então o trabalho termina no passo 1.
-
-        // 3. Executa todas as operações em uma única transação
+        
         await batch.commit();
         showToast("Processo promovido a Piloto com sucesso!", "success");
         
-        // Atualiza a visualização para refletir as mudanças
         renderDevedorDetailPage(processoAlvo.devedorId);
 
     } catch (error) {
@@ -1889,6 +1817,7 @@ async function handlePromoteToPiloto(processoId) {
         showToast("Ocorreu um erro crítico durante a promoção. Os dados não foram alterados.", "error");
     }
 }
+
 function handleUnattachProcesso(processoId) {
     const processo = processosCache.find(p => p.id === processoId);
     if (!processo) {
@@ -1897,15 +1826,14 @@ function handleUnattachProcesso(processoId) {
     }
 
     if (!confirm(`Tem certeza que deseja desapensar o processo ${formatProcessoForDisplay(processo.numeroProcesso)}? \n\nEle se tornará um processo Autônomo.`)) {
-        return; // Usuário cancelou
+        return;
     }
 
     db.collection("processos").doc(processoId).update({
-        tipoProcesso: 'autonomo',
+        tipoProcesso: 'autônomo',
         processoPilotoId: firebase.firestore.FieldValue.delete()
     }).then(() => {
         showToast("Processo desapensado com sucesso!", "success");
-        // Recarrega a página de detalhes do devedor para ver a lista atualizada
         renderDevedorDetailPage(processo.devedorId);
     }).catch(error => {
         console.error("Erro ao desapensar processo: ", error);
@@ -1913,7 +1841,6 @@ function handleUnattachProcesso(processoId) {
     });
 }
 
-// CÓDIGO PARA SUBSTITUIR
 function setupGlobalSearch() {
     const searchInput = document.getElementById('global-search-input');
     const resultsContainer = document.getElementById('search-results-container');
@@ -1930,15 +1857,12 @@ function setupGlobalSearch() {
             return;
         }
 
-        // Debounce: espera 300ms após o usuário parar de digitar para fazer a busca
         searchTimeout = setTimeout(async () => {
-            // A REGRA FOI ALTERADA AQUI: agora só ativa com a presença de um dígito.
             const isProcesso = /\d/.test(searchTerm);
             let devedoresFound = [];
             let processosFound = [];
 
             if (isProcesso) {
-                // Busca processos no Firestore
                 const processosRef = db.collection('processos');
                 const query = processosRef
                     .where('numeroProcesso', '>=', searchTerm.replace(/\D/g, ''))
@@ -1953,7 +1877,6 @@ function setupGlobalSearch() {
                     }
                 }
             } else {
-                // Busca devedores no cache (rápido e eficiente)
                 devedoresFound = devedoresCache.filter(devedor => 
                     devedor.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -2063,13 +1986,11 @@ async function handleSaveValorUpdate(processoId) {
 
     const dataParaSalvar = firebase.firestore.Timestamp.fromDate(dataCalculo);
 
-    // 1. Atualiza o valor no documento principal do processo
     batch.update(processoRef, {
         "valorAtual.valor": novoValor,
         "valorAtual.data": dataParaSalvar
     });
 
-    // 2. Adiciona um novo registro na subcoleção de histórico
     batch.set(historicoRef, {
         valor: novoValor,
         data: dataParaSalvar,
@@ -2106,7 +2027,6 @@ async function renderValorHistoryModal(processoId) {
     document.getElementById('close-history-modal').addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 
-    // Busca os dados da subcoleção e renderiza a tabela
     try {
         const snapshot = await db.collection("processos").doc(processoId).collection("historicoValores").orderBy("data", "desc").get();
         const historyContainer = document.getElementById('history-list-container');
@@ -2148,13 +2068,11 @@ function handleRegistrarAnalise(devedorId) {
     });
 }
 
-// --- FORMULÁRIOS: DEVEDORES ---
 function renderDevedorForm(devedor = null) { const isEditing = devedor !== null; const formTitle = isEditing ? 'Editar Grande Devedor' : 'Cadastrar Novo Grande Devedor'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const razaoSocial = isEditing ? devedor.razaoSocial : ''; const cnpj = isEditing ? formatCNPJForDisplay(devedor.cnpj) : ''; const nomeFantasia = isEditing ? devedor.nomeFantasia : ''; const nivelPrioridade = isEditing ? devedor.nivelPrioridade : '1'; const observacoes = isEditing ? devedor.observacoes : ''; contentArea.innerHTML = `<div class="form-container" data-id="${isEditing ? devedor.id : ''}"><div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div><div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div><div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div><div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div><div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div><div id="error-message"></div><div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('nivel-prioridade').value = nivelPrioridade; document.getElementById('save-devedor-btn').addEventListener('click', () => { isEditing ? handleUpdateDevedor(devedor.id) : handleSaveDevedor(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('grandesDevedores')); }
 function getDevedorDataFromForm() { const razaoSocial = document.getElementById('razao-social').value; const cnpj = document.getElementById('cnpj').value; const errorMessage = document.getElementById('error-message'); errorMessage.textContent = ''; if (!razaoSocial || !cnpj) { errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.'; return null; } if (cnpj.replace(/\D/g, '').length !== 14) { errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.'; return null; } return { razaoSocial, cnpj: cnpj.replace(/\D/g, ''), nomeFantasia: document.getElementById('nome-fantasia').value, nivelPrioridade: parseInt(document.getElementById('nivel-prioridade').value), observacoes: document.getElementById('observacoes').value }; }
 function handleSaveDevedor() { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp(); devedorData.uidUsuario = auth.currentUser.uid; db.collection("grandes_devedores").add(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Grande Devedor salvo com sucesso!"), 100); }); }
 function handleUpdateDevedor(devedorId) { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("grandes_devedores").doc(devedorId).update(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100); }); }
 
-// --- PÁGINA: EXEQUENTES ---
 function renderExequentesPage() { pageTitle.textContent = 'Exequentes'; document.title = 'SASIF | Exequentes'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-exequente-btn" class="btn-primary">Cadastrar Novo Exequente</button></div><h2>Lista de Exequentes</h2><div id="exequentes-list-container"></div>`; document.getElementById('add-exequente-btn').addEventListener('click', () => renderExequenteForm()); renderExequentesList(exequentesCache); }
 function renderExequentesList(exequentes) { const container = document.getElementById('exequentes-list-container'); if (!container) return; if (exequentes.length === 0) { container.innerHTML = `<p class="empty-list-message">Nenhum exequente cadastrado ainda.</p>`; return; } let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Nome</th><th>CNPJ</th><th class="actions-cell">Ações</th></tr></thead><tbody>`; exequentes.forEach((exequente, index) => { tableHTML += `<tr data-id="${exequente.id}"><td class="number-cell">${index + 1}</td><td>${exequente.nome}</td><td>${formatCNPJForDisplay(exequente.cnpj)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${exequente.id}">Editar</button><button class="action-btn btn-delete" data-id="${exequente.id}">Excluir</button></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; container.querySelector('tbody').addEventListener('click', handleExequenteAction); }
 function renderExequenteForm(exequente = null) { const isEditing = exequente !== null; const formTitle = isEditing ? 'Editar Exequente' : 'Cadastrar Novo Exequente'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const nome = isEditing ? exequente.nome : ''; const cnpj = isEditing ? formatCNPJForDisplay(exequente.cnpj) : ''; contentArea.innerHTML = `<div class="form-container"><div class="form-group"><label for="nome">Nome (Obrigatório)</label><input type="text" id="nome" value="${nome}" required></div><div class="form-group"><label for="cnpj">CNPJ</label><input type="text" id="cnpj" value="${cnpj}" oninput="maskCNPJ(this)"></div><div id="error-message"></div><div class="form-buttons"><button id="save-exequente-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('save-exequente-btn').addEventListener('click', () => { isEditing ? handleUpdateExequente(exequente.id) : handleSaveExequente(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('exequentes')); }
@@ -2162,9 +2080,6 @@ function handleExequenteAction(event) { const target = event.target; const exequ
 function handleSaveExequente() { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), criadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").add(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente salvo com sucesso!"), 100); }); }
 function handleUpdateExequente(exequenteId) { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").doc(exequenteId).update(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente atualizado com sucesso!"), 100); }); }
 function handleDeleteExequente(exequenteId) { if (confirm("Tem certeza que deseja excluir este Exequente?")) { db.collection("exequentes").doc(exequenteId).delete().then(() => showToast("Exequente excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); } }
-
-// --- PÁGINA: MOTIVOS DE SUSPENSÃO ---
-let motivosSuspensaoCache = [];
 
 function renderMotivosPage() {
     pageTitle.textContent = 'Motivos de Suspensão';
@@ -2271,18 +2186,13 @@ function handleUpdateMotivo(motivoId) {
 }
 
 function handleDeleteMotivo(motivoId) {
-    if (confirm("Tem certeza que deseja excluir este Motivo? Processos que o utilizam não serão afetados, mas o motivo não aparecerá mais na lista.")) {
+    if (confirm("Tem certeza que deseja excluir este Motivo?")) {
         db.collection("motivos_suspensao").doc(motivoId).delete()
             .then(() => showToast("Motivo excluído com sucesso."))
             .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
     }
 }
 
-// --- FORMULÁRIOS E HANDLERS: PROCESSOS ---
-
-// ==========================================================
-// VERSÃO LIMPA E FUNCIONAL - SUBSTITUA A FUNÇÃO INTEIRA
-// ==========================================================
 function renderProcessoForm(devedorId, processo = null) {
     const isEditing = processo !== null;
     pageTitle.textContent = isEditing ? 'Editar Processo' : 'Novo Processo';
@@ -2302,13 +2212,13 @@ function renderProcessoForm(devedorId, processo = null) {
                 <select id="exequente"><option value="">Selecione...</option>${exequenteOptions}</select>
             </div>
             <div class="form-group">
-                <label for="tipo-processo">Tipo</label>
-                <select id="tipo-processo">
-                    <option value="autonomo">Autônomo</option>
-                    <option value="piloto">Piloto</option>
-                    <option value="apenso">Apenso</option>
-                </select>
-            </div>
+    <label for="tipo-processo">Tipo</label>
+    <select id="tipo-processo">
+        <option value="autônomo">Autônomo</option> <!-- CORREÇÃO AQUI -->
+        <option value="piloto">Piloto</option>
+        <option value="apenso">Apenso</option>
+    </select>
+</div>
             <div id="piloto-select-container"></div>
             <hr style="margin: 20px 0;">
             <div class="form-group">
@@ -2392,30 +2302,44 @@ function renderProcessoForm(devedorId, processo = null) {
     exequenteSelect.addEventListener('change', togglePilotoSelect);
 
     document.getElementById('save-processo-btn').addEventListener('click', () => handleSaveProcesso(devedorId, isEditing ? processo.id : null));
-    document.getElementById('cancel-btn').addEventListener('click', () => renderDevedorDetailPage(devedorId));
+    document.getElementById('cancel-btn').addEventListener('click', () => showDevedorPage(devedorId));
 }
 
-// =================================================================================
-// SUBSTITUA A FUNÇÃO 'handleSaveProcesso' INTEIRA POR ESTA VERSÃO
-// =================================================================================
 async function handleSaveProcesso(devedorId, processoId = null) {
-    const numeroProcesso = document.getElementById('numero-processo').value;
+    const numeroProcessoInput = document.getElementById('numero-processo').value;
     const exequenteId = document.getElementById('exequente').value;
     const tipoProcesso = document.getElementById('tipo-processo').value;
     const status = document.getElementById('status-processo').value;
     const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
-    const valorInput = parseFloat(document.getElementById('valor-divida').value) || 0;
+    const valorInputString = document.getElementById('valor-divida').value.replace(',', '.');
+    const valorInput = parseFloat(valorInputString) || 0;
+    
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
     
-    if (!numeroProcesso || !exequenteId) { 
-        errorMessage.textContent = 'Número do Processo e Exequente são obrigatórios.';
+    const numeroProcesso = numeroProcessoInput.replace(/\D/g, '');
+    if (!numeroProcesso || numeroProcesso.length !== 20 || !exequenteId) { 
+        errorMessage.textContent = 'Número do Processo (válido) e Exequente são obrigatórios.';
         return; 
+    }
+    
+    if (!processoId) {
+        try {
+            const query = db.collection("processos").where("numeroProcesso", "==", numeroProcesso);
+            const snapshot = await query.get();
+            if (!snapshot.empty) {
+                errorMessage.textContent = `ERRO: O processo ${formatProcessoForDisplay(numeroProcesso)} já está cadastrado no sistema.`;
+                return;
+            }
+        } catch (error) {
+            errorMessage.textContent = 'Ocorreu um erro ao validar o processo.';
+            return;
+        }
     }
     
     const processoData = {
         devedorId,
-        numeroProcesso: numeroProcesso.replace(/\D/g, ''),
+        numeroProcesso: numeroProcesso,
         exequenteId,
         tipoProcesso,
         status,
@@ -2435,56 +2359,38 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             return;
         }
         processoData.processoPilotoId = processoPilotoId;
-
-        // --- NOVA LÓGICA DE VALIDAÇÃO DE EXEQUENTES ---
         const pilotoSelecionado = processosCache.find(p => p.id === processoPilotoId);
-        
         if (pilotoSelecionado && pilotoSelecionado.exequenteId !== exequenteId) {
             errorMessage.textContent = 'Não é permitido apensar um processo a um piloto com exequentes diferentes.';
-            return; // Interrompe o salvamento
+            return;
         }
-        // --- FIM DA NOVA LÓGICA DE VALIDAÇÃO ---
-
     } else {
         processoData.processoPilotoId = null; 
     }
     
-    const batch = db.batch();
-    
     try {
         if (processoId) {
+            const batch = db.batch();
             const processoRef = db.collection("processos").doc(processoId);
             processoData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
 
             const processoOriginal = processosCache.find(p => p.id === processoId);
-            // Se o valor foi alterado na edição, adiciona ao histórico
-            const valorOriginal = processoOriginal.valorAtual ? processoOriginal.valorAtual.valor : (processoOriginal.valorDivida || 0);
-            if(valorInput !== valorOriginal) {
-                const historicoRef = processoRef.collection("historicoValores").doc();
-                batch.set(historicoRef, {
-                    valor: valorInput,
-                    data: firebase.firestore.FieldValue.serverTimestamp(),
-                    tipo: 'Atualização Manual (Edição)'
-                });
+            if (processoOriginal) {
+                const valorOriginal = processoOriginal.valorAtual ? processoOriginal.valorAtual.valor : (processoOriginal.valorDivida || 0);
+                if(valorInput !== valorOriginal) {
+                    const historicoRef = processoRef.collection("historicoValores").doc();
+                    batch.set(historicoRef, { valor: valorInput, data: firebase.firestore.FieldValue.serverTimestamp(), tipo: 'Atualização Manual (Edição)' });
+                }
             }
-
             batch.update(processoRef, processoData);
-        } else {
-            const processoRef = db.collection("processos").doc();
-            processoData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
-            batch.set(processoRef, processoData);
+            await batch.commit();
 
-            const historicoRef = processoRef.collection("historicoValores").doc();
-            batch.set(historicoRef, {
-                valor: valorInput,
-                data: firebase.firestore.FieldValue.serverTimestamp(),
-                tipo: 'Valor de Causa'
-            });
+        } else {
+            processoData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+            await db.collection("processos").add(processoData);
         }
         
-        await batch.commit();
-        
-        renderDevedorDetailPage(devedorId);
+        showDevedorPage(devedorId);
         setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100);
 
     } catch (err) {
@@ -2493,7 +2399,216 @@ async function handleSaveProcesso(devedorId, processoId = null) {
     }
 }
 
-// --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
+function renderImportacaoPage() {
+    pageTitle.textContent = 'Importação em Lote de Processos';
+    document.title = 'SASIF | Importação em Lote';
+
+    const devedorOptions = [...devedoresCache]
+        .sort((a, b) => a.razaoSocial.localeCompare(b.razaoSocial))
+        .map(devedor => `<option value="${devedor.id}">${devedor.razaoSocial}</option>`)
+        .join('');
+
+    contentArea.innerHTML = `
+        <div class="import-container">
+            <div class="detail-card">
+                <h3>1. Selecione o Grande Devedor</h3>
+                <p>Escolha o devedor ao qual os processos abaixo pertencem.</p>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label for="devedor-import-select">Grande Devedor (Obrigatório)</label>
+                    <select id="devedor-import-select">
+                        <option value="">Selecione um devedor...</option>
+                        ${devedorOptions}
+                    </select>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <h3>2. Cole os Dados da Planilha</h3>
+                <p>Copie as colunas (Processo, Exequente, Tipo, Valor, CDAs) e cole no campo abaixo.</p>
+                <textarea id="import-data-textarea" placeholder="Cole os dados aqui..."></textarea>
+                <button id="processar-import-btn" class="btn-primary">Processar e Importar</button>
+            </div>
+            
+            <div class="detail-card">
+                <h3>3. Resultados da Importação</h3>
+                <div id="import-results-container">Aguardando dados para processamento...</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('processar-import-btn').addEventListener('click', handleProcessarImportacao);
+}
+
+async function handleProcessarImportacao() {
+    const devedorId = document.getElementById('devedor-import-select').value;
+    const rawData = document.getElementById('import-data-textarea').value;
+    const resultsContainer = document.getElementById('import-results-container');
+    const processarBtn = document.getElementById('processar-import-btn');
+
+    if (!devedorId) {
+        resultsContainer.innerHTML = '<div class="result-line error">Erro: Por favor, selecione um Grande Devedor.</div>';
+        return;
+    }
+    if (!rawData.trim()) {
+        resultsContainer.innerHTML = '<div class="result-line error">Erro: Por favor, cole os dados da planilha na caixa de texto.</div>';
+        return;
+    }
+
+    processarBtn.disabled = true;
+    processarBtn.textContent = 'Processando...';
+    resultsContainer.innerHTML = 'Iniciando o processamento...';
+    
+    const linhas = rawData.trim().split('\n');
+    const processosParaCriar = [];
+    const resultadosLog = [];
+    let ultimoPilotoId = null;
+
+    for (const [index, linha] of linhas.entries()) {
+        const colunas = linha.split('\t');
+        if (colunas.length < 3) {
+            resultadosLog.push({ type: 'error', message: `Linha ${index + 1}: Formato inválido. Pulando.` });
+            continue;
+        }
+
+        const [numeroProcessoRaw, exequenteNomeRaw, tipoProcessoRaw, valorRaw = '0', cdasRaw = ''] = colunas;
+        
+        const numeroProcesso = numeroProcessoRaw.replace(/\D/g, '');
+        const tipoProcesso = tipoProcessoRaw.trim().toLowerCase();
+        const exequenteNome = exequenteNomeRaw.trim();
+        
+        if (numeroProcesso.length !== 20) {
+            resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Número de processo inválido. Pulando.` });
+            continue;
+        }
+        const exequente = exequentesCache.find(e => e.nome.toLowerCase() === exequenteNome.toLowerCase());
+        if (!exequente) {
+            resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Exequente "${exequenteNome}" não encontrado. Cadastre-o primeiro. Pulando.` });
+            continue;
+        }
+
+        const valor = parseFloat(String(valorRaw).replace('R$', '').replace(/\./g, '').replace(',', '.')) || 0;
+
+        const processoData = {
+            numeroProcesso: numeroProcesso,
+            exequenteId: exequente.id,
+            tipoProcesso: tipoProcesso,
+            cdas: cdasRaw.trim(),
+            devedorId: devedorId,
+            uidUsuario: auth.currentUser.uid,
+            criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+            valorAtual: { valor: valor, data: firebase.firestore.FieldValue.serverTimestamp() }
+        };
+
+        if (tipoProcesso === 'piloto') {
+            processoData.status = 'Ativo';
+            const novoId = db.collection("processos").doc().id;
+            processoData.id = novoId;
+            ultimoPilotoId = novoId;
+        } else if (tipoProcesso === 'apenso') {
+            if (!ultimoPilotoId) {
+                resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Apenso encontrado sem um Piloto anterior. Pulando.` });
+                continue;
+            }
+            processoData.status = 'Baixado';
+            processoData.processoPilotoId = ultimoPilotoId;
+            processoData.id = db.collection("processos").doc().id;
+        } else if (tipoProcesso === 'autônomo') {
+            processoData.status = 'Ativo';
+            ultimoPilotoId = null;
+            processoData.id = db.collection("processos").doc().id;
+        } else {
+             resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Tipo "${tipoProcessoRaw}" inválido. Pulando.` });
+            continue;
+        }
+
+        processosParaCriar.push(processoData);
+        resultadosLog.push({ type: 'success', message: `Linha ${index + 1}: Processo ${formatProcessoForDisplay(numeroProcesso)} validado.` });
+    }
+
+    if (processosParaCriar.some(p => p.id)) {
+        const batch = db.batch();
+        
+        processosParaCriar.forEach(proc => {
+            const processoRef = db.collection("processos").doc(proc.id);
+            const { id, ...dataToSave } = proc;
+            batch.set(processoRef, dataToSave);
+        });
+
+        try {
+            await batch.commit();
+            resultadosLog.push({ type: 'success', message: `\nLOTE FINALIZADO: ${processosParaCriar.length} processos importados com sucesso!` });
+        } catch (error) {
+            console.error("Erro na importação em lote:", error);
+            resultadosLog.push({ type: 'error', message: `\nERRO CRÍTICO: A importação falhou. Nenhum processo foi salvo.` });
+        }
+    } else {
+        resultadosLog.push({ type: 'error', message: `\nNenhum processo válido encontrado para importação.` });
+    }
+
+    resultsContainer.innerHTML = `<div class="import-results-header">Log da Importação:</div>` +
+        resultadosLog.map(log => `<div class="result-line ${log.type}">${log.message}</div>`).join('');
+    
+    processarBtn.disabled = false;
+    processarBtn.textContent = 'Processar e Importar';
+    document.getElementById('import-data-textarea').value = '';
+}
+
+function setupListeners() {
+    db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
+        devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (document.title.includes('Grandes Devedores')) {
+            renderDevedoresList(devedoresCache);
+        }
+        if (document.title.includes('Dashboard')) {
+            setupDashboardWidgets();
+        }
+    });
+    db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { 
+        exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
+        if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); 
+    });
+    db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
+        motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
+    });
+}
+
+function setupProcessosListener(devedorId) { 
+    if (processosListenerUnsubscribe) processosListenerUnsubscribe(); 
+    processosListenerUnsubscribe = db.collection("processos")
+        .where("devedorId", "==", devedorId)
+        .onSnapshot((snapshot) => { 
+            processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
+            renderProcessosList(processosCache); 
+        }, error => { 
+            console.error("Erro ao buscar processos: ", error); 
+            if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; 
+        }); 
+}
+
+function initApp(user) {
+    userEmailSpan.textContent = user.email;
+    logoutButton.addEventListener('click', () => { auth.signOut(); });
+    
+    setupGlobalSearch();
+    navigateTo('dashboard');
+    setupListeners();
+}
+
+document.addEventListener('DOMContentLoaded', () => { 
+    auth.onAuthStateChanged(user => { 
+        if (user) { 
+            appContainer.classList.remove('hidden'); 
+            loginContainer.classList.add('hidden'); 
+            initApp(user); 
+        } else { 
+            appContainer.classList.add('hidden'); 
+            loginContainer.classList.remove('hidden'); 
+            renderLoginForm(); 
+        } 
+    }); 
+});
+
 function renderLoginForm() {
     document.title = 'SASIF | Login';
     loginContainer.innerHTML = `
@@ -2516,7 +2631,20 @@ function renderLoginForm() {
     document.getElementById('login-btn').addEventListener('click', handleLogin);
     document.getElementById('forgot-password-link').addEventListener('click', handlePasswordResetRequest);
 }
-function handleLogin() { const email = document.getElementById('email').value; const password = document.getElementById('password').value; const errorMessage = document.getElementById('error-message'); if (!email || !password) { errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; return; } auth.signInWithEmailAndPassword(email, password).catch(error => { errorMessage.textContent = 'E-mail ou senha incorretos.'; }); }
+
+function handleLogin() { 
+    const email = document.getElementById('email').value; 
+    const password = document.getElementById('password').value; 
+    const errorMessage = document.getElementById('error-message'); 
+    if (!email || !password) { 
+        errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; 
+        return; 
+    } 
+    auth.signInWithEmailAndPassword(email, password).catch(error => { 
+        errorMessage.textContent = 'E-mail ou senha incorretos.'; 
+    }); 
+}
+
 function handlePasswordResetRequest(event) {
     event.preventDefault();
     const email = document.getElementById('email').value;
@@ -2543,37 +2671,3 @@ function handlePasswordResetRequest(event) {
             errorMessage.style.color = 'var(--cor-erro)';
         });
 }
-function setupListeners() {
-db.collection("grandes_devedores").orderBy("nivelPrioridade").orderBy("razaoSocial").onSnapshot((snapshot) => {
-    devedoresCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    // Se a página de Grandes Devedores estiver aberta, atualiza a lista
-    if (document.title.includes('Grandes Devedores')) {
-        renderDevedoresList(devedoresCache);
-    }
-    
-    // Se a página do Dashboard estiver aberta, chama a função que monta TODOS os widgets
-    if (document.title.includes('Dashboard')) {
-        setupDashboardWidgets();
-    }
-});
-db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); }); db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
-        motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
-    });
-}
-function setupProcessosListener(devedorId) { if (processosListenerUnsubscribe) processosListenerUnsubscribe(); processosListenerUnsubscribe = db.collection("processos").where("devedorId", "==", devedorId).onSnapshot((snapshot) => { processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderProcessosList(processosCache); }, error => { console.error("Erro ao buscar processos: ", error); if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; }); }
-function initApp(user) {
-    userEmailSpan.textContent = user.email;
-    logoutButton.addEventListener('click', () => { auth.signOut(); });
-    
-    // Configura a busca global
-    setupGlobalSearch();
-
-    // Primeiro, navega para o dashboard para garantir que a estrutura HTML exista.
-    navigateTo('dashboard');
-    
-    // Depois, inicia os listeners que irão popular a tela.
-    setupListeners();
-}
-document.addEventListener('DOMContentLoaded', () => { auth.onAuthStateChanged(user => { if (user) { appContainer.classList.remove('hidden'); loginContainer.classList.add('hidden'); initApp(user); } else { appContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); renderLoginForm(); } }); });

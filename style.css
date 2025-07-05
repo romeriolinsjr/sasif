@@ -814,3 +814,53 @@ body {
 .forgot-password-link:hover {
     text-decoration: underline;
 }
+
+/* --- PÁGINA DE IMPORTAÇÃO EM LOTE --- */
+.import-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+#import-data-textarea {
+    width: 100%;
+    min-height: 300px;
+    padding: 16px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+#import-results-container {
+    margin-top: 24px;
+    padding: 16px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    background-color: var(--cor-fundo);
+    min-height: 100px;
+    white-space: pre-wrap;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.import-results-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.result-line {
+    padding: 4px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.result-line.success {
+    color: var(--cor-sucesso);
+}
+
+.result-line.error {
+    color: var(--cor-erro);
+    font-weight: bold;
+}
