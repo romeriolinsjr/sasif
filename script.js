@@ -83,7 +83,7 @@ function getAnaliseStatus(devedor) {
             const dataCriacao = devedor.criadoEm.toDate();
             const diffTime = hoje - dataCriacao;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            
+
             if (diffDays <= 0) {
                 return { status: 'status-expired', text: 'Pendente (hoje)' };
             }
@@ -161,7 +161,7 @@ function navigateTo(page, params = {}) {
     if (penhorasListenerUnsubscribe) { penhorasListenerUnsubscribe(); penhorasListenerUnsubscribe = null; }
     if (audienciasListenerUnsubscribe) { audienciasListenerUnsubscribe(); audienciasListenerUnsubscribe = null; }
     if (diligenciasListenerUnsubscribe) { diligenciasListenerUnsubscribe(); diligenciasListenerUnsubscribe = null; }
-    
+
     renderSidebar(page);
     switch (page) {
         case 'dashboard':
@@ -193,7 +193,7 @@ function navigateTo(page, params = {}) {
 function renderDashboard() {
     pageTitle.textContent = 'Dashboard';
     document.title = 'SASIF | Dashboard';
-    
+
     contentArea.innerHTML = `
         <div id="dashboard-widgets-container">
             <div id="diligencias-widget-container"></div>
@@ -201,7 +201,7 @@ function renderDashboard() {
             <div id="audiencias-widget-container"></div>
         </div>
     `;
-    
+
     setupDashboardWidgets();
 }
 
@@ -213,9 +213,9 @@ function renderDevedoresList(devedores) {
         return;
     }
     let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Razão Social</th><th>CNPJ</th><th>Prioridade</th><th>Status Análise</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
-    
+
     devedores.forEach((devedor, index) => {
-        const analise = getAnaliseStatus(devedor); 
+        const analise = getAnaliseStatus(devedor);
 
         let statusCellHTML = '';
         if (analise.status !== 'status-ok') {
@@ -229,7 +229,7 @@ function renderDevedoresList(devedores) {
                     <span class="status-dot ${analise.status}"></span>${analise.text}
                 </td>`;
         }
-        
+
         tableHTML += `
             <tr data-id="${devedor.id}" class="clickable-row">
                 <td class="number-cell">${index + 1}</td>
@@ -260,9 +260,9 @@ function renderGrandesDevedoresPage() {
         <h2>Lista de Grandes Devedores</h2>
         <div id="devedores-list-container"></div>
     `;
-    
+
     document.getElementById('add-devedor-btn').addEventListener('click', () => renderDevedorForm());
-    
+
     renderDevedoresList(devedoresCache);
 }
 
@@ -290,7 +290,7 @@ function renderDiligenciasPage() {
             <p class="empty-list-message">Carregando tarefas...</p>
         </div>
     `;
-    
+
     document.getElementById('add-diligencia-btn').addEventListener('click', () => {
         renderDiligenciaFormModal();
     });
@@ -309,7 +309,7 @@ function renderDiligenciaFormModal(diligencia = null) {
     }
 
     // CÓDIGO ALTERADO (dentro de renderDiligenciaFormModal)
-modalOverlay.innerHTML = `
+    modalOverlay.innerHTML = `
     <div class="modal-content modal-large">
         <h3>${isEditing ? 'Editar' : 'Adicionar'} Tarefa</h3>
         
@@ -347,11 +347,11 @@ modalOverlay.innerHTML = `
 `;
 
     document.body.appendChild(modalOverlay);
-    
+
     document.getElementById('diligencia-processo').addEventListener('input', (e) => maskProcesso(e.target));
 
     const closeModal = () => document.body.removeChild(modalOverlay);
-    
+
     document.getElementById('save-diligencia-btn').addEventListener('click', () => {
         handleSaveDiligencia(isEditing ? diligencia.id : null);
     });
@@ -373,7 +373,7 @@ function handleSaveDiligencia(diligenciaId = null) {
         errorMessage.textContent = 'Título e Data Alvo são obrigatórios.';
         return;
     }
-    
+
     const dataAlvo = new Date(dataAlvoInput + "T00:00:00");
     if (isNaN(dataAlvo.getTime())) {
         errorMessage.textContent = 'Data Alvo inválida.';
@@ -426,7 +426,7 @@ function setupDiligenciasListener() {
         }, error => {
             console.error("Erro ao buscar diligências: ", error);
             const container = document.getElementById('diligencias-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as diligências.</p>`;
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as diligências.</p>`;
         });
 }
 
@@ -459,7 +459,7 @@ function renderDiligenciasList(diligencias) {
         const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
         const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
         const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-        
+
         const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
         let statusBadge = '';
         let acoesBtn = '';
@@ -479,13 +479,13 @@ function renderDiligenciasList(diligencias) {
             statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`;
             acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
         }
-        
+
         tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoDiligencia}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; gap: 8px;">${acoesBtn}<button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button><button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button></div></td></tr>`;
     });
 
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-    
+
     container.querySelector('tbody').addEventListener('click', handleDiligenciaAction);
 }
 
@@ -520,7 +520,7 @@ function handleDiligenciaAction(event) {
 function handleCumprirDiligencia(diligenciaId) {
     const hoje = new Date();
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const updateData = {};
     updateData[`historicoCumprimentos.${anoMesAtual}`] = firebase.firestore.FieldValue.serverTimestamp();
 
@@ -613,14 +613,14 @@ function renderDevedorDetailPage(devedorId) {
                 ${devedor.nomeFantasia ? `<p><strong>Nome Fantasia:</strong> ${devedor.nomeFantasia}</p>` : ''}
             </div>
             <div id="resumo-financeiro-container"></div>
-            ${ devedor.observacoes ? `
+            ${devedor.observacoes ? `
                 <div class="detail-card">
                     <h3>Observações sobre o Devedor</h3>
                     <div class="detail-full-width">
                         <p>${devedor.observacoes.replace(/\n/g, '<br>')}</p>
                     </div>
                 </div>
-            ` : '' }
+            ` : ''}
             <div class="dashboard-actions">
                  <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
             </div>
@@ -636,17 +636,26 @@ function renderDevedorDetailPage(devedorId) {
 
 function renderProcessosList(processos) {
     const totalProcessos = processos.length;
+    // CÓDIGO PARA SUBSTITUIR
     const totaisPorExequente = {};
+    const contagemPorExequente = {}; // <-- Novo objeto para contar processos
 
     processos.forEach(processo => {
         const valor = processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0);
         const exequenteId = processo.exequenteId;
 
         if (exequenteId) {
+            // Soma os valores
             if (totaisPorExequente[exequenteId]) {
                 totaisPorExequente[exequenteId] += valor;
             } else {
                 totaisPorExequente[exequenteId] = valor;
+            }
+            // Conta os processos
+            if (contagemPorExequente[exequenteId]) {
+                contagemPorExequente[exequenteId]++;
+            } else {
+                contagemPorExequente[exequenteId] = 1;
             }
         }
     });
@@ -657,34 +666,42 @@ function renderProcessosList(processos) {
     for (const exequenteId in totaisPorExequente) {
         const exequente = exequentesCache.find(e => e.id === exequenteId);
         const nomeExequente = exequente ? exequente.nome : 'Exequente não identificado';
-        detalhamentoHTML += `<p style="margin-left: 20px; margin-top: 8px;">↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])}</p>`;
+        const contagem = contagemPorExequente[exequenteId] || 0;
+
+        detalhamentoHTML += `
+        <p style="margin-left: 20px; margin-top: 8px;">
+            ↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])} <span style="font-weight: 500; color: #555;">(${contagem})</span>
+        </p>
+    `;
     }
 
     const resumoContainer = document.getElementById('resumo-financeiro-container');
+    // CÓDIGO PARA SUBSTITUIR
     if (resumoContainer) {
         resumoContainer.innerHTML = `
             <div class="detail-card" style="margin-top: 20px;">
                 <h3>Resumo Financeiro e Processual</h3>
-                <div class="detail-grid" style="align-items: flex-start;">
+                <div class="detail-grid" style="grid-template-columns: 1fr;"> <!-- Alterado para uma única coluna -->
                     <div>
                         <div class="info-tooltip-container" style="margin-bottom: 10px;">
-                            <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)}
+                            <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)} <span style="font-weight: 700; color: #333;">(${totalProcessos})</span>
                             <span class="info-icon">i</span>
-                            <div class="info-tooltip-text">Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. Para obter o valor exato e atualizado, consulte diretamente o exequente.</div>
+                            <div class="info-tooltip-text">Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. O número entre parênteses indica a quantidade total de processos.</div>
                         </div>
-                        <div id="detalhamento-exequente">${detalhamentoHTML}</div>
+                        <div id="detalhamento-exequente">
+                            ${detalhamentoHTML}
+                        </div>
                     </div>
-                    <div><strong>Processos Vinculados:</strong> ${totalProcessos}</div>
                 </div>
             </div>`;
     }
 
     const container = document.getElementById('processos-list-container');
     if (!container) return;
-    
+
     let itemsParaOrdenar = processos.filter(p => p.tipoProcesso === 'autônomo' || p.tipoProcesso === 'piloto');
-const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
-    
+    const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
+
     itemsParaOrdenar.sort((a, b) => {
         const exequenteA = exequentesCache.find(ex => ex.id === a.exequenteId)?.nome || '';
         const exequenteB = exequentesCache.find(ex => ex.id === b.exequenteId)?.nome || '';
@@ -702,7 +719,7 @@ const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
         map.get(pilotoId).push(apenso);
         return map;
     }, new Map());
-    
+
     const itemsOrdenados = itemsParaOrdenar;
 
     if (itemsOrdenados.length === 0 && apensos.length === 0) {
@@ -728,7 +745,7 @@ const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
                 <button class="action-btn btn-edit" data-id="${item.id}">Editar</button>
                 <button class="action-btn btn-delete" data-id="${item.id}">Excluir</button>
             </td>`;
-        
+
         tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML}</tr>`;
 
         if (item.tipoProcesso === 'piloto' && apensosMap.has(item.id)) {
@@ -748,7 +765,7 @@ const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
                         <button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button>
                         <button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button>
                     </td>`;
-                    
+
                 tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}">${apensoHTML}</tr>`;
             });
         }
@@ -762,7 +779,7 @@ const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
 function renderProcessoDetailPage(processoId) {
     pageTitle.textContent = 'Carregando Processo...';
     document.title = 'SASIF | Carregando...';
-    renderSidebar(null); 
+    renderSidebar(null);
 
     db.collection("processos").doc(processoId).get().then(doc => {
         if (!doc.exists) {
@@ -777,12 +794,12 @@ function renderProcessoDetailPage(processoId) {
         const pageTitleText = `Processo ${formatProcessoForDisplay(processo.numeroProcesso)}`;
         pageTitle.textContent = pageTitleText;
         document.title = `SASIF | ${pageTitleText}`;
-        
+
         contentArea.innerHTML = `
             <div class="dashboard-actions">
                 <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
-                ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
-                ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
+                ${(processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : ''}
+                ${(processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : ''}
                 <button id="delete-processo-btn" class="btn-primary" style="background-color: var(--cor-erro); margin-left: auto;">Excluir Processo</button>
             </div>
             
@@ -837,7 +854,7 @@ function renderProcessoDetailPage(processoId) {
         document.getElementById('back-to-devedor-btn').addEventListener('click', () => {
             renderDevedorDetailPage(processo.devedorId);
         });
-        
+
         document.getElementById('add-corresponsavel-btn').addEventListener('click', () => renderCorresponsavelFormModal(processoId));
         setupCorresponsaveisListener(processoId);
         document.getElementById('add-penhora-btn').addEventListener('click', () => renderPenhoraFormModal(processoId));
@@ -862,7 +879,7 @@ function renderProcessoDetailPage(processoId) {
             renderValorHistoryModal(processo.id);
         });
         document.getElementById('delete-processo-btn').addEventListener('click', () => {
-            handleDeleteProcesso(processo.id); 
+            handleDeleteProcesso(processo.id);
         });
 
     }).catch(error => {
@@ -910,7 +927,7 @@ function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
 
     const tipoPessoaSelect = document.getElementById('tipo-pessoa');
     const documentoInput = document.getElementById('corresponsavel-documento');
-    
+
     tipoPessoaSelect.value = tipoPessoa;
 
     const updateDocumentField = () => {
@@ -923,18 +940,18 @@ function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
     };
 
     updateDocumentField();
-    
+
     documentoInput.addEventListener('input', () => maskDocument(documentoInput, tipoPessoaSelect.value));
     tipoPessoaSelect.addEventListener('change', updateDocumentField);
-    
-    if(isEditing) {
+
+    if (isEditing) {
         documentoInput.value = formatDocumentForDisplay(corresponsavel.cpfCnpj);
     } else {
         updateDocumentField();
     }
 
     const closeModal = () => document.body.removeChild(modalOverlay);
-    
+
     document.getElementById('save-corresponsavel-btn').addEventListener('click', () => {
         handleSaveCorresponsavel(processoId, isEditing ? corresponsavel.id : null);
     });
@@ -958,7 +975,7 @@ function setupCorresponsaveisListener(processoId) {
         }, error => {
             console.error("Erro ao buscar corresponsáveis: ", error);
             const container = document.getElementById('corresponsaveis-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os corresponsáveis.</p>`;
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os corresponsáveis.</p>`;
         });
 }
 
@@ -988,7 +1005,7 @@ function renderCorresponsaveisList(corresponsaveis, processoId) {
     });
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-    
+
     container.querySelector('tbody').addEventListener('click', handleCorresponsavelAction);
 }
 
@@ -1024,7 +1041,7 @@ function handleSaveCorresponsavel(processoId, corresponsavelId = null) {
         errorMessage.textContent = 'O campo Nome / Razão Social é obrigatório.';
         return;
     }
-    
+
     const data = {
         processoId,
         nome,
@@ -1120,7 +1137,7 @@ function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) 
         });
         document.getElementById('cancel-penhora-btn').addEventListener('click', closeModal);
     }
-    
+
     modalOverlay.addEventListener('click', (e) => {
         if (e.target === modalOverlay) {
             closeModal();
@@ -1140,7 +1157,7 @@ function setupPenhorasListener(processoId) {
         }, error => {
             console.error("Erro ao buscar penhoras: ", error);
             const container = document.getElementById('penhoras-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras.</p>`;
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as penhoras.</p>`;
         });
 }
 
@@ -1167,7 +1184,7 @@ function renderPenhorasList(penhoras, processoId) {
             const partes = item.data.split('-');
             dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
         }
-        
+
         tableHTML += `
             <tr data-id="${item.id}" 
                 data-descricao="${item.descricao}" 
@@ -1189,7 +1206,7 @@ function renderPenhorasList(penhoras, processoId) {
     });
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-    
+
     container.querySelector('tbody').addEventListener('click', handlePenhoraAction);
 }
 
@@ -1231,7 +1248,7 @@ function handleSavePenhora(processoId, penhoraId = null) {
         errorMessage.textContent = 'O campo Descrição do Bem é obrigatório.';
         return;
     }
-    
+
     const penhoraData = {
         processoId,
         descricao,
@@ -1277,7 +1294,7 @@ function renderAudienciaFormModal(processoId, audiencia = null) {
     if (isEditing && audiencia.dataHora) {
         dataHora = new Date(audiencia.dataHora.seconds * 1000).toISOString().slice(0, 16);
     }
-    
+
     modalOverlay.innerHTML = `
         <div class="modal-content">
             <h3>${isEditing ? 'Editar' : 'Agendar'} Audiência</h3>
@@ -1304,7 +1321,7 @@ function renderAudienciaFormModal(processoId, audiencia = null) {
     document.body.appendChild(modalOverlay);
 
     const closeModal = () => document.body.removeChild(modalOverlay);
-    
+
     document.getElementById('save-audiencia-btn').addEventListener('click', () => {
         handleSaveAudiencia(processoId, isEditing ? audiencia.id : null);
     });
@@ -1328,7 +1345,7 @@ function setupAudienciasListener(processoId) {
         }, error => {
             console.error("Erro ao buscar audiências: ", error);
             const container = document.getElementById('audiencias-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências.</p>`;
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as audiências.</p>`;
         });
 }
 
@@ -1350,7 +1367,7 @@ function renderAudienciasList(audiencias, processoId) {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
-        
+
         tableHTML += `
             <tr data-id="${item.id}">
                 <td>${dataFormatada}</td>
@@ -1365,7 +1382,7 @@ function renderAudienciasList(audiencias, processoId) {
     });
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-    
+
     container.querySelector('tbody').addEventListener('click', (event) => handleAudienciaAction(event, audiencias));
 }
 
@@ -1378,7 +1395,7 @@ function handleAudienciaAction(event, audiencias) {
     const audienciaId = row.dataset.id;
     const container = document.getElementById('audiencias-list-container');
     const processoId = container.dataset.processoId;
-    
+
     const audienciaData = audiencias.find(a => a.id === audienciaId);
 
     if (action === 'edit') {
@@ -1419,7 +1436,7 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
         return;
     }
     const devedor = devedoresCache.find(d => d.id === processo.devedorId);
-    
+
     const audienciaData = {
         processoId,
         dataHora: dataDaAudiencia,
@@ -1462,34 +1479,34 @@ function handleDeleteAudiencia(audienciaId) {
 // CÓDIGO PARA SUBSTITUIR
 function setupDashboardWidgets() {
     const hoje = new Date();
-    
+
     db.collection("diligenciasMensais")
-      .where("userId", "==", auth.currentUser.uid)
-      .get()
-      .then((snapshot) => {
-          const diligencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          renderProximasDiligenciasWidget(diligencias);
-      })
-      .catch(error => {
-          console.error("Erro ao buscar tarefas para o dashboard:", error);
-          const container = document.getElementById('diligencias-widget-container');
-          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
-      });
+        .where("userId", "==", auth.currentUser.uid)
+        .get()
+        .then((snapshot) => {
+            const diligencias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderProximasDiligenciasWidget(diligencias);
+        })
+        .catch(error => {
+            console.error("Erro ao buscar tarefas para o dashboard:", error);
+            const container = document.getElementById('diligencias-widget-container');
+            if (container) container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
+        });
 
     db.collection("audiencias")
-      .where("dataHora", ">=", hoje)
-      .orderBy("dataHora", "asc")
-      .limit(10)
-      .get()
-      .then((snapshot) => {
-          const audienciasFuturas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          renderProximasAudienciasWidget(audienciasFuturas);
-      })
-      .catch(error => {
-          console.error("Erro ao buscar audiências para o dashboard:", error);
-          const container = document.getElementById('audiencias-widget-container');
-          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
-      });
+        .where("dataHora", ">=", hoje)
+        .orderBy("dataHora", "asc")
+        .limit(10)
+        .get()
+        .then((snapshot) => {
+            const audienciasFuturas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderProximasAudienciasWidget(audienciasFuturas);
+        })
+        .catch(error => {
+            console.error("Erro ao buscar audiências para o dashboard:", error);
+            const container = document.getElementById('audiencias-widget-container');
+            if (container) container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
+        });
 
     renderAnalisePendenteWidget(devedoresCache);
 }
@@ -1506,7 +1523,7 @@ function renderProximasDiligenciasWidget(diligencias) {
     cincoDiasFrente.setDate(hoje.getDate() + 5);
 
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const diligenciasParaExibir = diligencias.filter(item => {
         if (!item.dataAlvo) return false;
 
@@ -1517,7 +1534,7 @@ function renderProximasDiligenciasWidget(diligencias) {
         }
 
         const dataAlvoOriginal = new Date(item.dataAlvo.seconds * 1000);
-        let dataRelevante = item.isRecorrente 
+        let dataRelevante = item.isRecorrente
             ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvoOriginal.getDate())
             : dataAlvoOriginal;
         dataRelevante.setHours(0, 0, 0, 0);
@@ -1538,8 +1555,8 @@ function renderProximasDiligenciasWidget(diligencias) {
         diligenciasParaExibir.forEach(item => {
             const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
             const dataRelevante = item.isRecorrente ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvo.getDate()) : dataAlvo;
-            dataRelevante.setHours(0,0,0,0);
-            
+            dataRelevante.setHours(0, 0, 0, 0);
+
             const isAtrasada = dataRelevante < hoje;
             const itemStyle = isAtrasada ? 'style="background-color: #ffebee;"' : '';
             const vencimentoLabel = `Vencimento: ${dataRelevante.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}`;
@@ -1547,9 +1564,9 @@ function renderProximasDiligenciasWidget(diligencias) {
             contentHTML += `<div class="analise-item" ${itemStyle} data-id="${item.id}"><div class="analise-item-devedor">${isAtrasada ? '<span class="status-dot status-expired"></span>' : '<span class="status-dot status-warning"></span>'} ${item.titulo} ${item.isRecorrente ? '(Recorrente)' : ''}</div><div class="analise-item-detalhes"><strong>${vencimentoLabel}</strong></div></div>`;
         });
     }
-    
+
     container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3>${contentHTML}</div>`;
-    
+
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
         const item = event.target.closest('.analise-item');
         if (item) navigateTo('diligencias');
@@ -1571,10 +1588,10 @@ function renderProximasAudienciasWidget(audiencias) {
         audiencias.forEach(item => {
             const data = new Date(item.dataHora.seconds * 1000);
             const dataFormatada = data.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' });
-    
+
             const isDestaque = data < umaSemana;
 
-        contentHTML += `
+            contentHTML += `
             <div class="audiencia-item ${isDestaque ? 'destaque' : ''}">
                 <div class="audiencia-item-processo">
                     <a href="#" class="view-processo-link" data-action="view-processo" data-id="${item.processoId}">
@@ -1588,7 +1605,7 @@ function renderProximasAudienciasWidget(audiencias) {
                 </div>
             </div>
         `;
-    });
+        });
     }
 
     container.innerHTML = `
@@ -1599,12 +1616,12 @@ function renderProximasAudienciasWidget(audiencias) {
     `;
 
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
-    const link = event.target.closest('[data-action="view-processo"]');
-    if (link) {
-        event.preventDefault();
-        navigateTo('processoDetail', { id: link.dataset.id });
-    }
-});
+        const link = event.target.closest('[data-action="view-processo"]');
+        if (link) {
+            event.preventDefault();
+            navigateTo('processoDetail', { id: link.dataset.id });
+        }
+    });
 }
 
 // CÓDIGO PARA SUBSTITUIR
@@ -1619,7 +1636,7 @@ function renderAnalisePendenteWidget(devedores) {
             analise: getAnaliseStatus(devedor)
         };
     }).filter(d => d.analise.status === 'status-expired' || d.analise.status === 'status-warning');
-    
+
     devedoresParaAnalise.sort((a, b) => {
         if (a.analise.status === 'status-expired' && b.analise.status !== 'status-expired') return -1;
         if (a.analise.status !== 'status-expired' && b.analise.status === 'status-expired') return 1;
@@ -1662,21 +1679,21 @@ function renderAnalisePendenteWidget(devedores) {
 
 function handleDevedorAction(event) {
     const target = event.target;
-    const actionTarget = target.closest('[data-action]'); 
+    const actionTarget = target.closest('[data-action]');
 
     if (actionTarget) {
         const action = actionTarget.dataset.action;
         const devedorId = actionTarget.dataset.id;
-        
+
         if (action === 'registrar-analise') {
-            event.stopPropagation(); 
+            event.stopPropagation();
             handleRegistrarAnalise(devedorId);
         } else if (action === 'edit') {
             handleEditDevedor(devedorId);
         } else if (action === 'delete') {
             handleDeleteDevedor(devedorId);
         }
-        return; 
+        return;
     }
 
     const row = target.closest('tr.clickable-row');
@@ -1701,7 +1718,7 @@ function handleDeleteDevedor(devedorId) {
 }
 
 function handleProcessoAction(event) {
-    event.preventDefault(); 
+    event.preventDefault();
     const target = event.target;
     const row = target.closest('tr');
     if (!row) return;
@@ -1764,14 +1781,14 @@ async function handleDeleteProcesso(processoId) {
     }
 
     let confirmMessage = `Tem certeza que deseja excluir o processo ${formatProcessoForDisplay(processo.numeroProcesso)}?`;
-    
+
     const isPiloto = processo.tipoProcesso === 'piloto';
     let apensosParaExcluir = [];
 
     if (isPiloto) {
         const apensosSnapshot = await db.collection("processos").where("processoPilotoId", "==", processo.id).get();
         apensosParaExcluir = apensosSnapshot.docs;
-        
+
         if (apensosParaExcluir.length > 0) {
             confirmMessage = `ATENÇÃO: Você está excluindo um Processo Piloto com ${apensosParaExcluir.length} apenso(s).\n\nAo confirmar, TODOS os apensos serão excluídos permanentemente.\n\nDeseja continuar com a exclusão de todos os ${apensosParaExcluir.length + 1} processos?`;
         }
@@ -1783,13 +1800,13 @@ async function handleDeleteProcesso(processoId) {
 
     try {
         const batch = db.batch();
-        
+
         if (isPiloto && apensosParaExcluir.length > 0) {
             apensosParaExcluir.forEach(apensoDoc => {
                 batch.delete(apensoDoc.ref);
             });
         }
-        
+
         batch.delete(processoRef);
 
         await batch.commit();
@@ -1827,14 +1844,14 @@ async function handlePromoteToPiloto(processoId) {
 
         if (processoAlvo.tipoProcesso === 'apenso' && processoAlvo.processoPilotoId) {
             const antigoPilotoId = processoAlvo.processoPilotoId;
-            
+
             const antigoPilotoRef = db.collection("processos").doc(antigoPilotoId);
             batch.update(antigoPilotoRef, {
                 tipoProcesso: 'apenso',
                 processoPilotoId: processoAlvo.id
             });
 
-            const irmaosApensos = processosCache.filter(p => 
+            const irmaosApensos = processosCache.filter(p =>
                 p.processoPilotoId === antigoPilotoId && p.id !== processoAlvo.id
             );
 
@@ -1843,10 +1860,10 @@ async function handlePromoteToPiloto(processoId) {
                 batch.update(irmaoRef, { processoPilotoId: processoAlvo.id });
             });
         }
-        
+
         await batch.commit();
         showToast("Processo promovido a Piloto com sucesso!", "success");
-        
+
         renderDevedorDetailPage(processoAlvo.devedorId);
 
     } catch (error) {
@@ -1888,7 +1905,7 @@ function setupGlobalSearch() {
     searchInput.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         const searchTerm = e.target.value.trim();
-        
+
         if (searchTerm.length < 3) {
             resultsContainer.style.display = 'none';
             return;
@@ -1904,7 +1921,7 @@ function setupGlobalSearch() {
                 const query = processosRef
                     .where('numeroProcesso', '>=', searchTerm.replace(/\D/g, ''))
                     .where('numeroProcesso', '<=', searchTerm.replace(/\D/g, '') + '\uf8ff');
-                
+
                 const snapshot = await query.get();
                 for (const doc of snapshot.docs) {
                     const processo = { ...doc.data(), id: doc.id };
@@ -1914,7 +1931,7 @@ function setupGlobalSearch() {
                     }
                 }
             } else {
-                devedoresFound = devedoresCache.filter(devedor => 
+                devedoresFound = devedoresCache.filter(devedor =>
                     devedor.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()))
                 );
@@ -2038,8 +2055,8 @@ async function handleSaveValorUpdate(processoId) {
         await batch.commit();
         showToast("Valor da dívida atualizado com sucesso!");
         document.body.removeChild(document.querySelector('.modal-overlay'));
-        
-        renderProcessoDetailPage(processoId); 
+
+        renderProcessoDetailPage(processoId);
     } catch (error) {
         console.error("Erro ao atualizar valor: ", error);
         errorMessage.textContent = "Ocorreu um erro ao salvar a atualização.";
@@ -2067,7 +2084,7 @@ async function renderValorHistoryModal(processoId) {
     try {
         const snapshot = await db.collection("processos").doc(processoId).collection("historicoValores").orderBy("data", "desc").get();
         const historyContainer = document.getElementById('history-list-container');
-        
+
         if (snapshot.empty) {
             historyContainer.innerHTML = `<p class="empty-list-message">Nenhum histórico de valores encontrado.</p>`;
             return;
@@ -2158,12 +2175,12 @@ function renderMotivosList(motivos) {
 function renderMotivoForm(motivo = null) {
     const isEditing = motivo !== null;
     const formTitle = isEditing ? 'Editar Motivo de Suspensão' : 'Cadastrar Novo Motivo';
-    navigateTo(null); 
+    navigateTo(null);
     pageTitle.textContent = formTitle;
     document.title = `SASIF | ${formTitle}`;
-    
+
     const descricao = isEditing ? motivo.descricao : '';
-    
+
     contentArea.innerHTML = `
         <div class="form-container">
             <div class="form-group">
@@ -2176,7 +2193,7 @@ function renderMotivoForm(motivo = null) {
                 <button id="cancel-btn">Cancelar</button>
             </div>
         </div>`;
-    
+
     document.getElementById('save-motivo-btn').addEventListener('click', () => {
         isEditing ? handleUpdateMotivo(motivo.id) : handleSaveMotivo();
     });
@@ -2192,7 +2209,7 @@ function handleMotivoAction(event) {
         handleDeleteMotivo(motivoId);
     } else if (target.classList.contains('btn-edit')) {
         const motivo = motivosSuspensaoCache.find(m => m.id === motivoId);
-        if(motivo) renderMotivoForm(motivo);
+        if (motivo) renderMotivoForm(motivo);
     }
 }
 
@@ -2350,16 +2367,16 @@ async function handleSaveProcesso(devedorId, processoId = null) {
     const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
     const valorInputString = document.getElementById('valor-divida').value.replace(',', '.');
     const valorInput = parseFloat(valorInputString) || 0;
-    
+
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
-    
+
     const numeroProcesso = numeroProcessoInput.replace(/\D/g, '');
-    if (!numeroProcesso || numeroProcesso.length !== 20 || !exequenteId) { 
+    if (!numeroProcesso || numeroProcesso.length !== 20 || !exequenteId) {
         errorMessage.textContent = 'Número do Processo (válido) e Exequente são obrigatórios.';
-        return; 
+        return;
     }
-    
+
     if (!processoId) {
         try {
             const query = db.collection("processos").where("numeroProcesso", "==", numeroProcesso);
@@ -2373,7 +2390,7 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             return;
         }
     }
-    
+
     const processoData = {
         devedorId,
         numeroProcesso: numeroProcesso,
@@ -2388,7 +2405,7 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             data: firebase.firestore.FieldValue.serverTimestamp()
         }
     };
-    
+
     if (tipoProcesso === 'apenso') {
         const processoPilotoId = document.getElementById('processo-piloto')?.value;
         if (!processoPilotoId) {
@@ -2402,9 +2419,9 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             return;
         }
     } else {
-        processoData.processoPilotoId = null; 
+        processoData.processoPilotoId = null;
     }
-    
+
     try {
         if (processoId) {
             const batch = db.batch();
@@ -2414,7 +2431,7 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             const processoOriginal = processosCache.find(p => p.id === processoId);
             if (processoOriginal) {
                 const valorOriginal = processoOriginal.valorAtual ? processoOriginal.valorAtual.valor : (processoOriginal.valorDivida || 0);
-                if(valorInput !== valorOriginal) {
+                if (valorInput !== valorOriginal) {
                     const historicoRef = processoRef.collection("historicoValores").doc();
                     batch.set(historicoRef, { valor: valorInput, data: firebase.firestore.FieldValue.serverTimestamp(), tipo: 'Atualização Manual (Edição)' });
                 }
@@ -2426,7 +2443,7 @@ async function handleSaveProcesso(devedorId, processoId = null) {
             processoData.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
             await db.collection("processos").add(processoData);
         }
-        
+
         showDevedorPage(devedorId);
         setTimeout(() => showToast(`Processo ${processoId ? 'atualizado' : 'salvo'} com sucesso!`), 100);
 
@@ -2472,7 +2489,7 @@ function renderImportacaoPage() {
             </div>
         </div>
     `;
-    
+
     document.getElementById('processar-import-btn').addEventListener('click', handleProcessarImportacao);
 }
 
@@ -2494,7 +2511,7 @@ async function handleProcessarImportacao() {
     processarBtn.disabled = true;
     processarBtn.textContent = 'Processando...';
     resultsContainer.innerHTML = 'Iniciando o processamento...';
-    
+
     const linhas = rawData.trim().split('\n');
     const processosParaCriar = [];
     const resultadosLog = [];
@@ -2508,11 +2525,11 @@ async function handleProcessarImportacao() {
         }
 
         const [numeroProcessoRaw, exequenteNomeRaw, tipoProcessoRaw, valorRaw = '0', cdasRaw = ''] = colunas;
-        
+
         const numeroProcesso = numeroProcessoRaw.replace(/\D/g, '');
         const tipoProcesso = tipoProcessoRaw.trim().toLowerCase();
         const exequenteNome = exequenteNomeRaw.trim();
-        
+
         if (numeroProcesso.length !== 20) {
             resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Número de processo inválido. Pulando.` });
             continue;
@@ -2554,7 +2571,7 @@ async function handleProcessarImportacao() {
             ultimoPilotoId = null;
             processoData.id = db.collection("processos").doc().id;
         } else {
-             resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Tipo "${tipoProcessoRaw}" inválido. Pulando.` });
+            resultadosLog.push({ type: 'error', message: `Linha ${index + 1} (${numeroProcessoRaw}): Tipo "${tipoProcessoRaw}" inválido. Pulando.` });
             continue;
         }
 
@@ -2564,7 +2581,7 @@ async function handleProcessarImportacao() {
 
     if (processosParaCriar.some(p => p.id)) {
         const batch = db.batch();
-        
+
         processosParaCriar.forEach(proc => {
             const processoRef = db.collection("processos").doc(proc.id);
             const { id, ...dataToSave } = proc;
@@ -2584,7 +2601,7 @@ async function handleProcessarImportacao() {
 
     resultsContainer.innerHTML = `<div class="import-results-header">Log da Importação:</div>` +
         resultadosLog.map(log => `<div class="result-line ${log.type}">${log.message}</div>`).join('');
-    
+
     processarBtn.disabled = false;
     processarBtn.textContent = 'Processar e Importar';
     document.getElementById('import-data-textarea').value = '';
@@ -2600,50 +2617,50 @@ function setupListeners() {
             setupDashboardWidgets();
         }
     });
-    db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => { 
-        exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-        if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache); 
+    db.collection("exequentes").orderBy("nome").onSnapshot((snapshot) => {
+        exequentesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (document.title.includes('Exequentes')) renderExequentesList(exequentesCache);
     });
     db.collection("motivos_suspensao").orderBy("descricao").onSnapshot((snapshot) => {
         motivosSuspensaoCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if(document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
+        if (document.title.includes('Motivos de Suspensão')) renderMotivosList(motivosSuspensaoCache);
     });
 }
 
-function setupProcessosListener(devedorId) { 
-    if (processosListenerUnsubscribe) processosListenerUnsubscribe(); 
+function setupProcessosListener(devedorId) {
+    if (processosListenerUnsubscribe) processosListenerUnsubscribe();
     processosListenerUnsubscribe = db.collection("processos")
         .where("devedorId", "==", devedorId)
-        .onSnapshot((snapshot) => { 
-            processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-            renderProcessosList(processosCache); 
-        }, error => { 
-            console.error("Erro ao buscar processos: ", error); 
-            if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`; 
-        }); 
+        .onSnapshot((snapshot) => {
+            processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderProcessosList(processosCache);
+        }, error => {
+            console.error("Erro ao buscar processos: ", error);
+            if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`;
+        });
 }
 
 function initApp(user) {
     userEmailSpan.textContent = user.email;
     logoutButton.addEventListener('click', () => { auth.signOut(); });
-    
+
     setupGlobalSearch();
     navigateTo('dashboard');
     setupListeners();
 }
 
-document.addEventListener('DOMContentLoaded', () => { 
-    auth.onAuthStateChanged(user => { 
-        if (user) { 
-            appContainer.classList.remove('hidden'); 
-            loginContainer.classList.add('hidden'); 
-            initApp(user); 
-        } else { 
-            appContainer.classList.add('hidden'); 
-            loginContainer.classList.remove('hidden'); 
-            renderLoginForm(); 
-        } 
-    }); 
+document.addEventListener('DOMContentLoaded', () => {
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            appContainer.classList.remove('hidden');
+            loginContainer.classList.add('hidden');
+            initApp(user);
+        } else {
+            appContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+            renderLoginForm();
+        }
+    });
 });
 
 function renderLoginForm() {
@@ -2664,29 +2681,29 @@ function renderLoginForm() {
         <div class="form-buttons">
             <button id="login-btn">Entrar</button>
         </div>`;
-        
+
     document.getElementById('login-btn').addEventListener('click', handleLogin);
     document.getElementById('forgot-password-link').addEventListener('click', handlePasswordResetRequest);
 }
 
-function handleLogin() { 
-    const email = document.getElementById('email').value; 
-    const password = document.getElementById('password').value; 
-    const errorMessage = document.getElementById('error-message'); 
-    if (!email || !password) { 
-        errorMessage.textContent = 'Por favor, preencha e-mail e senha.'; 
-        return; 
-    } 
-    auth.signInWithEmailAndPassword(email, password).catch(error => { 
-        errorMessage.textContent = 'E-mail ou senha incorretos.'; 
-    }); 
+function handleLogin() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const errorMessage = document.getElementById('error-message');
+    if (!email || !password) {
+        errorMessage.textContent = 'Por favor, preencha e-mail e senha.';
+        return;
+    }
+    auth.signInWithEmailAndPassword(email, password).catch(error => {
+        errorMessage.textContent = 'E-mail ou senha incorretos.';
+    });
 }
 
 function handlePasswordResetRequest(event) {
     event.preventDefault();
     const email = document.getElementById('email').value;
     const errorMessage = document.getElementById('error-message');
-    
+
     if (!email) {
         errorMessage.textContent = 'Por favor, digite seu e-mail no campo acima para redefinir a senha.';
         return;
