@@ -329,8 +329,8 @@ function renderDiligenciaFormModal(diligencia = null) {
         dataAlvoFormatada = new Date(diligencia.dataAlvo.seconds * 1000).toISOString().split('T')[0];
     }
 
-    // CÓDIGO ALTERADO (dentro de renderDiligenciaFormModal)
-    modalOverlay.innerHTML = `
+    // CÓDIGO PARA SUBSTITUIR
+modalOverlay.innerHTML = `
     <div class="modal-content modal-large">
         <h3>${isEditing ? 'Editar' : 'Adicionar'} Tarefa</h3>
         
@@ -338,15 +338,16 @@ function renderDiligenciaFormModal(diligencia = null) {
             <label for="diligencia-titulo">Título da Tarefa (Obrigatório)</label>
             <input type="text" id="diligencia-titulo" value="${isEditing ? diligencia.titulo : ''}" required>
         </div>
+
+        <!-- CAMPO RECORRENTE MOVIDO PARA CIMA E ALINHADO -->
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px; justify-content: flex-start;">
+            <input type="checkbox" id="diligencia-recorrente" ${isEditing && diligencia.isRecorrente ? 'checked' : ''} style="width: auto;">
+            <label for="diligencia-recorrente" style="margin-bottom: 0; font-weight: normal;">Tarefa Recorrente (repete todo mês)</label>
+        </div>
         
         <div class="form-group">
             <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label>
             <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required>
-        </div>
-        
-        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="diligencia-recorrente" ${isEditing && diligencia.isRecorrente ? 'checked' : ''}>
-            <label for="diligencia-recorrente" style="margin-bottom: 0;">Tarefa Recorrente (repete todo mês)</label>
         </div>
 
         <div class="form-group">
