@@ -74,10 +74,26 @@ function formatCurrency(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function getAnaliseStatus(devedor) {
     if (!devedor.dataUltimaAnalise) {
+        // Se NÃO houver data de última análise, calculamos a pendência.
+        if (devedor.criadoEm) {
+            const hoje = new Date();
+            const dataCriacao = devedor.criadoEm.toDate();
+            const diffTime = hoje - dataCriacao;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays <= 0) {
+                return { status: 'status-expired', text: 'Pendente (hoje)' };
+            }
+            return { status: 'status-expired', text: `Pendente há ${diffDays} dia(s)` };
+        }
+        // Caso de segurança: se não tiver nem data de criação.
         return { status: 'status-expired', text: 'Pendente' };
     }
+
+    // Se HOUVER data de última análise, calculamos o vencimento (lógica original).
     const prazos = { 1: 30, 2: 45, 3: 60 };
     const prazoDias = prazos[devedor.nivelPrioridade];
     const hoje = new Date();
@@ -86,6 +102,7 @@ function getAnaliseStatus(devedor) {
     dataVencimento.setDate(dataVencimento.getDate() + prazoDias);
     const diffTime = dataVencimento - hoje;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
     if (diffDays < 0) return { status: 'status-expired', text: `Vencido há ${Math.abs(diffDays)} dia(s)` };
     if (diffDays <= 7) return { status: 'status-warning', text: `Vence em ${diffDays} dia(s)` };
     return { status: 'status-ok', text: `OK (Vence em ${diffDays} dia(s))` };
