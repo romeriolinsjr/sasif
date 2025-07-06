@@ -280,26 +280,43 @@ function showDevedorPage(devedorId) {
     renderDevedorDetailPage(devedorId);
 }
 
-// CÓDIGO PARA SUBSTITUIR
-function renderDiligenciasPage() {
-    pageTitle.textContent = 'Controle de Tarefas do Mês';
-    document.title = 'SASIF | Tarefas do Mês';
+function renderDiligenciasPage(date = new Date()) {
+    const mesAtual = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+    pageTitle.textContent = 'Controle de Tarefas'; // Título principal fixo
+    document.title = `SASIF | Tarefas do Mês - ${mesAtual}`;
+
+    // Calcula o mês anterior e o próximo
+    const mesAnterior = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+    const mesSeguinte = new Date(date.getFullYear(), date.getMonth() + 1, 1);
 
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button>
         </div>
-        <h2>Lista de Tarefas do Mês</h2>
+        <div class="section-header" style="justify-content: center; align-items: center; margin-bottom: 20px;">
+            <button id="prev-month-btn" class="action-icon" title="Mês Anterior" style="background-color: transparent;">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#0d47a1"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <h2 style="margin: 0 20px; min-width: 200px; text-align: center; text-transform: capitalize;">${mesAtual}</h2>
+            <button id="next-month-btn" class="action-icon" title="Mês Seguinte" style="background-color: transparent;">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#0d47a1"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+        </div>
         <div id="diligencias-list-container">
             <p class="empty-list-message">Carregando tarefas...</p>
         </div>
     `;
-
+    
     document.getElementById('add-diligencia-btn').addEventListener('click', () => {
         renderDiligenciaFormModal();
     });
 
-    setupDiligenciasListener();
+    // Adiciona listeners para os botões de navegação
+    document.getElementById('prev-month-btn').addEventListener('click', () => renderDiligenciasPage(mesAnterior));
+    document.getElementById('next-month-btn').addEventListener('click', () => renderDiligenciasPage(mesSeguinte));
+
+    // Passa o mês selecionado para as funções de baixo nível
+    setupDiligenciasListener(date);
 }
 
 function renderDiligenciaFormModal(diligencia = null) {
@@ -418,7 +435,7 @@ function handleSaveDiligencia(diligenciaId = null) {
     });
 }
 
-function setupDiligenciasListener() {
+function setupDiligenciasListener(date) {
     if (diligenciasListenerUnsubscribe) diligenciasListenerUnsubscribe();
 
     const userId = auth.currentUser.uid;
@@ -426,74 +443,88 @@ function setupDiligenciasListener() {
         .where("userId", "==", userId)
         .onSnapshot((snapshot) => {
             diligenciasCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderDiligenciasList(diligenciasCache);
+            // Passa a data para a função de renderização
+            renderDiligenciasList(diligenciasCache, date);
         }, error => {
-            console.error("Erro ao buscar diligências: ", error);
+            console.error("Erro ao buscar tarefas: ", error);
             const container = document.getElementById('diligencias-list-container');
-            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as diligências.</p>`;
+            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as tarefas.</p>`;
         });
 }
 
-function renderDiligenciasList(diligencias) {
+// CÓDIGO PARA SUBSTITUIR
+function renderDiligenciasList(diligencias, date) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
 
-    if (diligencias.length === 0) {
-        container.innerHTML = `<p class="empty-list-message">Nenhuma diligência cadastrada. Clique em "Adicionar Diligência" para começar.</p>`;
+    const anoMesSelecionado = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Filtra as tarefas para o mês selecionado
+    const tarefasDoMes = diligencias.filter(item => {
+        if (!item.dataAlvo) return false;
+        if (item.isRecorrente) return true; // Tarefas recorrentes aparecem em todos os meses
+        
+        // Tarefas únicas só aparecem no mês da sua data alvo
+        const dataAlvoTarefa = new Date(item.dataAlvo.seconds * 1000);
+        return dataAlvoTarefa.getFullYear() === date.getFullYear() && dataAlvoTarefa.getMonth() === date.getMonth();
+    });
+
+    if (tarefasDoMes.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhuma tarefa para este mês.</p>`;
         return;
     }
 
-    diligencias.sort((a, b) => {
+    // Ordena pela data alvo original para manter a ordem dentro do mês
+    tarefasDoMes.sort((a, b) => {
         const dataA = a.dataAlvo ? a.dataAlvo.seconds : 0;
         const dataB = b.dataAlvo ? b.dataAlvo.seconds : 0;
         return dataA - dataB;
     });
 
-    const hoje = new Date();
-    const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Tarefa</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
 
-    let tableHTML = `<table class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Diligência</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
-
-    diligencias.forEach(item => {
-        if (!item.dataAlvo) {
-            console.warn(`Diligência antiga encontrada sem 'dataAlvo'. ID: ${item.id}`);
-            return;
-        }
-
+    tarefasDoMes.forEach(item => {
         const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
-        const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual];
+        // Para tarefas recorrentes, verifica se foi cumprida NO MÊS SELECIONADO
+        const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesSelecionado];
         const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-
+        
         const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
         let statusBadge = '';
         let acoesBtn = '';
         let linhaStyle = '';
-        let tipoDiligencia = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
-        let dataAlvoFormatada = dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        let tipoTarefa = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
+        // Para tarefas recorrentes, mostra o dia no contexto do mês atual
+        const dataAlvoFormatada = item.isRecorrente 
+            ? `${String(dataAlvo.getUTCDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+            : dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
         if (isCumprida) {
-            const dataCumprimentoTimestamp = isCumpridaUnica ? Object.values(item.historicoCumprimentos)[0] : item.historicoCumprimentos[anoMesAtual];
+            const dataCumprimentoTimestamp = isCumpridaUnica ? Object.values(item.historicoCumprimentos)[0] : item.historicoCumprimentos[anoMesSelecionado];
             const dataCumprimento = new Date(dataCumprimentoTimestamp.seconds * 1000);
             const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-            acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}">Desfazer</button>`;
+            // Para tarefas recorrentes, o botão de desfazer precisa usar a chave do mês selecionado
+            acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}">Desfazer</button>`;
             linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"';
         } else {
             statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`;
-            acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}">Cumprir</button>`;
+            // Para tarefas recorrentes, o botão de cumprir precisa usar a chave do mês selecionado
+            acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}">Cumprir</button>`;
         }
-
-        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoDiligencia}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; gap: 8px;">${acoesBtn}<button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button><button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button></div></td></tr>`;
+        
+        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoTarefa}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; gap: 8px;">${acoesBtn}<button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button><button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button></div></td></tr>`;
     });
 
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-
+    
     container.querySelector('tbody').addEventListener('click', handleDiligenciaAction);
 }
 
-// CÓDIGO PARA SUBSTITUIR
+// CÓDIGO PARA SUBSTITUIR (3 FUNÇÕES)
+
 function handleDiligenciaAction(event) {
     const target = event.target;
     const action = target.dataset.action;
@@ -501,11 +532,12 @@ function handleDiligenciaAction(event) {
 
     event.preventDefault();
     const diligenciaId = target.dataset.id;
+    const mesChave = target.dataset.mesChave; // Pega a chave do mês do botão
 
     if (action === 'cumprir') {
-        handleCumprirDiligencia(diligenciaId);
+        handleCumprirDiligencia(diligenciaId, mesChave);
     } else if (action === 'desfazer') {
-        handleDesfazerDiligencia(diligenciaId);
+        handleDesfazerDiligencia(diligenciaId, mesChave);
     } else if (action === 'edit') {
         const tarefa = diligenciasCache.find(d => d.id === diligenciaId);
         if (tarefa) {
@@ -521,36 +553,32 @@ function handleDiligenciaAction(event) {
     }
 }
 
-function handleCumprirDiligencia(diligenciaId) {
-    const hoje = new Date();
-    const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-
+function handleCumprirDiligencia(diligenciaId, anoMesChave) {
     const updateData = {};
-    updateData[`historicoCumprimentos.${anoMesAtual}`] = firebase.firestore.FieldValue.serverTimestamp();
+    // Usa a chave do mês para marcar como cumprido
+    updateData[`historicoCumprimentos.${anoMesChave}`] = firebase.firestore.FieldValue.serverTimestamp();
 
     db.collection("diligenciasMensais").doc(diligenciaId).update(updateData)
         .then(() => {
-            showToast("Diligência marcada como cumprida!");
+            showToast("Tarefa marcada como cumprida!");
         })
         .catch(error => {
-            console.error("Erro ao cumprir diligência: ", error);
+            console.error("Erro ao cumprir tarefa: ", error);
             showToast("Ocorreu um erro.", "error");
         });
 }
 
-function handleDesfazerDiligencia(diligenciaId) {
-    const hoje = new Date();
-    const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-
+function handleDesfazerDiligencia(diligenciaId, anoMesChave) {
     const updateData = {};
-    updateData[`historicoCumprimentos.${anoMesAtual}`] = firebase.firestore.FieldValue.delete();
+    // Usa a chave do mês para remover o registro de cumprimento
+    updateData[`historicoCumprimentos.${anoMesChave}`] = firebase.firestore.FieldValue.delete();
 
     db.collection("diligenciasMensais").doc(diligenciaId).update(updateData)
         .then(() => {
             showToast("Ação desfeita.");
         })
         .catch(error => {
-            console.error("Erro ao desfazer diligência: ", error);
+            console.error("Erro ao desfazer tarefa: ", error);
             showToast("Ocorreu um erro.", "error");
         });
 }
