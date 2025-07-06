@@ -864,3 +864,38 @@ body {
     color: var(--cor-erro);
     font-weight: bold;
 }
+
+/* CÓDIGO PARA ADICIONAR NO FINAL DO ARQUIVO */
+
+/* --- ÍCONES DE AÇÃO --- */
+.action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-left: 8px;
+}
+
+.action-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.action-icon:hover {
+    background-color: #e0e0e0;
+}
+
+/* Cores específicas para os ícones */
+.icon-edit svg {
+    fill: #f57f17; /* Laranja/Amarelo escuro */
+}
+
+.icon-delete svg {
+    fill: var(--cor-erro); /* Vermelho */
+}

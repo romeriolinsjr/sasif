@@ -238,8 +238,12 @@ function renderDevedoresList(devedores) {
                 <td class="level-${devedor.nivelPrioridade}">Nível ${devedor.nivelPrioridade}</td>
                 ${statusCellHTML}
                 <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-id="${devedor.id}" data-action="edit">Editar</button>
-                    <button class="action-btn btn-delete" data-id="${devedor.id}" data-action="delete">Excluir</button>
+                    <button class="action-icon icon-edit" title="Editar Devedor" data-id="${devedor.id}" data-action="edit">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                    <button class="action-icon icon-delete" title="Excluir Devedor" data-id="${devedor.id}" data-action="delete">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
                 </td>
             </tr>`;
     });
@@ -742,9 +746,14 @@ function renderProcessosList(processos) {
             <td><span class="status-badge status-${(item.status || 'Ativo').toLowerCase()}">${statusText}</span></td>
             <td>${formatCurrency(valorExibido)}</td>
             <td class="actions-cell">
-                <button class="action-btn btn-edit" data-id="${item.id}">Editar</button>
-                <button class="action-btn btn-delete" data-id="${item.id}">Excluir</button>
-            </td>`;
+                <button class="action-icon icon-edit" title="Editar Processo" data-id="${item.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button class="action-icon icon-delete" title="Excluir Processo" data-id="${item.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            </td>
+            `;
 
         tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML}</tr>`;
 
@@ -762,9 +771,14 @@ function renderProcessosList(processos) {
                     <td><span class="status-badge status-${(apenso.status || 'Ativo').toLowerCase()}">${statusTextApenso}</span></td>
                     <td>${formatCurrency(valorApensoExibido)}</td>
                     <td class="actions-cell">
-                        <button class="action-btn btn-edit" data-id="${apenso.id}">Editar</button>
-                        <button class="action-btn btn-delete" data-id="${apenso.id}">Excluir</button>
-                    </td>`;
+                        <button class="action-icon icon-edit" title="Editar Processo" data-id="${apenso.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <button class="action-icon icon-delete" title="Excluir Processo" data-id="${apenso.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </td>
+                    `;
 
                 tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}">${apensoHTML}</tr>`;
             });
@@ -798,11 +812,18 @@ function renderProcessoDetailPage(processoId) {
         contentArea.innerHTML = `
             <div class="dashboard-actions">
                 <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
-                ${(processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : ''}
-                ${(processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : ''}
-                <button id="delete-processo-btn" class="btn-primary" style="background-color: var(--cor-erro); margin-left: auto;">Excluir Processo</button>
+                ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
+                ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
+                
+                <div style="margin-left: auto; display: flex; gap: 8px;">
+                    <button id="edit-processo-btn" class="action-icon icon-edit" title="Editar Processo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                    <button id="delete-processo-btn" class="action-icon icon-delete" title="Excluir Processo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                </div>
             </div>
-            
             <div class="detail-card">
                 <h3>Detalhes do Processo</h3>
                 <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
@@ -880,6 +901,9 @@ function renderProcessoDetailPage(processoId) {
         });
         document.getElementById('delete-processo-btn').addEventListener('click', () => {
             handleDeleteProcesso(processo.id);
+        });
+        document.getElementById('edit-processo-btn').addEventListener('click', () => {
+            handleEditProcesso(processo.id);
         });
 
     }).catch(error => {
