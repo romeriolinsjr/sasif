@@ -74,26 +74,23 @@ function formatCurrency(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// CÓDIGO PARA SUBSTITUIR
 function getAnaliseStatus(devedor) {
     if (!devedor.dataUltimaAnalise) {
-        // Se NÃO houver data de última análise, calculamos a pendência.
         if (devedor.criadoEm) {
             const hoje = new Date();
             const dataCriacao = devedor.criadoEm.toDate();
             const diffTime = hoje - dataCriacao;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const plural = diffDays === 1 ? 'dia' : 'dias';
 
             if (diffDays <= 0) {
                 return { status: 'status-expired', text: 'Pendente (hoje)' };
             }
-            return { status: 'status-expired', text: `Pendente há ${diffDays} dia(s)` };
+            return { status: 'status-expired', text: `Pendente há ${diffDays} ${plural}` };
         }
-        // Caso de segurança: se não tiver nem data de criação.
         return { status: 'status-expired', text: 'Pendente' };
     }
 
-    // Se HOUVER data de última análise, calculamos o vencimento (lógica original).
     const prazos = { 1: 30, 2: 45, 3: 60 };
     const prazoDias = prazos[devedor.nivelPrioridade];
     const hoje = new Date();
@@ -103,9 +100,18 @@ function getAnaliseStatus(devedor) {
     const diffTime = dataVencimento - hoje;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return { status: 'status-expired', text: `Vencido há ${Math.abs(diffDays)} dia(s)` };
-    if (diffDays <= 7) return { status: 'status-warning', text: `Vence em ${diffDays} dia(s)` };
-    return { status: 'status-ok', text: `(Vence em ${diffDays} dia(s))` };
+    if (diffDays < 0) {
+        const diasVencidos = Math.abs(diffDays);
+        const pluralVencido = diasVencidos === 1 ? 'dia' : 'dias';
+        return { status: 'status-expired', text: `Vencido há ${diasVencidos} ${pluralVencido}` };
+    }
+    
+    const pluralVence = diffDays === 1 ? 'dia' : 'dias';
+    if (diffDays <= 7) {
+        return { status: 'status-warning', text: `Vence em ${diffDays} ${pluralVence}` };
+    }
+    
+    return { status: 'status-ok', text: `Vence em ${diffDays} ${pluralVence}` };
 }
 
 function maskDocument(input, tipoPessoa) {
@@ -215,7 +221,6 @@ function renderDevedoresList(devedores) {
         return;
     }
 
-    // ALTERAÇÃO FEITA AQUI, NO CABEÇALHO (th) DA COLUNA "Prioridade"
     let tableHTML = `
         <table class="data-table">
             <thead>
@@ -225,12 +230,12 @@ function renderDevedoresList(devedores) {
                     <th>CNPJ</th>
                     <th>
                         <div class="info-tooltip-container">
-                            Prioridade
+                            <span>Prioridade</span>
                             <span class="info-icon">i</span>
-                            <div class="info-tooltip-text">Executados com prioridade 1 devem ser analisados, no máximo, a cada 30 dias. Executados com prioridade 2 devem ser analisados, no máximo, a cada 45 dias. Executados com prioridade 3 devem ser analisados, no máximo, a cada 60 dias.</div>
+                            <div class="info-tooltip-text">Executados com prioridade 1 devem ser analisados, no máximo, a cada 30 dias. Executados com prioridade 2, a cada 45 dias. E executados com prioridade 3, a cada 60 dias.</div>
                         </div>
                     </th>
-                    <th>Status Análise</th>
+                    <th>Análise</th>
                     <th class="actions-cell">Ações</th>
                 </tr>
             </thead>
@@ -252,7 +257,6 @@ function renderDevedoresList(devedores) {
                 </td>`;
         }
 
-        // A célula de Prioridade nas linhas de dados volta a ser simples, sem o tooltip.
         tableHTML += `
             <tr data-id="${devedor.id}" class="clickable-row">
                 <td class="number-cell">${index + 1}</td>

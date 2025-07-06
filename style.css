@@ -947,12 +947,16 @@ body {
 .data-table th:last-child {
     border-top-right-radius: 8px;
 }
+
 /* --- AJUSTE PARA TOOLTIP NO CABEÇALHO DA TABELA --- */
 .data-table th .info-tooltip-container {
     /* Mantém o alinhamento correto do texto e do ícone */
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    /* Anula a transformação para maiúsculas vinda do 'th' */
+}
+
+.data-table th .info-tooltip-text {
+    /* Anula a transformação para maiúsculas apenas na caixa de texto do tooltip */
     text-transform: none;
 }
