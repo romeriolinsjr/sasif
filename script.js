@@ -105,7 +105,7 @@ function getAnaliseStatus(devedor) {
 
     if (diffDays < 0) return { status: 'status-expired', text: `Vencido há ${Math.abs(diffDays)} dia(s)` };
     if (diffDays <= 7) return { status: 'status-warning', text: `Vence em ${diffDays} dia(s)` };
-    return { status: 'status-ok', text: `OK (Vence em ${diffDays} dia(s))` };
+    return { status: 'status-ok', text: `(Vence em ${diffDays} dia(s))` };
 }
 
 function maskDocument(input, tipoPessoa) {
@@ -141,10 +141,9 @@ function renderSidebar(activePage) {
     const pages = [
         { id: 'dashboard', name: 'Dashboard' },
         { id: 'grandesDevedores', name: 'Grandes Devedores' },
-        { id: 'importacao', name: 'Importação em Lote' },
         { id: 'diligencias', name: 'Tarefas do Mês' },
-        { id: 'exequentes', name: 'Exequentes' },
-        { id: 'motivos', name: 'Motivos de Suspensão' }
+        { id: 'importacao', name: 'Importação em Lote' },
+        { id: 'configuracoes', name: 'Configurações' } // Novo item de menu
     ];
     mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`;
     mainNav.querySelectorAll('.nav-link').forEach(link => {
@@ -176,6 +175,9 @@ function navigateTo(page, params = {}) {
         case 'diligencias':
             renderDiligenciasPage();
             break;
+        case 'configuracoes': // <-- NOVO CASE
+            renderConfiguracoesPage();
+            break; // <-- NÃO ESQUEÇA O BREAK
         case 'exequentes':
             renderExequentesPage();
             break;
@@ -212,7 +214,27 @@ function renderDevedoresList(devedores) {
         container.innerHTML = `<p class="empty-list-message">Nenhum grande devedor cadastrado ainda.</p>`;
         return;
     }
-    let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Razão Social</th><th>CNPJ</th><th>Prioridade</th><th>Status Análise</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+
+    // ALTERAÇÃO FEITA AQUI, NO CABEÇALHO (th) DA COLUNA "Prioridade"
+    let tableHTML = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="number-cell">#</th>
+                    <th>Razão Social</th>
+                    <th>CNPJ</th>
+                    <th>
+                        <div class="info-tooltip-container">
+                            Prioridade
+                            <span class="info-icon">i</span>
+                            <div class="info-tooltip-text">Executados com prioridade 1 devem ser analisados, no máximo, a cada 30 dias. Executados com prioridade 2 devem ser analisados, no máximo, a cada 45 dias. Executados com prioridade 3 devem ser analisados, no máximo, a cada 60 dias.</div>
+                        </div>
+                    </th>
+                    <th>Status Análise</th>
+                    <th class="actions-cell">Ações</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
     devedores.forEach((devedor, index) => {
         const analise = getAnaliseStatus(devedor);
@@ -230,6 +252,7 @@ function renderDevedoresList(devedores) {
                 </td>`;
         }
 
+        // A célula de Prioridade nas linhas de dados volta a ser simples, sem o tooltip.
         tableHTML += `
             <tr data-id="${devedor.id}" class="clickable-row">
                 <td class="number-cell">${index + 1}</td>
@@ -280,7 +303,6 @@ function showDevedorPage(devedorId) {
     renderDevedorDetailPage(devedorId);
 }
 
-// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'renderDiligenciasPage' INTEIRA
 function renderDiligenciasPage(date = new Date()) {
     const mesAtual = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
     pageTitle.textContent = 'Controle de Tarefas';
@@ -289,33 +311,48 @@ function renderDiligenciasPage(date = new Date()) {
     const mesAnterior = new Date(date.getFullYear(), date.getMonth() - 1, 1);
     const mesSeguinte = new Date(date.getFullYear(), date.getMonth() + 1, 1);
 
+    // ALTERAÇÃO 3: Lógica para limitar a navegação
+    // 1. Pega a data de hoje.
+    const hoje = new Date();
+    // 2. Calcula a data limite (24 meses = 2 anos à frente).
+    const dataLimite = new Date(hoje.getFullYear() + 2, hoje.getMonth(), 1);
+    // 3. Verifica se o próximo mês ultrapassa o limite.
+    const desabilitarProximo = mesSeguinte >= dataLimite;
+
+    // O cabeçalho agora usa a classe `tasks-month-header` que criamos no CSS.
+    // O botão "Próximo Mês" receberá o atributo 'disabled' se a condição acima for verdadeira.
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button>
         </div>
-        <div class="section-header" style="justify-content: center; align-items: center; margin-bottom: 20px;">
-            <button id="prev-month-btn" class="action-icon" title="Mês Anterior" style="background-color: transparent;">
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#0d47a1"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            </button>
-            <h2 style="margin: 0 20px; min-width: 200px; text-align: center; text-transform: capitalize;">${mesAtual}</h2>
-            <button id="next-month-btn" class="action-icon" title="Mês Seguinte" style="background-color: transparent;">
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#0d47a1"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-            </button>
+        <div class="tasks-month-header">
+            <button id="prev-month-btn" title="Mês Anterior">◀</button>
+            <h2>${mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)}</h2>
+            <button id="next-month-btn" title="Mês Seguinte" ${desabilitarProximo ? 'disabled' : ''}>▶</button>
         </div>
         <div id="diligencias-list-container">
             <p class="empty-list-message">Carregando tarefas...</p>
         </div>
     `;
-    
+
     document.getElementById('add-diligencia-btn').addEventListener('click', () => {
         renderDiligenciaFormModal();
     });
 
     document.getElementById('prev-month-btn').addEventListener('click', () => renderDiligenciasPage(mesAnterior));
-    document.getElementById('next-month-btn').addEventListener('click', () => renderDiligenciasPage(mesSeguinte));
 
-    // ADICIONA O LISTENER DELEGADO AO ELEMENTO PAI ESTÁVEL
-    contentArea.addEventListener('click', handleDiligenciaAction);
+    // O evento de clique só é adicionado se o botão NÃO estiver desabilitado.
+    if (!desabilitarProximo) {
+        document.getElementById('next-month-btn').addEventListener('click', () => renderDiligenciasPage(mesSeguinte));
+    }
+
+    // A função de clique continua delegada, o que é uma boa prática.
+    // Removido o event listener antigo e garantido que só haja um.
+    if (typeof handleDiligenciaAction.isAttached === 'undefined' || !handleDiligenciaAction.isAttached) {
+        contentArea.removeEventListener('click', handleDiligenciaAction); // Garante a remoção de listeners antigos
+        contentArea.addEventListener('click', handleDiligenciaAction);
+        handleDiligenciaAction.isAttached = true;
+    }
 
     setupDiligenciasListener(date);
 }
@@ -331,7 +368,7 @@ function renderDiligenciaFormModal(diligencia = null) {
     }
 
     // CÓDIGO PARA SUBSTITUIR
-modalOverlay.innerHTML = `
+    modalOverlay.innerHTML = `
     <div class="modal-content modal-large">
         <h3>${isEditing ? 'Editar' : 'Adicionar'} Tarefa</h3>
         
@@ -380,6 +417,61 @@ modalOverlay.innerHTML = `
     });
     document.getElementById('cancel-diligencia-btn').addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+}
+
+function renderConfiguracoesPage() {
+    pageTitle.textContent = 'Configurações';
+    document.title = 'SASIF | Configurações';
+
+    contentArea.innerHTML = `
+        <style>
+            .settings-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 24px;
+            }
+            .setting-card {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 40px 20px;
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: var(--sombra);
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .setting-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            }
+            .setting-card h3 {
+                margin: 0 0 10px 0;
+                font-size: 20px;
+                color: var(--cor-primaria);
+            }
+            .setting-card p {
+                margin: 0;
+                color: #555;
+            }
+        </style>
+
+        <div class="settings-grid">
+            <div class="setting-card" id="goto-exequentes">
+                <h3>Gerenciar Exequentes</h3>
+                <p>Adicione, edite ou remova os entes exequentes.</p>
+            </div>
+            <div class="setting-card" id="goto-motivos">
+                <h3>Gerenciar Motivos de Suspensão</h3>
+                <p>Customize os motivos utilizados para suspender processos.</p>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('goto-exequentes').addEventListener('click', () => navigateTo('exequentes'));
+    document.getElementById('goto-motivos').addEventListener('click', () => navigateTo('motivos'));
 }
 
 // CÓDIGO PARA SUBSTITUIR
@@ -450,21 +542,20 @@ function setupDiligenciasListener(date) {
         }, error => {
             console.error("Erro ao buscar tarefas: ", error);
             const container = document.getElementById('diligencias-list-container');
-            if(container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as tarefas.</p>`;
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as tarefas.</p>`;
         });
 }
 
-// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'renderDiligenciasList' INTEIRA
 function renderDiligenciasList(diligencias, date) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
 
     const anoMesSelecionado = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const tarefasDoMes = diligencias.filter(item => {
         if (!item.dataAlvo) return false;
         if (item.isRecorrente) return true;
-        
+
         const dataAlvoTarefa = new Date(item.dataAlvo.seconds * 1000);
         return dataAlvoTarefa.getFullYear() === date.getFullYear() && dataAlvoTarefa.getMonth() === date.getMonth();
     });
@@ -480,20 +571,20 @@ function renderDiligenciasList(diligencias, date) {
         return dataA - dataB;
     });
 
-    let tableHTML = `<table class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Tarefa</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    let tableHTML = `<table id="monthly-tasks-table" class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Tarefa</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
 
     tarefasDoMes.forEach(item => {
         const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
         const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesSelecionado];
         const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-        
+
         const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
         let statusBadge = '';
-        let acoesBtn = '';
+        let acoesBtnDesfazer = ''; // Renomeado para clareza
         let linhaStyle = '';
         let tipoTarefa = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
-        
-        const dataAlvoFormatada = item.isRecorrente 
+
+        const dataAlvoFormatada = item.isRecorrente
             ? `${String(dataAlvo.getUTCDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
             : dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
@@ -502,29 +593,41 @@ function renderDiligenciasList(diligencias, date) {
             const dataCumprimento = new Date(dataCumprimentoTimestamp.seconds * 1000);
             const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-            acoesBtn = `<button class="action-icon" title="Desfazer cumprimento" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
+            // Ícone "Desfazer" ATIVO
+            acoesBtnDesfazer = `<button class="action-icon" title="Desfazer cumprimento" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
             linhaStyle = 'style="background-color: #e8f5e9;"';
         } else {
             statusBadge = `<span class="status-badge status-suspenso clickable-status" data-action="cumprir" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}" title="Clique para marcar como cumprido">Pendente</span>`;
-            acoesBtn = '';
+            // Ícone "Desfazer" INATIVO (com 'disabled' e opacidade)
+            acoesBtnDesfazer = `<button class="action-icon" disabled style="opacity: 0.3; cursor: not-allowed;"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
             linhaStyle = '';
         }
-        
-        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoTarefa}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">${acoesBtn}<button class="action-icon icon-edit" title="Editar Tarefa" data-action="edit" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Tarefa" data-action="delete" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></td></tr>`;
+
+        tableHTML += `
+            <tr ${linhaStyle}>
+                <td>${dataAlvoFormatada}</td>
+                <td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td>
+                <td>${tipoTarefa}</td>
+                <td class="tasks-status-cell">${statusBadge}</td>
+                <td class="actions-cell tasks-actions-cell">
+                    <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+                        ${acoesBtnDesfazer}
+                        <button class="action-icon icon-edit" title="Editar Tarefa" data-action="edit" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                        <button class="action-icon icon-delete" title="Excluir Tarefa" data-action="delete" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                    </div>
+                </td>
+            </tr>`;
     });
 
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
-    
 }
-
-// CÓDIGO PARA SUBSTITUIR (3 FUNÇÕES)
 
 // CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'handleDiligenciaAction' INTEIRA
 function handleDiligenciaAction(event) {
     // Encontra o elemento com data-action que foi realmente clicado, subindo na árvore do DOM
     const target = event.target.closest('[data-action]');
-    
+
     // Se não encontrou um elemento de ação, ou se o clique não foi na tabela de tarefas, ignora.
     if (!target || !target.closest('#diligencias-list-container')) return;
 
@@ -840,8 +943,8 @@ function renderProcessoDetailPage(processoId) {
         contentArea.innerHTML = `
             <div class="dashboard-actions">
                 <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${devedor ? devedor.razaoSocial : 'Devedor'}</button>
-                ${ (processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : '' }
-                ${ (processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : '' }
+                ${(processo.tipoProcesso === 'apenso' || processo.tipoProcesso === 'autônomo') ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>` : ''}
+                ${(processo.tipoProcesso === 'apenso') ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>` : ''}
                 
                 <div style="margin-left: auto; display: flex; gap: 8px;">
                     <button id="edit-processo-btn" class="action-icon icon-edit" title="Editar Processo">
@@ -1772,28 +1875,31 @@ function handleDeleteDevedor(devedorId) {
 function handleProcessoAction(event) {
     event.preventDefault();
     const target = event.target;
-    const row = target.closest('tr');
-    if (!row) return;
 
-    const processoId = row.dataset.id;
-
-    if (target.closest('.view-processo-link')) {
+    // Ação 1: Clicar no link do número do processo para ver detalhes
+    const link = target.closest('.view-processo-link');
+    if (link) {
+        const processoId = link.closest('tr').dataset.id;
         navigateTo('processoDetail', { id: processoId });
         return;
     }
 
-    const button = target.closest('.action-btn');
+    // Ação 2: Clicar nos ícones de editar ou excluir
+    const button = target.closest('.action-icon');
     if (button) {
         event.stopPropagation();
-        if (button.classList.contains('btn-delete')) {
+        const processoId = button.closest('tr').dataset.id;
+        if (button.classList.contains('icon-delete')) {
             handleDeleteProcesso(processoId);
-        } else if (button.classList.contains('btn-edit')) {
+        } else if (button.classList.contains('icon-edit')) {
             handleEditProcesso(processoId);
         }
         return;
     }
 
-    if (row.classList.contains('piloto-row')) {
+    // Ação 3: Clicar na linha de um processo piloto para expandir/recolher apensos
+    const row = target.closest('tr.piloto-row');
+    if (row) {
         row.classList.toggle('expanded');
         document.querySelectorAll(`.apenso-row[data-piloto-ref="${row.dataset.id}"]`).forEach(apensoRow => {
             apensoRow.classList.toggle('visible');
@@ -2180,9 +2286,62 @@ function handleSaveDevedor() { const devedorData = getDevedorDataFromForm(); if 
 function handleUpdateDevedor(devedorId) { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("grandes_devedores").doc(devedorId).update(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100); }); }
 
 function renderExequentesPage() { pageTitle.textContent = 'Exequentes'; document.title = 'SASIF | Exequentes'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-exequente-btn" class="btn-primary">Cadastrar Novo Exequente</button></div><h2>Lista de Exequentes</h2><div id="exequentes-list-container"></div>`; document.getElementById('add-exequente-btn').addEventListener('click', () => renderExequenteForm()); renderExequentesList(exequentesCache); }
-function renderExequentesList(exequentes) { const container = document.getElementById('exequentes-list-container'); if (!container) return; if (exequentes.length === 0) { container.innerHTML = `<p class="empty-list-message">Nenhum exequente cadastrado ainda.</p>`; return; } let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Nome</th><th>CNPJ</th><th class="actions-cell">Ações</th></tr></thead><tbody>`; exequentes.forEach((exequente, index) => { tableHTML += `<tr data-id="${exequente.id}"><td class="number-cell">${index + 1}</td><td>${exequente.nome}</td><td>${formatCNPJForDisplay(exequente.cnpj)}</td><td class="actions-cell"><button class="action-btn btn-edit" data-id="${exequente.id}">Editar</button><button class="action-btn btn-delete" data-id="${exequente.id}">Excluir</button></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; container.querySelector('tbody').addEventListener('click', handleExequenteAction); }
+function renderExequentesList(exequentes) {
+    const container = document.getElementById('exequentes-list-container');
+    if (!container) return;
+
+    if (exequentes.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum exequente cadastrado ainda.</p>`;
+        return;
+    }
+
+    let tableHTML = `<table class="data-table"><thead><tr><th class="number-cell">#</th><th>Nome</th><th>CNPJ</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+
+    exequentes.forEach((exequente, index) => {
+        tableHTML += `
+            <tr data-id="${exequente.id}">
+                <td class="number-cell">${index + 1}</td>
+                <td>${exequente.nome}</td>
+                <td>${formatCNPJForDisplay(exequente.cnpj)}</td>
+                <td class="actions-cell">
+                    <button class="action-icon icon-edit" title="Editar Exequente" data-id="${exequente.id}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                    <button class="action-icon icon-delete" title="Excluir Exequente" data-id="${exequente.id}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    container.querySelector('tbody').addEventListener('click', handleExequenteAction);
+}
 function renderExequenteForm(exequente = null) { const isEditing = exequente !== null; const formTitle = isEditing ? 'Editar Exequente' : 'Cadastrar Novo Exequente'; navigateTo(null); pageTitle.textContent = formTitle; document.title = `SASIF | ${formTitle}`; const nome = isEditing ? exequente.nome : ''; const cnpj = isEditing ? formatCNPJForDisplay(exequente.cnpj) : ''; contentArea.innerHTML = `<div class="form-container"><div class="form-group"><label for="nome">Nome (Obrigatório)</label><input type="text" id="nome" value="${nome}" required></div><div class="form-group"><label for="cnpj">CNPJ</label><input type="text" id="cnpj" value="${cnpj}" oninput="maskCNPJ(this)"></div><div id="error-message"></div><div class="form-buttons"><button id="save-exequente-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`; document.getElementById('save-exequente-btn').addEventListener('click', () => { isEditing ? handleUpdateExequente(exequente.id) : handleSaveExequente(); }); document.getElementById('cancel-btn').addEventListener('click', () => navigateTo('exequentes')); }
-function handleExequenteAction(event) { const target = event.target; const exequenteId = target.dataset.id; if (!exequenteId) return; if (target.classList.contains('btn-delete')) { handleDeleteExequente(exequenteId); } else if (target.classList.contains('btn-edit')) { db.collection("exequentes").doc(exequenteId).get().then(doc => { if (doc.exists) renderExequenteForm({ id: doc.id, ...doc.data() }); }); } }
+function handleExequenteAction(event) {
+    const button = event.target.closest('.action-icon'); // Procura pelo botão, mesmo que o clique seja no ícone
+    if (!button) return;
+
+    const exequenteId = button.dataset.id;
+    if (!exequenteId) return;
+
+    if (button.classList.contains('icon-delete')) {
+        handleDeleteExequente(exequenteId);
+    } else if (button.classList.contains('icon-edit')) {
+        // Busca o exequente no cache local para evitar uma nova chamada ao DB
+        const exequente = exequentesCache.find(e => e.id === exequenteId);
+        if (exequente) {
+            renderExequenteForm(exequente);
+        } else {
+            // Fallback caso não encontre no cache (pouco provável)
+            db.collection("exequentes").doc(exequenteId).get().then(doc => {
+                if (doc.exists) renderExequenteForm({ id: doc.id, ...doc.data() });
+            });
+        }
+    }
+}
 function handleSaveExequente() { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), criadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").add(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente salvo com sucesso!"), 100); }); }
 function handleUpdateExequente(exequenteId) { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").doc(exequenteId).update(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente atualizado com sucesso!"), 100); }); }
 function handleDeleteExequente(exequenteId) { if (confirm("Tem certeza que deseja excluir este Exequente?")) { db.collection("exequentes").doc(exequenteId).delete().then(() => showToast("Exequente excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); } }
@@ -2214,8 +2373,12 @@ function renderMotivosList(motivos) {
             <tr data-id="${motivo.id}">
                 <td>${motivo.descricao}</td>
                 <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-id="${motivo.id}">Editar</button>
-                    <button class="action-btn btn-delete" data-id="${motivo.id}">Excluir</button>
+                    <button class="action-icon icon-edit" title="Editar Motivo" data-id="${motivo.id}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                    <button class="action-icon icon-delete" title="Excluir Motivo" data-id="${motivo.id}">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
                 </td>
             </tr>`;
     });
@@ -2253,13 +2416,15 @@ function renderMotivoForm(motivo = null) {
 }
 
 function handleMotivoAction(event) {
-    const target = event.target;
-    const motivoId = target.dataset.id;
+    const button = event.target.closest('.action-icon'); // Procura pelo botão, mesmo que o clique seja no ícone
+    if (!button) return;
+
+    const motivoId = button.dataset.id;
     if (!motivoId) return;
 
-    if (target.classList.contains('btn-delete')) {
+    if (button.classList.contains('icon-delete')) {
         handleDeleteMotivo(motivoId);
-    } else if (target.classList.contains('btn-edit')) {
+    } else if (button.classList.contains('icon-edit')) {
         const motivo = motivosSuspensaoCache.find(m => m.id === motivoId);
         if (motivo) renderMotivoForm(motivo);
     }
