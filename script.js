@@ -125,7 +125,7 @@ function renderSidebar(activePage) {
         { id: 'dashboard', name: 'Dashboard' },
         { id: 'grandesDevedores', name: 'Grandes Devedores' },
         { id: 'importacao', name: 'Importação em Lote' },
-        { id: 'diligencias', name: 'Diligências Mensais' },
+        { id: 'diligencias', name: 'Tarefas do Mês' },
         { id: 'exequentes', name: 'Exequentes' },
         { id: 'motivos', name: 'Motivos de Suspensão' }
     ];
@@ -259,17 +259,18 @@ function showDevedorPage(devedorId) {
     renderDevedorDetailPage(devedorId);
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function renderDiligenciasPage() {
-    pageTitle.textContent = 'Controle de Diligências do Mês';
-    document.title = 'SASIF | Diligências Mensais';
+    pageTitle.textContent = 'Controle de Tarefas do Mês';
+    document.title = 'SASIF | Tarefas do Mês';
 
     contentArea.innerHTML = `
         <div class="dashboard-actions">
-            <button id="add-diligencia-btn" class="btn-primary">Adicionar Diligência</button>
+            <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button>
         </div>
-        <h2>Lista de Diligências do Mês</h2>
+        <h2>Lista de Tarefas do Mês</h2>
         <div id="diligencias-list-container">
-            <p class="empty-list-message">Carregando diligências...</p>
+            <p class="empty-list-message">Carregando tarefas...</p>
         </div>
     `;
     
@@ -290,42 +291,43 @@ function renderDiligenciaFormModal(diligencia = null) {
         dataAlvoFormatada = new Date(diligencia.dataAlvo.seconds * 1000).toISOString().split('T')[0];
     }
 
-    modalOverlay.innerHTML = `
-        <div class="modal-content modal-large">
-            <h3>${isEditing ? 'Editar' : 'Adicionar'} Diligência</h3>
-            
-            <div class="form-group">
-                <label for="diligencia-titulo">Título da Diligência (Obrigatório)</label>
-                <input type="text" id="diligencia-titulo" value="${isEditing ? diligencia.titulo : ''}" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label>
-                <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required>
-            </div>
-            
-            <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" id="diligencia-recorrente" ${isEditing && diligencia.isRecorrente ? 'checked' : ''}>
-                <label for="diligencia-recorrente" style="margin-bottom: 0;">Diligência Recorrente (repete todo mês)</label>
-            </div>
-
-            <div class="form-group">
-                <label for="diligencia-processo">Processo Vinculado (Opcional)</label>
-                <input type="text" id="diligencia-processo" placeholder="Formato: 0000000-00.0000.0.00.0000" value="${isEditing && diligencia.processoVinculado ? formatProcessoForDisplay(diligencia.processoVinculado) : ''}">
-            </div>
-            
-            <div class="form-group">
-                <label for="diligencia-descricao">Descrição Completa (Opcional)</label>
-                <textarea id="diligencia-descricao" rows="4">${isEditing ? diligencia.descricao : ''}</textarea>
-            </div>
-
-            <div id="error-message"></div>
-            <div class="form-buttons">
-                <button id="save-diligencia-btn" class="btn-primary">Salvar</button>
-                <button id="cancel-diligencia-btn">Cancelar</button>
-            </div>
+    // CÓDIGO ALTERADO (dentro de renderDiligenciaFormModal)
+modalOverlay.innerHTML = `
+    <div class="modal-content modal-large">
+        <h3>${isEditing ? 'Editar' : 'Adicionar'} Tarefa</h3>
+        
+        <div class="form-group">
+            <label for="diligencia-titulo">Título da Tarefa (Obrigatório)</label>
+            <input type="text" id="diligencia-titulo" value="${isEditing ? diligencia.titulo : ''}" required>
         </div>
-    `;
+        
+        <div class="form-group">
+            <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label>
+            <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required>
+        </div>
+        
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="diligencia-recorrente" ${isEditing && diligencia.isRecorrente ? 'checked' : ''}>
+            <label for="diligencia-recorrente" style="margin-bottom: 0;">Tarefa Recorrente (repete todo mês)</label>
+        </div>
+
+        <div class="form-group">
+            <label for="diligencia-processo">Processo Vinculado (Opcional)</label>
+            <input type="text" id="diligencia-processo" placeholder="Formato: 0000000-00.0000.0.00.0000" value="${isEditing && diligencia.processoVinculado ? formatProcessoForDisplay(diligencia.processoVinculado) : ''}">
+        </div>
+        
+        <div class="form-group">
+            <label for="diligencia-descricao">Descrição Completa (Opcional)</label>
+            <textarea id="diligencia-descricao" rows="4">${isEditing ? diligencia.descricao : ''}</textarea>
+        </div>
+
+        <div id="error-message"></div>
+        <div class="form-buttons">
+            <button id="save-diligencia-btn" class="btn-primary">Salvar</button>
+            <button id="cancel-diligencia-btn">Cancelar</button>
+        </div>
+    </div>
+`;
 
     document.body.appendChild(modalOverlay);
     
@@ -340,6 +342,7 @@ function renderDiligenciaFormModal(diligencia = null) {
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function handleSaveDiligencia(diligenciaId = null) {
     const titulo = document.getElementById('diligencia-titulo').value.trim();
     const dataAlvoInput = document.getElementById('diligencia-data-alvo').value;
@@ -386,11 +389,11 @@ function handleSaveDiligencia(diligenciaId = null) {
     }
 
     promise.then(() => {
-        showToast(`Diligência ${diligenciaId ? 'atualizada' : 'salva'} com sucesso!`);
+        showToast(`Tarefa ${diligenciaId ? 'atualizada' : 'salva'} com sucesso!`);
         document.body.removeChild(document.querySelector('.modal-overlay'));
     }).catch(error => {
-        console.error("Erro ao salvar diligência:", error);
-        errorMessage.textContent = "Ocorreu um erro ao salvar a diligência.";
+        console.error("Erro ao salvar tarefa:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar a tarefa.";
     });
 }
 
@@ -469,6 +472,7 @@ function renderDiligenciasList(diligencias) {
     container.querySelector('tbody').addEventListener('click', handleDiligenciaAction);
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function handleDiligenciaAction(event) {
     const target = event.target;
     const action = target.dataset.action;
@@ -482,16 +486,16 @@ function handleDiligenciaAction(event) {
     } else if (action === 'desfazer') {
         handleDesfazerDiligencia(diligenciaId);
     } else if (action === 'edit') {
-        const diligencia = diligenciasCache.find(d => d.id === diligenciaId);
-        if (diligencia) {
-            renderDiligenciaFormModal(diligencia);
+        const tarefa = diligenciasCache.find(d => d.id === diligenciaId);
+        if (tarefa) {
+            renderDiligenciaFormModal(tarefa);
         }
     } else if (action === 'delete') {
         handleDeleteDiligencia(diligenciaId);
     } else if (action === 'view-desc') {
-        const diligencia = diligenciasCache.find(d => d.id === diligenciaId);
-        if (diligencia) {
-            renderReadOnlyTextModal('Descrição da Diligência', diligencia.descricao);
+        const tarefa = diligenciasCache.find(d => d.id === diligenciaId);
+        if (tarefa) {
+            renderReadOnlyTextModal('Descrição da Tarefa', tarefa.descricao);
         }
     }
 }
@@ -530,14 +534,15 @@ function handleDesfazerDiligencia(diligenciaId) {
         });
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function handleDeleteDiligencia(diligenciaId) {
-    if (confirm("Tem certeza que deseja excluir este modelo de diligência? Esta ação é permanente.")) {
+    if (confirm("Tem certeza que deseja excluir este modelo de tarefa? Esta ação é permanente.")) {
         db.collection("diligenciasMensais").doc(diligenciaId).delete()
             .then(() => {
-                showToast("Diligência excluída com sucesso.");
+                showToast("Tarefa excluída com sucesso.");
             })
             .catch(error => {
-                console.error("Erro ao excluir diligência: ", error);
+                console.error("Erro ao excluir tarefa:", error);
                 showToast("Ocorreu um erro ao excluir.", "error");
             });
     }
@@ -1437,6 +1442,7 @@ function handleDeleteAudiencia(audienciaId) {
     }
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function setupDashboardWidgets() {
     const hoje = new Date();
     
@@ -1448,9 +1454,9 @@ function setupDashboardWidgets() {
           renderProximasDiligenciasWidget(diligencias);
       })
       .catch(error => {
-          console.error("Erro ao buscar diligências para o dashboard:", error);
+          console.error("Erro ao buscar tarefas para o dashboard:", error);
           const container = document.getElementById('diligencias-widget-container');
-          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Diligências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
+          if(container) container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
       });
 
     db.collection("audiencias")
@@ -1471,6 +1477,7 @@ function setupDashboardWidgets() {
     renderAnalisePendenteWidget(devedoresCache);
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function renderProximasDiligenciasWidget(diligencias) {
     const container = document.getElementById('diligencias-widget-container');
     if (!container) return;
@@ -1509,7 +1516,7 @@ function renderProximasDiligenciasWidget(diligencias) {
 
     let contentHTML = '';
     if (diligenciasParaExibir.length === 0) {
-        contentHTML = '<p class="empty-list-message">Nenhuma diligência próxima ou em atraso.</p>';
+        contentHTML = '<p class="empty-list-message">Nenhuma tarefa próxima ou em atraso.</p>';
     } else {
         diligenciasParaExibir.forEach(item => {
             const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
@@ -1524,7 +1531,7 @@ function renderProximasDiligenciasWidget(diligencias) {
         });
     }
     
-    container.innerHTML = `<div class="widget-card"><h3>Próximas Diligências</h3>${contentHTML}</div>`;
+    container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3>${contentHTML}</div>`;
     
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
         const item = event.target.closest('.analise-item');
@@ -1547,20 +1554,24 @@ function renderProximasAudienciasWidget(audiencias) {
         audiencias.forEach(item => {
             const data = new Date(item.dataHora.seconds * 1000);
             const dataFormatada = data.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' });
-            
+    
             const isDestaque = data < umaSemana;
 
-            contentHTML += `
-                <div class="audiencia-item ${isDestaque ? 'destaque' : ''}">
-                    <div class="audiencia-item-processo">${formatProcessoForDisplay(item.numeroProcesso)}</div>
-                    <div class="audiencia-item-devedor">${item.razaoSocialDevedor}</div>
-                    <div class="audiencia-item-detalhes">
-                        <strong>Data:</strong> ${dataFormatada}<br>
-                        <strong>Local:</strong> ${item.local || 'A definir'}
-                    </div>
+        contentHTML += `
+            <div class="audiencia-item ${isDestaque ? 'destaque' : ''}">
+                <div class="audiencia-item-processo">
+                    <a href="#" class="view-processo-link" data-action="view-processo" data-id="${item.processoId}">
+                        ${formatProcessoForDisplay(item.numeroProcesso)}
+                    </a>
                 </div>
-            `;
-        });
+                <div class="audiencia-item-devedor">${item.razaoSocialDevedor}</div>
+                <div class="audiencia-item-detalhes">
+                    <strong>Data:</strong> ${dataFormatada}<br>
+                    <strong>Local:</strong> ${item.local || 'A definir'}
+                </div>
+            </div>
+        `;
+    });
     }
 
     container.innerHTML = `
@@ -1569,12 +1580,22 @@ function renderProximasAudienciasWidget(audiencias) {
             ${contentHTML}
         </div>
     `;
+
+    container.querySelector('.widget-card')?.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-action="view-processo"]');
+    if (link) {
+        event.preventDefault();
+        navigateTo('processoDetail', { id: link.dataset.id });
+    }
+});
 }
 
+// CÓDIGO PARA SUBSTITUIR
 function renderAnalisePendenteWidget(devedores) {
     const container = document.getElementById('analises-widget-container');
     if (!container) return;
 
+    // Filtra devedores que precisam de atenção
     const devedoresParaAnalise = devedores.map(devedor => {
         return {
             ...devedor,
@@ -1593,14 +1614,13 @@ function renderAnalisePendenteWidget(devedores) {
         contentHTML = '<p class="empty-list-message">Nenhuma análise pendente. Bom trabalho!</p>';
     } else {
         devedoresParaAnalise.forEach(item => {
+            // A div 'analise-item-detalhes' foi removida para limpar a interface.
+            // A informação de prazo (ex: 'Vencido há 5 dias') já está no title da lista principal de devedores.
             contentHTML += `
-                <div class="analise-item" data-id="${item.id}">
+                <div class="analise-item" data-id="${item.id}" title="Ir para a lista de Grandes Devedores">
                     <div class="analise-item-devedor">
                         <span class="status-dot ${item.analise.status}" style="margin-right: 10px;"></span>
                         ${item.razaoSocial}
-                    </div>
-                    <div class="analise-item-detalhes">
-                        <strong>Status:</strong> ${item.analise.text}
                     </div>
                 </div>
             `;
@@ -1617,8 +1637,8 @@ function renderAnalisePendenteWidget(devedores) {
 
     container.querySelector('.widget-card')?.addEventListener('click', (event) => {
         const item = event.target.closest('.analise-item');
-        if (item && item.dataset.id) {
-            renderDevedorDetailPage(item.dataset.id);
+        if (item) {
+            navigateTo('grandesDevedores');
         }
     });
 }
