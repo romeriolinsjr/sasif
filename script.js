@@ -280,12 +280,12 @@ function showDevedorPage(devedorId) {
     renderDevedorDetailPage(devedorId);
 }
 
+// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'renderDiligenciasPage' INTEIRA
 function renderDiligenciasPage(date = new Date()) {
     const mesAtual = date.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-    pageTitle.textContent = 'Controle de Tarefas'; // Título principal fixo
+    pageTitle.textContent = 'Controle de Tarefas';
     document.title = `SASIF | Tarefas do Mês - ${mesAtual}`;
 
-    // Calcula o mês anterior e o próximo
     const mesAnterior = new Date(date.getFullYear(), date.getMonth() - 1, 1);
     const mesSeguinte = new Date(date.getFullYear(), date.getMonth() + 1, 1);
 
@@ -311,11 +311,12 @@ function renderDiligenciasPage(date = new Date()) {
         renderDiligenciaFormModal();
     });
 
-    // Adiciona listeners para os botões de navegação
     document.getElementById('prev-month-btn').addEventListener('click', () => renderDiligenciasPage(mesAnterior));
     document.getElementById('next-month-btn').addEventListener('click', () => renderDiligenciasPage(mesSeguinte));
 
-    // Passa o mês selecionado para as funções de baixo nível
+    // ADICIONA O LISTENER DELEGADO AO ELEMENTO PAI ESTÁVEL
+    contentArea.addEventListener('click', handleDiligenciaAction);
+
     setupDiligenciasListener(date);
 }
 
@@ -453,19 +454,17 @@ function setupDiligenciasListener(date) {
         });
 }
 
-// CÓDIGO PARA SUBSTITUIR
+// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'renderDiligenciasList' INTEIRA
 function renderDiligenciasList(diligencias, date) {
     const container = document.getElementById('diligencias-list-container');
     if (!container) return;
 
     const anoMesSelecionado = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     
-    // Filtra as tarefas para o mês selecionado
     const tarefasDoMes = diligencias.filter(item => {
         if (!item.dataAlvo) return false;
-        if (item.isRecorrente) return true; // Tarefas recorrentes aparecem em todos os meses
+        if (item.isRecorrente) return true;
         
-        // Tarefas únicas só aparecem no mês da sua data alvo
         const dataAlvoTarefa = new Date(item.dataAlvo.seconds * 1000);
         return dataAlvoTarefa.getFullYear() === date.getFullYear() && dataAlvoTarefa.getMonth() === date.getMonth();
     });
@@ -475,7 +474,6 @@ function renderDiligenciasList(diligencias, date) {
         return;
     }
 
-    // Ordena pela data alvo original para manter a ordem dentro do mês
     tarefasDoMes.sort((a, b) => {
         const dataA = a.dataAlvo ? a.dataAlvo.seconds : 0;
         const dataB = b.dataAlvo ? b.dataAlvo.seconds : 0;
@@ -486,7 +484,6 @@ function renderDiligenciasList(diligencias, date) {
 
     tarefasDoMes.forEach(item => {
         const isCumpridaUnica = !item.isRecorrente && item.historicoCumprimentos && Object.keys(item.historicoCumprimentos).length > 0;
-        // Para tarefas recorrentes, verifica se foi cumprida NO MÊS SELECIONADO
         const isCumpridaRecorrente = item.isRecorrente && item.historicoCumprimentos && item.historicoCumprimentos[anoMesSelecionado];
         const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
         
@@ -495,7 +492,7 @@ function renderDiligenciasList(diligencias, date) {
         let acoesBtn = '';
         let linhaStyle = '';
         let tipoTarefa = item.isRecorrente ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>' : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
-        // Para tarefas recorrentes, mostra o dia no contexto do mês atual
+        
         const dataAlvoFormatada = item.isRecorrente 
             ? `${String(dataAlvo.getUTCDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
             : dataAlvo.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
@@ -504,36 +501,38 @@ function renderDiligenciasList(diligencias, date) {
             const dataCumprimentoTimestamp = isCumpridaUnica ? Object.values(item.historicoCumprimentos)[0] : item.historicoCumprimentos[anoMesSelecionado];
             const dataCumprimento = new Date(dataCumprimentoTimestamp.seconds * 1000);
             const dataFormatada = dataCumprimento.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-
             statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-            // Para tarefas recorrentes, o botão de desfazer precisa usar a chave do mês selecionado
-            acoesBtn = `<button class="action-btn btn-secondary" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}">Desfazer</button>`;
-            linhaStyle = 'style="background-color: #e8f5e9; text-decoration: line-through;"';
+            acoesBtn = `<button class="action-icon" title="Desfazer cumprimento" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
+            linhaStyle = 'style="background-color: #e8f5e9;"';
         } else {
-            statusBadge = `<span class="status-badge status-suspenso">Pendente</span>`;
-            // Para tarefas recorrentes, o botão de cumprir precisa usar a chave do mês selecionado
-            acoesBtn = `<button class="action-btn btn-sucesso" data-action="cumprir" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}">Cumprir</button>`;
+            statusBadge = `<span class="status-badge status-suspenso clickable-status" data-action="cumprir" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}" title="Clique para marcar como cumprido">Pendente</span>`;
+            acoesBtn = '';
+            linhaStyle = '';
         }
         
-        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoTarefa}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; gap: 8px;">${acoesBtn}<button class="action-btn btn-edit" data-action="edit" data-id="${item.id}">Editar</button><button class="action-btn btn-delete" data-action="delete" data-id="${item.id}">Excluir</button></div></td></tr>`;
+        tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoTarefa}</td><td>${statusBadge}</td><td class="actions-cell"><div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">${acoesBtn}<button class="action-icon icon-edit" title="Editar Tarefa" data-action="edit" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Tarefa" data-action="delete" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></td></tr>`;
     });
 
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
     
-    container.querySelector('tbody').addEventListener('click', handleDiligenciaAction);
 }
 
 // CÓDIGO PARA SUBSTITUIR (3 FUNÇÕES)
 
+// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'handleDiligenciaAction' INTEIRA
 function handleDiligenciaAction(event) {
-    const target = event.target;
-    const action = target.dataset.action;
-    if (!action) return;
+    // Encontra o elemento com data-action que foi realmente clicado, subindo na árvore do DOM
+    const target = event.target.closest('[data-action]');
+    
+    // Se não encontrou um elemento de ação, ou se o clique não foi na tabela de tarefas, ignora.
+    if (!target || !target.closest('#diligencias-list-container')) return;
 
     event.preventDefault();
+
+    const action = target.dataset.action;
     const diligenciaId = target.dataset.id;
-    const mesChave = target.dataset.mesChave; // Pega a chave do mês do botão
+    const mesChave = target.dataset.mesChave;
 
     if (action === 'cumprir') {
         handleCumprirDiligencia(diligenciaId, mesChave);
