@@ -75,10 +75,17 @@ function formatCurrency(value) {
 }
 
 function getAnaliseStatus(devedor) {
+    // Helper para zerar a hora de uma data
+    const zerarHora = (data) => {
+        data.setHours(0, 0, 0, 0);
+        return data;
+    };
+
+    const hoje = zerarHora(new Date());
+
     if (!devedor.dataUltimaAnalise) {
         if (devedor.criadoEm) {
-            const hoje = new Date();
-            const dataCriacao = devedor.criadoEm.toDate();
+            const dataCriacao = zerarHora(devedor.criadoEm.toDate());
             const diffTime = hoje - dataCriacao;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const plural = diffDays === 1 ? 'dia' : 'dias';
@@ -93,10 +100,12 @@ function getAnaliseStatus(devedor) {
 
     const prazos = { 1: 30, 2: 45, 3: 60 };
     const prazoDias = prazos[devedor.nivelPrioridade];
-    const hoje = new Date();
-    const dataUltima = devedor.dataUltimaAnalise.toDate();
+
+    const dataUltima = zerarHora(devedor.dataUltimaAnalise.toDate());
     const dataVencimento = new Date(dataUltima);
     dataVencimento.setDate(dataVencimento.getDate() + prazoDias);
+
+    // O cálculo da diferença agora é entre dias "puros"
     const diffTime = dataVencimento - hoje;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -105,12 +114,17 @@ function getAnaliseStatus(devedor) {
         const pluralVencido = diasVencidos === 1 ? 'dia' : 'dias';
         return { status: 'status-expired', text: `Vencido há ${diasVencidos} ${pluralVencido}` };
     }
-    
+
+    // Se a diferença for 0, significa que vence hoje.
+    if (diffDays === 0) {
+        return { status: 'status-warning', text: `Vence hoje` };
+    }
+
     const pluralVence = diffDays === 1 ? 'dia' : 'dias';
     if (diffDays <= 7) {
         return { status: 'status-warning', text: `Vence em ${diffDays} ${pluralVence}` };
     }
-    
+
     return { status: 'status-ok', text: `Vence em ${diffDays} ${pluralVence}` };
 }
 
@@ -183,6 +197,9 @@ function navigateTo(page, params = {}) {
             break;
         case 'configuracoes':
             renderConfiguracoesPage();
+            break;
+        case 'incidentes':
+            renderIncidentesPage();
             break;
         case 'exequentes':
             renderExequentesPage();
@@ -423,6 +440,35 @@ function renderDiligenciaFormModal(diligencia = null) {
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 }
 
+function renderIncidentesPage() {
+    pageTitle.textContent = 'Incidentes Processuais';
+    document.title = 'SASIF | Incidentes Processuais';
+
+    contentArea.innerHTML = `
+        <div class="dashboard-actions">
+            <button id="add-incidente-btn" class="btn-primary">Cadastrar Novo Incidente</button>
+            <button id="back-to-config-btn" class="btn-secondary" style="margin-left: 16px;">← Voltar para Configurações</button>
+        </div>
+        <h2>Lista de Todos os Incidentes</h2>
+        <div id="todos-incidentes-list-container">
+            <p class="empty-list-message">Nenhum incidente processual cadastrado.</p>
+        </div>
+    `;
+
+    document.getElementById('add-incidente-btn').addEventListener('click', () => {
+        renderIncidenteFormModal(); // Chamará a função que criaremos a seguir
+    });
+
+    document.getElementById('back-to-config-btn').addEventListener('click', () => {
+        navigateTo('configuracoes');
+    });
+
+    setupTodosIncidentesListener(); // <-- ADICIONE ESTA LINHA
+
+
+    // Futuramente, chamará a função setupTodosIncidentesListener()
+}
+
 function renderConfiguracoesPage() {
     pageTitle.textContent = 'Configurações';
     document.title = 'SASIF | Configurações';
@@ -471,14 +517,18 @@ function renderConfiguracoesPage() {
                 <h3>Gerenciar Motivos de Suspensão</h3>
                 <p>Customize os motivos utilizados para suspender processos.</p>
             </div>
+            <div class="setting-card" id="goto-incidentes">
+                <h3>Gerenciar Incidentes Processuais</h3>
+                <p>Cadastre e acompanhe processos incidentais.</p>
+            </div>
         </div>
     `;
 
     document.getElementById('goto-exequentes').addEventListener('click', () => navigateTo('exequentes'));
     document.getElementById('goto-motivos').addEventListener('click', () => navigateTo('motivos'));
+    document.getElementById('goto-incidentes').addEventListener('click', () => navigateTo('incidentes'));
 }
 
-// CÓDIGO PARA SUBSTITUIR
 function handleSaveDiligencia(diligenciaId = null) {
     const titulo = document.getElementById('diligencia-titulo').value.trim();
     const dataAlvoInput = document.getElementById('diligencia-data-alvo').value;
@@ -627,7 +677,6 @@ function renderDiligenciasList(diligencias, date) {
     container.innerHTML = tableHTML;
 }
 
-// CÓDIGO PARA SUBSTITUIR A FUNÇÃO 'handleDiligenciaAction' INTEIRA
 function handleDiligenciaAction(event) {
     // Encontra o elemento com data-action que foi realmente clicado, subindo na árvore do DOM
     const target = event.target.closest('[data-action]');
@@ -727,39 +776,95 @@ function renderReadOnlyTextModal(title, content) {
         if (e.target === modalOverlay) closeModal();
     });
 }
-// ==========================================================
-// FIM DA PARTE 1
-// ==========================================================
-// ==========================================================
-// INÍCIO DA PARTE 2
-// ==========================================================
-function renderDevedorDetailPage(devedorId) {
+
+// Adicione esta nova função
+async function renderDevedorIncidentesModal(devedorId) {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+    modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>Incidentes Vinculados ao Devedor</h3>
+            <div id="devedor-incidentes-content"><p>Carregando incidentes...</p></div>
+            <div class="form-buttons" style="justify-content: flex-end; margin-top: 20px;">
+                <button id="close-devedor-incidentes-modal" class="btn-secondary">Fechar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalOverlay);
+    const closeModal = () => document.body.removeChild(modalOverlay);
+    document.getElementById('close-devedor-incidentes-modal').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+    try {
+        const snapshot = await db.collection("incidentesProcessuais").where("devedorId", "==", devedorId).get();
+        const incidentes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const contentContainer = document.getElementById('devedor-incidentes-content');
+
+        if (incidentes.length === 0) {
+            contentContainer.innerHTML = '<p class="empty-list-message">Nenhum incidente encontrado para este devedor.</p>';
+            return;
+        }
+
+        const incidentesAgrupados = incidentes.reduce((acc, incidente) => {
+            const chave = incidente.numeroProcessoPrincipal;
+            if (!acc[chave]) {
+                acc[chave] = [];
+            }
+            acc[chave].push(incidente);
+            return acc;
+        }, {});
+
+        let contentHTML = '';
+        for (const processoPrincipal in incidentesAgrupados) {
+            contentHTML += `<h4 style="margin-top: 20px; padding-bottom: 5px; border-bottom: 1px solid #eee;">Processo Principal: ${formatProcessoForDisplay(processoPrincipal)}</h4>`;
+            incidentesAgrupados[processoPrincipal].forEach(item => {
+                contentHTML += `
+                    <div style="padding: 10px 0; border-bottom: 1px solid #f5f5f5;">
+                        <p style="margin:0; font-weight: 500;"><strong>Incidente:</strong> ${formatProcessoForDisplay(item.numeroIncidente)}</p>
+                        <p style="margin:5px 0 0 0; white-space: pre-wrap;">${item.descricao}</p>
+                    </div>
+                `;
+            });
+        }
+        contentContainer.innerHTML = contentHTML;
+
+    } catch (error) {
+        console.error("Erro ao buscar incidentes do devedor:", error);
+        document.getElementById('devedor-incidentes-content').innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os incidentes.</p>`;
+    }
+}
+
+// Localize e substitua a função renderDevedorDetailPage inteira
+async function renderDevedorDetailPage(devedorId) {
     pageTitle.textContent = 'Carregando...';
     document.title = 'SASIF | Carregando...';
     renderSidebar(null);
-    db.collection("grandes_devedores").doc(devedorId).get().then(doc => {
-        if (!doc.exists) {
+    try {
+        const devedorDoc = await db.collection("grandes_devedores").doc(devedorId).get();
+        if (!devedorDoc.exists) {
             showToast("Devedor não encontrado.", "error");
             navigateTo('dashboard');
             return;
         }
-        const devedor = { id: doc.id, ...doc.data() };
+        const devedor = { id: devedorDoc.id, ...devedorDoc.data() };
+
+        const incidentesSnapshot = await db.collection("incidentesProcessuais").where("devedorId", "==", devedorId).limit(1).get();
+        const temIncidentes = !incidentesSnapshot.empty;
+        const alertaIncidenteHTML = temIncidentes ? `
+            <p style="margin-top: 8px; font-weight: 500; cursor: pointer; color: var(--cor-primaria);" id="ver-incidentes-devedor">
+                ⓘ Este executado possui incidentes vinculados. Clique para ver a lista.
+            </p>` : '';
+
         pageTitle.textContent = devedor.razaoSocial;
         document.title = `SASIF | ${devedor.razaoSocial}`;
         contentArea.innerHTML = `
             <div class="detail-header-card">
                 <p><strong>CNPJ:</strong> ${formatCNPJForDisplay(devedor.cnpj)}</p>
                 ${devedor.nomeFantasia ? `<p><strong>Nome Fantasia:</strong> ${devedor.nomeFantasia}</p>` : ''}
+                ${alertaIncidenteHTML}
             </div>
             <div id="resumo-financeiro-container"></div>
-            ${devedor.observacoes ? `
-                <div class="detail-card">
-                    <h3>Observações sobre o Devedor</h3>
-                    <div class="detail-full-width">
-                        <p>${devedor.observacoes.replace(/\n/g, '<br>')}</p>
-                    </div>
-                </div>
-            ` : ''}
+            ${devedor.observacoes ? `<div class="detail-card"><h3>Observações sobre o Devedor</h3><div class="detail-full-width"><p>${devedor.observacoes.replace(/\n/g, '<br>')}</p></div></div>` : ''}
             <div class="dashboard-actions">
                  <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
             </div>
@@ -768,29 +873,34 @@ function renderDevedorDetailPage(devedorId) {
                 <p class="empty-list-message">Carregando processos...</p>
             </div>
         `;
+
+        if (temIncidentes) {
+            document.getElementById('ver-incidentes-devedor').addEventListener('click', () => renderDevedorIncidentesModal(devedorId));
+        }
+
         document.getElementById('add-processo-btn').addEventListener('click', () => renderProcessoForm(devedorId, null));
         setupProcessosListener(devedorId);
-    });
+    } catch (error) {
+        console.error("Erro ao carregar página do devedor:", error);
+        showToast("Ocorreu um erro ao carregar os dados.", "error");
+    }
 }
 
-function renderProcessosList(processos) {
+// Localize e substitua a função renderProcessosList inteira
+function renderProcessosList(processos, incidentesDoDevedor = []) {
     const totalProcessos = processos.length;
-    // CÓDIGO PARA SUBSTITUIR
     const totaisPorExequente = {};
-    const contagemPorExequente = {}; // <-- Novo objeto para contar processos
-
+    const contagemPorExequente = {};
+    const numerosProcessosComIncidentes = new Set(incidentesDoDevedor.map(inc => inc.numeroProcessoPrincipal));
     processos.forEach(processo => {
         const valor = processo.valorAtual ? processo.valorAtual.valor : (processo.valorDivida || 0);
         const exequenteId = processo.exequenteId;
-
         if (exequenteId) {
-            // Soma os valores
             if (totaisPorExequente[exequenteId]) {
                 totaisPorExequente[exequenteId] += valor;
             } else {
                 totaisPorExequente[exequenteId] = valor;
             }
-            // Conta os processos
             if (contagemPorExequente[exequenteId]) {
                 contagemPorExequente[exequenteId]++;
             } else {
@@ -798,128 +908,68 @@ function renderProcessosList(processos) {
             }
         }
     });
-
     const valorTotalGeral = Object.values(totaisPorExequente).reduce((total, valor) => total + valor, 0);
-
     let detalhamentoHTML = '';
     for (const exequenteId in totaisPorExequente) {
         const exequente = exequentesCache.find(e => e.id === exequenteId);
         const nomeExequente = exequente ? exequente.nome : 'Exequente não identificado';
         const contagem = contagemPorExequente[exequenteId] || 0;
-
-        detalhamentoHTML += `
-        <p style="margin-left: 20px; margin-top: 8px;">
-            ↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])} <span style="font-weight: 500; color: #555;">(${contagem})</span>
-        </p>
-    `;
+        detalhamentoHTML += `<p style="margin-left: 20px; margin-top: 8px;">↳ <strong>${nomeExequente}:</strong> ${formatCurrency(totaisPorExequente[exequenteId])} <span style="font-weight: 500; color: #555;">(${contagem})</span></p>`;
     }
-
     const resumoContainer = document.getElementById('resumo-financeiro-container');
-    // CÓDIGO PARA SUBSTITUIR
     if (resumoContainer) {
-        resumoContainer.innerHTML = `
-            <div class="detail-card" style="margin-top: 20px;">
-                <h3>Resumo Financeiro e Processual</h3>
-                <div class="detail-grid" style="grid-template-columns: 1fr;"> <!-- Alterado para uma única coluna -->
-                    <div>
-                        <div class="info-tooltip-container" style="margin-bottom: 10px;">
-                            <strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)} <span style="font-weight: 700; color: #333;">(${totalProcessos})</span>
-                            <span class="info-icon">i</span>
-                            <div class="info-tooltip-text">Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. O número entre parênteses indica a quantidade total de processos.</div>
-                        </div>
-                        <div id="detalhamento-exequente">
-                            ${detalhamentoHTML}
-                        </div>
-                    </div>
-                </div>
-            </div>`;
+        resumoContainer.innerHTML = `<div class="detail-card" style="margin-top: 20px;"><h3>Resumo Financeiro e Processual</h3><div class="detail-grid" style="grid-template-columns: 1fr;"><div><div class="info-tooltip-container" style="margin-bottom: 10px;"><strong>Valor Total (Gerencial):</strong> ${formatCurrency(valorTotalGeral)} <span style="font-weight: 700; color: #333;">(${totalProcessos})</span><span class="info-icon">i</span><div class="info-tooltip-text">Este valor é uma referência, resultado da soma dos valores cadastrados para cada processo. O número entre parênteses indica a quantidade total de processos.</div></div><div id="detalhamento-exequente">${detalhamentoHTML}</div></div></div></div>`;
     }
-
     const container = document.getElementById('processos-list-container');
     if (!container) return;
-
     let itemsParaOrdenar = processos.filter(p => p.tipoProcesso === 'autônomo' || p.tipoProcesso === 'piloto');
     const apensos = processos.filter(p => p.tipoProcesso === 'apenso');
-
     itemsParaOrdenar.sort((a, b) => {
         const exequenteA = exequentesCache.find(ex => ex.id === a.exequenteId)?.nome || '';
         const exequenteB = exequentesCache.find(ex => ex.id === b.exequenteId)?.nome || '';
         if (exequenteA < exequenteB) return -1;
         if (exequenteA > exequenteB) return 1;
-
         const timeA = a.criadoEm ? a.criadoEm.seconds : 0;
         const timeB = b.criadoEm ? b.criadoEm.seconds : 0;
         return timeB - timeA;
     });
-
     const apensosMap = apensos.reduce((map, apenso) => {
         const pilotoId = apenso.processoPilotoId;
         if (!map.has(pilotoId)) map.set(pilotoId, []);
         map.get(pilotoId).push(apenso);
         return map;
     }, new Map());
-
     const itemsOrdenados = itemsParaOrdenar;
-
     if (itemsOrdenados.length === 0 && apensos.length === 0) {
         container.innerHTML = `<p class="empty-list-message">Nenhum processo cadastrado.</p>`;
         return;
     }
-
     let tableHTML = `<table class="data-table"><thead><tr><th>Número do Processo</th><th>Exequente</th><th>Tipo</th><th>Status</th><th>Valor</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
-
+    const renderRow = (proc, isApenso = false) => {
+        const temIncidentes = numerosProcessosComIncidentes.has(proc.numeroProcesso);
+        const indicadorIncidente = temIncidentes ? ` <svg title="Possui incidente(s) vinculado(s)" style="width:16px; height:16px; vertical-align:middle; fill:#555;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>` : '';
+        const exequente = exequentesCache.find(ex => ex.id === proc.exequenteId);
+        const motivo = proc.status === 'Suspenso' && proc.motivoSuspensaoId ? motivosSuspensaoCache.find(m => m.id === proc.motivoSuspensaoId) : null;
+        const statusText = motivo ? `Suspenso (${motivo.descricao})` : (proc.status || 'Ativo');
+        const valorExibido = proc.valorAtual ? proc.valorAtual.valor : (proc.valorDivida || 0);
+        const tipoProcessoTexto = isApenso ? 'Apenso' : (proc.tipoProcesso.charAt(0).toUpperCase() + proc.tipoProcesso.slice(1));
+        let rowClass = isApenso ? 'apenso-row' : `${proc.tipoProcesso}-row`;
+        let rowDataAttrs = `data-id="${proc.id}"`;
+        if (isApenso) {
+            rowDataAttrs += ` data-piloto-ref="${proc.processoPilotoId}"`;
+        } else if (proc.tipoProcesso === 'piloto') {
+            rowDataAttrs += ` data-piloto-id="${proc.id}"`;
+        }
+        return `<tr class="${rowClass}" ${rowDataAttrs}><td>${proc.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(proc.numeroProcesso)}</a>${indicadorIncidente}</td><td>${exequente ? exequente.nome : 'N/A'}</td><td>${tipoProcessoTexto}</td><td><span class="status-badge status-${(proc.status || 'Ativo').toLowerCase().replace(' ', '-')}">${statusText}</span></td><td>${formatCurrency(valorExibido)}</td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar Processo" data-id="${proc.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Processo" data-id="${proc.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+    };
     itemsOrdenados.forEach(item => {
-        const exequente = exequentesCache.find(ex => ex.id === item.exequenteId);
-        const motivo = item.status === 'Suspenso' && item.motivoSuspensaoId ? motivosSuspensaoCache.find(m => m.id === item.motivoSuspensaoId) : null;
-        const statusText = motivo ? `Suspenso (${motivo.descricao})` : (item.status || 'Ativo');
-        const valorExibido = item.valorAtual ? item.valorAtual.valor : (item.valorDivida || 0);
-
-        const itemHTML = `
-            <td>${item.tipoProcesso === 'piloto' ? '<span class="toggle-icon"></span>' : ''}<a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(item.numeroProcesso)}</a></td>
-            <td>${exequente ? exequente.nome : 'N/A'}</td>
-            <td>${item.tipoProcesso.charAt(0).toUpperCase() + item.tipoProcesso.slice(1)}</td>
-            <td><span class="status-badge status-${(item.status || 'Ativo').toLowerCase()}">${statusText}</span></td>
-            <td>${formatCurrency(valorExibido)}</td>
-            <td class="actions-cell">
-                <button class="action-icon icon-edit" title="Editar Processo" data-id="${item.id}">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                </button>
-                <button class="action-icon icon-delete" title="Excluir Processo" data-id="${item.id}">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                </button>
-            </td>
-            `;
-
-        tableHTML += `<tr class="${item.tipoProcesso}-row" data-id="${item.id}" ${item.tipoProcesso === 'piloto' ? `data-piloto-id="${item.id}"` : ''}>${itemHTML}</tr>`;
-
+        tableHTML += renderRow(item);
         if (item.tipoProcesso === 'piloto' && apensosMap.has(item.id)) {
             apensosMap.get(item.id).forEach(apenso => {
-                const exApenso = exequentesCache.find(ex => ex.id === apenso.exequenteId);
-                const motivoApenso = apenso.status === 'Suspenso' && apenso.motivoSuspensaoId ? motivosSuspensaoCache.find(m => m.id === apenso.motivoSuspensaoId) : null;
-                const statusTextApenso = motivoApenso ? `Suspenso (${motivoApenso.descricao})` : (apenso.status || 'Ativo');
-                const valorApensoExibido = apenso.valorAtual ? apenso.valorAtual.valor : (apenso.valorDivida || 0);
-
-                const apensoHTML = `
-                    <td><a href="#" class="view-processo-link" data-action="view-detail">${formatProcessoForDisplay(apenso.numeroProcesso)}</a></td>
-                    <td>${exApenso ? exApenso.nome : 'N/A'}</td>
-                    <td>Apenso</td>
-                    <td><span class="status-badge status-${(apenso.status || 'Ativo').toLowerCase()}">${statusTextApenso}</span></td>
-                    <td>${formatCurrency(valorApensoExibido)}</td>
-                    <td class="actions-cell">
-                        <button class="action-icon icon-edit" title="Editar Processo" data-id="${apenso.id}">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
-                        <button class="action-icon icon-delete" title="Excluir Processo" data-id="${apenso.id}">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                        </button>
-                    </td>
-                    `;
-
-                tableHTML += `<tr class="apenso-row" data-id="${apenso.id}" data-piloto-ref="${item.id}">${apensoHTML}</tr>`;
+                tableHTML += renderRow(apenso, true);
             });
         }
     });
-
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
     container.querySelector('tbody').addEventListener('click', handleProcessoAction);
@@ -1005,6 +1055,13 @@ function renderProcessoDetailPage(processoId) {
                 </div>
                 <div id="audiencias-list-container"></div>
             </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <h2>Incidentes Processuais Vinculados</h2>
+                </div>
+                <div id="incidentes-list-container"></div>
+            </div>
         `;
 
         document.getElementById('back-to-devedor-btn').addEventListener('click', () => {
@@ -1017,6 +1074,8 @@ function renderProcessoDetailPage(processoId) {
         setupPenhorasListener(processoId);
         document.getElementById('add-audiencia-btn').addEventListener('click', () => renderAudienciaFormModal(processoId));
         setupAudienciasListener(processoId);
+
+        setupIncidentesDoProcessoListener(processo.numeroProcesso);
 
         if (document.getElementById('promote-piloto-btn')) {
             document.getElementById('promote-piloto-btn').addEventListener('click', () => {
@@ -1234,6 +1293,136 @@ function handleDeleteCorresponsavel(corresponsavelId) {
                 showToast("Erro ao excluir o corresponsável.", "error");
             });
     }
+}
+
+function renderIncidenteFormModal(incidente = null) {
+    const isEditing = incidente !== null;
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    const devedorOptions = [...devedoresCache]
+        .sort((a, b) => a.razaoSocial.localeCompare(b.razaoSocial))
+        .map(d => `<option value="${d.id}" ${isEditing && incidente.devedorId === d.id ? 'selected' : ''}>${d.razaoSocial}</option>`)
+        .join('');
+
+    modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>${isEditing ? 'Editar' : 'Cadastrar'} Incidente Processual</h3>
+            
+            <div class="form-group">
+                <label for="incidente-devedor">Grande Devedor Vinculado (Obrigatório)</label>
+                <select id="incidente-devedor" ${isEditing ? 'disabled' : ''}>
+                    <option value="">Selecione um devedor...</option>
+                    ${devedorOptions}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="incidente-numero">Número do Incidente (Obrigatório)</label>
+                <input type="text" id="incidente-numero" placeholder="Formato: 0000000-00.0000.0.00.0000" 
+                       value="${isEditing ? formatProcessoForDisplay(incidente.numeroIncidente) : ''}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="incidente-processo-principal">Número do Processo Principal (Obrigatório)</label>
+                <input type="text" id="incidente-processo-principal" placeholder="Formato: 0000000-00.0000.0.00.0000"
+                       value="${isEditing ? formatProcessoForDisplay(incidente.numeroProcessoPrincipal) : ''}" required>
+                <small style="color: #555; margin-top: 4px; display: block;">
+                    Digite o número ou, se o processo estiver no SASIF, use a busca ao lado. 
+                    A vinculação visual só ocorrerá se o processo principal estiver cadastrado.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="incidente-descricao">Descrição (Obrigatório)</label>
+                <textarea id="incidente-descricao" rows="4" required>${isEditing ? incidente.descricao : ''}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="incidente-status">Status</label>
+                <select id="incidente-status">
+                    <option value="Em Andamento" ${isEditing && incidente.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
+                    <option value="Concluído" ${isEditing && incidente.status === 'Concluído' ? 'selected' : ''}>Concluído</option>
+                </select>
+            </div>
+
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-incidente-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-incidente-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    // Adiciona as máscaras aos campos de número de processo
+    document.getElementById('incidente-numero').addEventListener('input', (e) => maskProcesso(e.target));
+    document.getElementById('incidente-processo-principal').addEventListener('input', (e) => maskProcesso(e.target));
+
+    const closeModal = () => document.body.removeChild(modalOverlay);
+
+    document.getElementById('save-incidente-btn').addEventListener('click', () => {
+        handleSaveIncidente(isEditing ? incidente.id : null);
+    });
+    document.getElementById('cancel-incidente-btn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeModal();
+    });
+}
+
+function handleSaveIncidente(incidenteId = null) {
+    const devedorId = document.getElementById('incidente-devedor').value;
+    const numeroIncidenteInput = document.getElementById('incidente-numero').value;
+    const numeroProcessoPrincipalInput = document.getElementById('incidente-processo-principal').value;
+    const descricao = document.getElementById('incidente-descricao').value.trim();
+    const status = document.getElementById('incidente-status').value;
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = '';
+
+    const numeroIncidente = numeroIncidenteInput.replace(/\D/g, '');
+    const numeroProcessoPrincipal = numeroProcessoPrincipalInput.replace(/\D/g, '');
+
+    // Validação dos campos
+    if (!devedorId || !numeroIncidente || !numeroProcessoPrincipal || !descricao) {
+        errorMessage.textContent = 'Todos os campos obrigatórios devem ser preenchidos.';
+        return;
+    }
+    if (numeroIncidente.length !== 20 || numeroProcessoPrincipal.length !== 20) {
+        errorMessage.textContent = 'Os números de processo (incidente e principal) devem ser válidos.';
+        return;
+    }
+
+    const data = {
+        devedorId,
+        numeroIncidente,
+        numeroProcessoPrincipal,
+        descricao,
+        status
+    };
+
+    let promise;
+    if (incidenteId) {
+        // Editando um incidente existente
+        data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("incidentesProcessuais").doc(incidenteId).update(data);
+    } else {
+        // Criando um novo incidente
+        data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+        promise = db.collection("incidentesProcessuais").add(data);
+    }
+
+    promise.then(() => {
+        showToast(`Incidente ${incidenteId ? 'atualizado' : 'salvo'} com sucesso!`);
+        document.body.removeChild(document.querySelector('.modal-overlay'));
+        // Atualiza a lista de incidentes se o usuário estiver na página
+        if (document.title.includes('Incidentes Processuais')) {
+            // A função setupTodosIncidentesListener() ainda será criada.
+        }
+    }).catch(error => {
+        console.error("Erro ao salvar incidente:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar o incidente.";
+    });
 }
 
 function renderPenhoraFormModal(processoId, penhora = null, isReadOnly = false) {
@@ -1631,6 +1820,79 @@ function handleDeleteAudiencia(audienciaId) {
             .catch(error => {
                 console.error("Erro ao excluir audiência:", error);
                 showToast("Erro ao cancelar a audiência.", "error");
+            });
+    }
+}
+
+// Localize e substitua a função handleIncidenteAction inteira
+function handleIncidenteAction(event) {
+    const target = event.target.closest('[data-action]');
+    if (!target) return;
+
+    event.preventDefault(); // Previne o comportamento padrão do link
+
+    const action = target.dataset.action;
+    const row = target.closest('tr');
+    const incidenteId = row.dataset.id;
+
+    if (action === 'view-details') {
+        const descricao = row.dataset.descricao;
+        renderReadOnlyTextModal('Descrição do Incidente', descricao);
+    } else if (action === 'edit') {
+        db.collection("incidentesProcessuais").doc(incidenteId).get().then(doc => {
+            if (doc.exists) {
+                renderIncidenteFormModal({ id: doc.id, ...doc.data() });
+            }
+        });
+    } else if (action === 'delete') {
+        handleDeleteIncidente(incidenteId);
+    }
+}
+
+function setupIncidentesDoProcessoListener(numeroProcessoPrincipal) {
+    if (diligenciasListenerUnsubscribe) { diligenciasListenerUnsubscribe(); diligenciasListenerUnsubscribe = null; }
+
+    diligenciasListenerUnsubscribe = db.collection("incidentesProcessuais")
+        .where("numeroProcessoPrincipal", "==", numeroProcessoPrincipal)
+        .onSnapshot((snapshot) => {
+            const incidentes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderIncidentesDoProcessoList(incidentes);
+        }, error => {
+            console.error("Erro ao buscar incidentes do processo: ", error);
+            const container = document.getElementById('incidentes-list-container');
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os incidentes.</p>`;
+        });
+}
+
+function renderIncidentesDoProcessoList(incidentes) {
+    const container = document.getElementById('incidentes-list-container');
+    if (!container) return;
+    if (incidentes.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum incidente vinculado a este processo.</p>`;
+        return;
+    }
+    let tableHTML = `<table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Descrição</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    incidentes.forEach(item => {
+        const descricaoResumida = item.descricao.length > 100 ? item.descricao.substring(0, 100) + '...' : item.descricao;
+        tableHTML += `<tr data-id="${item.id}" data-descricao="${item.descricao}"><td><a href="#" class="view-processo-link" data-action="view-details">${formatProcessoForDisplay(item.numeroIncidente)}</a></td><td title="${item.descricao}">${descricaoResumida.replace(/\n/g, '<br>')}</td><td><span class="status-badge status-${item.status.toLowerCase().replace(' ', '-')}">${item.status}</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    const table = container.querySelector('.data-table');
+    if (table) {
+        table.addEventListener('click', handleIncidenteAction);
+    }
+}
+
+function handleDeleteIncidente(incidenteId) {
+    if (confirm("Tem certeza que deseja excluir este incidente processual? Esta ação não pode ser desfeita.")) {
+        db.collection("incidentesProcessuais").doc(incidenteId).delete()
+            .then(() => {
+                showToast("Incidente excluído com sucesso.");
+            })
+            .catch(error => {
+                console.error("Erro ao excluir incidente:", error);
+                showToast("Ocorreu um erro ao excluir o incidente.", "error");
             });
     }
 }
@@ -2288,8 +2550,21 @@ function renderDevedorForm(devedor = null) { const isEditing = devedor !== null;
 function getDevedorDataFromForm() { const razaoSocial = document.getElementById('razao-social').value; const cnpj = document.getElementById('cnpj').value; const errorMessage = document.getElementById('error-message'); errorMessage.textContent = ''; if (!razaoSocial || !cnpj) { errorMessage.textContent = 'Razão Social e CNPJ são obrigatórios.'; return null; } if (cnpj.replace(/\D/g, '').length !== 14) { errorMessage.textContent = 'Por favor, preencha um CNPJ válido com 14 dígitos.'; return null; } return { razaoSocial, cnpj: cnpj.replace(/\D/g, ''), nomeFantasia: document.getElementById('nome-fantasia').value, nivelPrioridade: parseInt(document.getElementById('nivel-prioridade').value), observacoes: document.getElementById('observacoes').value }; }
 function handleSaveDevedor() { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.criadoEm = firebase.firestore.FieldValue.serverTimestamp(); devedorData.uidUsuario = auth.currentUser.uid; db.collection("grandes_devedores").add(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Grande Devedor salvo com sucesso!"), 100); }); }
 function handleUpdateDevedor(devedorId) { const devedorData = getDevedorDataFromForm(); if (!devedorData) return; devedorData.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp(); db.collection("grandes_devedores").doc(devedorId).update(devedorData).then(() => { navigateTo('grandesDevedores'); setTimeout(() => showToast("Devedor atualizado com sucesso!"), 100); }); }
-
-function renderExequentesPage() { pageTitle.textContent = 'Exequentes'; document.title = 'SASIF | Exequentes'; contentArea.innerHTML = `<div class="dashboard-actions"><button id="add-exequente-btn" class="btn-primary">Cadastrar Novo Exequente</button></div><h2>Lista de Exequentes</h2><div id="exequentes-list-container"></div>`; document.getElementById('add-exequente-btn').addEventListener('click', () => renderExequenteForm()); renderExequentesList(exequentesCache); }
+function renderExequentesPage() {
+    pageTitle.textContent = 'Exequentes';
+    document.title = 'SASIF | Exequentes';
+    contentArea.innerHTML = `
+        <div class="dashboard-actions">
+            <button id="add-exequente-btn" class="btn-primary">Cadastrar Novo Exequente</button>
+            <button id="back-to-config-btn" class="btn-secondary" style="margin-left: 16px;">← Voltar para Configurações</button>
+        </div>
+        <h2>Lista de Exequentes</h2>
+        <div id="exequentes-list-container"></div>
+    `;
+    document.getElementById('add-exequente-btn').addEventListener('click', () => renderExequenteForm());
+    document.getElementById('back-to-config-btn').addEventListener('click', () => navigateTo('configuracoes'));
+    renderExequentesList(exequentesCache);
+}
 function renderExequentesList(exequentes) {
     const container = document.getElementById('exequentes-list-container');
     if (!container) return;
@@ -2349,19 +2624,40 @@ function handleExequenteAction(event) {
 function handleSaveExequente() { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), criadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").add(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente salvo com sucesso!"), 100); }); }
 function handleUpdateExequente(exequenteId) { const nome = document.getElementById('nome').value; const cnpjInput = document.getElementById('cnpj').value; if (!nome) { document.getElementById('error-message').textContent = 'O nome do exequente é obrigatório.'; return; } const data = { nome, cnpj: cnpjInput.replace(/\D/g, ''), atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() }; db.collection("exequentes").doc(exequenteId).update(data).then(() => { navigateTo('exequentes'); setTimeout(() => showToast("Exequente atualizado com sucesso!"), 100); }); }
 function handleDeleteExequente(exequenteId) { if (confirm("Tem certeza que deseja excluir este Exequente?")) { db.collection("exequentes").doc(exequenteId).delete().then(() => showToast("Exequente excluído com sucesso.")).catch(() => showToast("Ocorreu um erro ao excluir.", "error")); } }
-
 function renderMotivosPage() {
     pageTitle.textContent = 'Motivos de Suspensão';
     document.title = 'SASIF | Motivos de Suspensão';
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-motivo-btn" class="btn-primary">Cadastrar Novo Motivo</button>
+            <button id="back-to-config-btn" class="btn-secondary" style="margin-left: 16px;">← Voltar para Configurações</button>
         </div>
         <h2>Lista de Motivos</h2>
         <div id="motivos-list-container"></div>
     `;
     document.getElementById('add-motivo-btn').addEventListener('click', () => renderMotivoForm());
+    document.getElementById('back-to-config-btn').addEventListener('click', () => navigateTo('configuracoes'));
     renderMotivosList(motivosSuspensaoCache);
+}
+
+function renderTodosIncidentesList(incidentes) {
+    const container = document.getElementById('todos-incidentes-list-container');
+    if (!container) return;
+    if (incidentes.length === 0) {
+        container.innerHTML = `<p class="empty-list-message">Nenhum incidente processual cadastrado.</p>`;
+        return;
+    }
+    let tableHTML = `<table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Processo Principal</th><th>Devedor</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    incidentes.forEach(item => {
+        const devedor = devedoresCache.find(d => d.id === item.devedorId);
+        tableHTML += `<tr data-id="${item.id}" data-descricao="${item.descricao}"><td><a href="#" class="view-processo-link" data-action="view-details">${formatProcessoForDisplay(item.numeroIncidente)}</a></td><td>${formatProcessoForDisplay(item.numeroProcessoPrincipal)}</td><td>${devedor ? devedor.razaoSocial : 'Não encontrado'}</td><td><span class="status-badge status-${item.status.toLowerCase().replace(' ', '-')}">${item.status}</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+    });
+    tableHTML += `</tbody></table>`;
+    container.innerHTML = tableHTML;
+    const table = container.querySelector('.data-table');
+    if (table) {
+        table.addEventListener('click', handleIncidenteAction);
+    }
 }
 
 function renderMotivosList(motivos) {
@@ -2848,16 +3144,42 @@ function setupListeners() {
     });
 }
 
-function setupProcessosListener(devedorId) {
+async function setupProcessosListener(devedorId) {
     if (processosListenerUnsubscribe) processosListenerUnsubscribe();
+
+    // Busca todos os incidentes vinculados a este devedor UMA VEZ
+    const incidentesSnapshot = await db.collection("incidentesProcessuais")
+        .where("devedorId", "==", devedorId).get();
+    const incidentesDoDevedor = incidentesSnapshot.docs.map(doc => doc.data());
+
+    // Listener para os processos (continua em tempo real)
     processosListenerUnsubscribe = db.collection("processos")
         .where("devedorId", "==", devedorId)
         .onSnapshot((snapshot) => {
-            processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderProcessosList(processosCache);
+            const processos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Passa AMBAS as listas para a função de renderização
+            renderProcessosList(processos, incidentesDoDevedor);
         }, error => {
             console.error("Erro ao buscar processos: ", error);
-            if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`;
+            if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) {
+                document.getElementById('processos-list-container').innerHTML = `<p class="empty-list-message">Erro: O índice necessário para esta consulta não existe. Verifique o console.</p>`;
+            }
+        });
+}
+
+function setupTodosIncidentesListener() {
+    // Desconecta qualquer listener anterior para evitar duplicação
+    if (diligenciasListenerUnsubscribe) { diligenciasListenerUnsubscribe(); diligenciasListenerUnsubscribe = null; }
+
+    diligenciasListenerUnsubscribe = db.collection("incidentesProcessuais")
+        .orderBy("criadoEm", "desc")
+        .onSnapshot((snapshot) => {
+            const incidentes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderTodosIncidentesList(incidentes);
+        }, error => {
+            console.error("Erro ao buscar incidentes: ", error);
+            const container = document.getElementById('todos-incidentes-list-container');
+            if (container) container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar os incidentes.</p>`;
         });
 }
 
