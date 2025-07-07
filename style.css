@@ -960,3 +960,15 @@ body {
     /* Anula a transformação para maiúsculas apenas na caixa de texto do tooltip */
     text-transform: none;
 }
+
+/* --- ESTILOS PARA A PÁGINA DE IMPORTAÇÃO --- */
+.import-devedor-select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+    background-color: white;
+    cursor: pointer;
+}

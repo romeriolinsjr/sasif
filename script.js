@@ -181,9 +181,9 @@ function navigateTo(page, params = {}) {
         case 'diligencias':
             renderDiligenciasPage();
             break;
-        case 'configuracoes': // <-- NOVO CASE
+        case 'configuracoes':
             renderConfiguracoesPage();
-            break; // <-- NÃO ESQUEÇA O BREAK
+            break;
         case 'exequentes':
             renderExequentesPage();
             break;
@@ -2688,18 +2688,18 @@ function renderImportacaoPage() {
             <div class="detail-card">
                 <h3>1. Selecione o Grande Devedor</h3>
                 <p>Escolha o devedor ao qual os processos abaixo pertencem.</p>
-                <div class="form-group" style="margin-top: 16px;">
-                    <label for="devedor-import-select">Grande Devedor (Obrigatório)</label>
-                    <select id="devedor-import-select">
-                        <option value="">Selecione um devedor...</option>
-                        ${devedorOptions}
-                    </select>
-                </div>
+                
+                <!-- LABEL REMOVIDO E CLASSE ADICIONADA AO SELECT -->
+                <select id="devedor-import-select" class="import-devedor-select" style="margin-top: 16px;">
+                    <option value="">Selecione um devedor...</option>
+                    ${devedorOptions}
+                </select>
             </div>
 
             <div class="detail-card">
                 <h3>2. Cole os Dados da Planilha</h3>
-                <p>Copie as colunas (Processo, Exequente, Tipo, Valor, CDAs) e cole no campo abaixo.</p>
+                <!-- TEXTO DA INSTRUÇÃO ALTERADO -->
+                <p>Copie as cinco colunas de cada devedor e cole no campo abaixo (processo, exequente, tipo, valor e CDAs).</p>
                 <textarea id="import-data-textarea" placeholder="Cole os dados aqui..."></textarea>
                 <button id="processar-import-btn" class="btn-primary">Processar e Importar</button>
             </div>
