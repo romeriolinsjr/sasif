@@ -162,8 +162,9 @@ function renderSidebar(activePage) {
         { id: 'dashboard', name: 'Dashboard' },
         { id: 'grandesDevedores', name: 'Grandes Devedores' },
         { id: 'diligencias', name: 'Tarefas do Mês' },
+        { id: 'relatorios', name: 'Relatórios' }, // <-- NOVO ITEM
         { id: 'importacao', name: 'Importação em Lote' },
-        { id: 'configuracoes', name: 'Configurações' } // Novo item de menu
+        { id: 'configuracoes', name: 'Configurações' }
     ];
     mainNav.innerHTML = `<ul>${pages.map(page => `<li><a href="#" class="nav-link ${page.id === activePage ? 'active' : ''}" data-page="${page.id}">${page.name}</a></li>`).join('')}</ul>`;
     mainNav.querySelectorAll('.nav-link').forEach(link => {
@@ -191,6 +192,9 @@ function navigateTo(page, params = {}) {
             break;
         case 'importacao':
             renderImportacaoPage();
+            break;
+        case 'relatorios':
+            renderRelatoriosPage();
             break;
         case 'diligencias':
             renderDiligenciasPage();
@@ -520,6 +524,145 @@ function renderConfiguracoesPage() {
     document.getElementById('goto-exequentes').addEventListener('click', () => navigateTo('exequentes'));
     document.getElementById('goto-motivos').addEventListener('click', () => navigateTo('motivos'));
     document.getElementById('goto-incidentes').addEventListener('click', () => navigateTo('incidentes'));
+}
+
+function renderRelatoriosPage() {
+    pageTitle.textContent = 'Relatórios';
+    document.title = 'SASIF | Relatórios';
+
+    contentArea.innerHTML = `
+        <div class="detail-card" style="margin-bottom: 24px;">
+            <h3>Gerador de Relatórios</h3>
+            <p>Selecione o tipo de relatório que deseja gerar. Os filtros correspondentes aparecerão abaixo.</p>
+            <div class="form-group" style="margin-top: 16px;">
+                <label for="report-type-select">Tipo de Relatório</label>
+                <select id="report-type-select" class="import-devedor-select">
+                    <option value="">Selecione...</option>
+                    <option value="processosPorTipoStatus">a) Processos por Tipo e Status</option>
+                    <option value="processosPorDevedor">b) Total de Processos por Devedor</option>
+                    <option value="penhorasPorDevedor">c) Penhoras de um Grande Devedor</option>
+                    <option value="incidentesPorDevedor">d) Incidentes de um Grande Devedor</option>
+                    <option value="processosSuspensos">e) Processos Suspensos de um Devedor</option>
+                    <option value="processosPorValor">f) Processos por Valor da Dívida</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- O contêiner para os filtros dinâmicos -->
+        <div id="report-filters-container"></div>
+
+        <!-- O contêiner para os resultados do relatório -->
+        <div id="report-results-container" style="margin-top: 24px;"></div>
+    `;
+
+    // Adiciona o event listener para o seletor de tipo de relatório
+    document.getElementById('report-type-select').addEventListener('change', (e) => {
+        const reportType = e.target.value;
+        renderReportFilters(reportType);
+    });
+}
+
+function renderReportFilters(reportType) {
+    const filtersContainer = document.getElementById('report-filters-container');
+    if (!filtersContainer) return;
+
+    filtersContainer.innerHTML = '';
+    document.getElementById('report-results-container').innerHTML = ''; // Limpa resultados antigos
+
+    if (!reportType) return;
+
+    let filtersHTML = '<div class="detail-card">';
+
+    switch (reportType) {
+        case 'processosPorTipoStatus':
+            const exequenteOptions = exequentesCache.map(ex => `<option value="${ex.id}">${ex.nome}</option>`).join('');
+
+            filtersHTML += `
+                <h4>Filtros para "Processos por Tipo e Status"</h4>
+                <div class="detail-grid" style="grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: end;">
+                    <div class="form-group">
+                        <label for="filtro-tipo-processo">Tipo de Processo</label>
+                        <select id="filtro-tipo-processo" class="import-devedor-select">
+                            <option value="">Todos</option>
+                            <option value="piloto">Piloto</option>
+                            <option value="apenso">Apenso</option>
+                            <option value="autonomo">Autônomo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="filtro-status-processo">Status do Processo</label>
+                        <select id="filtro-status-processo" class="import-devedor-select">
+                            <option value="">Todos</option>
+                            <option value="Ativo">Ativo</option>
+                            <option value="Suspenso">Suspenso</option>
+                            <option value="Baixado">Baixado</option>
+                            <option value="Extinto">Extinto</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="filtro-exequente">Exequente (Opcional)</label>
+                        <select id="filtro-exequente" class="import-devedor-select">
+                            <option value="">Todos</option>
+                            ${exequenteOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-buttons" style="justify-content: flex-start; margin-top: 0;">
+                    <button id="gerar-relatorio-btn" class="btn-primary">Gerar Relatório</button>
+                </div>
+            `;
+            break;
+        // ... outros cases permanecem como WIP ...
+        case 'processosPorDevedor':
+            filtersHTML += `<h4>Filtros para "Total de Processos por Devedor"</h4><p>WIP: Filtros aparecerão aqui.</p>`;
+            break;
+        // ... etc ...
+    }
+
+    filtersHTML += '</div>';
+    filtersContainer.innerHTML = filtersHTML;
+
+    if (reportType === 'processosPorTipoStatus') {
+        document.getElementById('gerar-relatorio-btn').addEventListener('click', gerarRelatorioProcessosPorTipoStatus);
+    }
+}
+
+async function gerarRelatorioProcessosPorTipoStatus() {
+    const tipo = document.getElementById('filtro-tipo-processo').value;
+    const status = document.getElementById('filtro-status-processo').value;
+    const exequenteId = document.getElementById('filtro-exequente').value;
+    
+    const resultsContainer = document.getElementById('report-results-container');
+    resultsContainer.innerHTML = `<p class="empty-list-message">Gerando relatório, por favor aguarde...</p>`;
+
+    try {
+        let query = db.collection('processos');
+
+        if (tipo) {
+            // A busca por 'autonomo' precisa ser com 'ô' para bater com o banco de dados
+            const tipoBusca = tipo === 'autonomo' ? 'autônomo' : tipo;
+            query = query.where('tipoProcesso', '==', tipoBusca);
+        }
+        if (status) {
+            query = query.where('status', '==', status);
+        }
+        if (exequenteId) {
+            query = query.where('exequenteId', '==', exequenteId);
+        }
+
+        const snapshot = await query.get();
+        const processos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        renderRelatorioResultados(processos);
+
+    } catch (error) {
+        console.error("Erro ao gerar relatório: ", error);
+        if (error.code === 'failed-precondition') {
+             resultsContainer.innerHTML = `<p class="empty-list-message error"><b>Erro:</b> A combinação de filtros que você selecionou requer um índice no banco de dados que não existe. Para corrigir, abra o console do desenvolvedor (F12), localize a mensagem de erro do Firebase e clique no link fornecido para criar o índice automaticamente.</p>`;
+        } else {
+             resultsContainer.innerHTML = `<p class="empty-list-message error">Ocorreu um erro ao gerar o relatório.</p>`;
+        }
+    }
 }
 
 function handleSaveDiligencia(diligenciaId = null) {
@@ -1096,6 +1239,74 @@ function renderProcessoDetailPage(processoId) {
     }).catch(error => {
         console.error("Erro ao buscar detalhes do processo:", error);
         showToast("Erro ao carregar o processo.", "error");
+    });
+}
+
+function renderRelatorioResultados(processos) {
+    const resultsContainer = document.getElementById('report-results-container');
+
+    if (processos.length === 0) {
+        resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum processo encontrado com os filtros selecionados.</p>`;
+        return;
+    }
+
+    const total = processos.length;
+    const valorTotal = processos.reduce((sum, proc) => sum + (proc.valorAtual?.valor || proc.valorDivida || 0), 0);
+
+    let tableHTML = `
+        <div class="detail-card">
+            <h3>Resultados do Relatório</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <p><strong>Total de Processos:</strong> ${total}</p>
+                <p><strong>Valor Total das Dívidas:</strong> ${formatCurrency(valorTotal)}</p>
+                <button id="download-pdf-btn" class="btn-secondary">Download PDF</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Número do Processo</th>
+                        <th>Devedor</th>
+                        <th>Exequente</th>
+                        <th>Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    processos.forEach(proc => {
+        const devedor = devedoresCache.find(d => d.id === proc.devedorId);
+        const exequente = exequentesCache.find(e => e.id === proc.exequenteId);
+        const valor = proc.valorAtual?.valor || proc.valorDivida || 0;
+
+        tableHTML += `
+            <tr>
+                <td><a href="#" class="view-processo-link" data-id="${proc.id}">${formatProcessoForDisplay(proc.numeroProcesso)}</a></td>
+                <td>${devedor ? devedor.razaoSocial : 'N/A'}</td>
+                <td>${exequente ? exequente.nome : 'N/A'}</td>
+                <td>${formatCurrency(valor)}</td>
+            </tr>
+        `;
+    });
+
+    tableHTML += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    resultsContainer.innerHTML = tableHTML;
+
+    // Adiciona listener para os links dos processos
+    resultsContainer.querySelector('tbody').addEventListener('click', (e) => {
+        if (e.target.matches('.view-processo-link')) {
+            e.preventDefault();
+            navigateTo('processoDetail', { id: e.target.dataset.id });
+        }
+    });
+
+    // O listener para o botão de PDF será adicionado depois
+    document.getElementById('download-pdf-btn').addEventListener('click', () => {
+        showToast("Função de download em desenvolvimento.", "error");
     });
 }
 
