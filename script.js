@@ -332,16 +332,11 @@ function renderDiligenciasPage(date = new Date()) {
     const mesAnterior = new Date(date.getFullYear(), date.getMonth() - 1, 1);
     const mesSeguinte = new Date(date.getFullYear(), date.getMonth() + 1, 1);
 
-    // ALTERAÇÃO 3: Lógica para limitar a navegação
-    // 1. Pega a data de hoje.
     const hoje = new Date();
-    // 2. Calcula a data limite (24 meses = 2 anos à frente).
+    hoje.setHours(0, 0, 0, 0);
     const dataLimite = new Date(hoje.getFullYear() + 2, hoje.getMonth(), 1);
-    // 3. Verifica se o próximo mês ultrapassa o limite.
     const desabilitarProximo = mesSeguinte >= dataLimite;
 
-    // O cabeçalho agora usa a classe `tasks-month-header` que criamos no CSS.
-    // O botão "Próximo Mês" receberá o atributo 'disabled' se a condição acima for verdadeira.
     contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button>
@@ -362,15 +357,12 @@ function renderDiligenciasPage(date = new Date()) {
 
     document.getElementById('prev-month-btn').addEventListener('click', () => renderDiligenciasPage(mesAnterior));
 
-    // O evento de clique só é adicionado se o botão NÃO estiver desabilitado.
     if (!desabilitarProximo) {
         document.getElementById('next-month-btn').addEventListener('click', () => renderDiligenciasPage(mesSeguinte));
     }
 
-    // A função de clique continua delegada, o que é uma boa prática.
-    // Removido o event listener antigo e garantido que só haja um.
     if (typeof handleDiligenciaAction.isAttached === 'undefined' || !handleDiligenciaAction.isAttached) {
-        contentArea.removeEventListener('click', handleDiligenciaAction); // Garante a remoção de listeners antigos
+        contentArea.removeEventListener('click', handleDiligenciaAction);
         contentArea.addEventListener('click', handleDiligenciaAction);
         handleDiligenciaAction.isAttached = true;
     }
@@ -491,7 +483,7 @@ function renderConfiguracoesPage() {
                 border-radius: 8px;
                 box-shadow: var(--sombra);
                 cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
+                transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
             }
             .setting-card:hover {
                 transform: translateY(-5px);
@@ -522,6 +514,7 @@ function renderConfiguracoesPage() {
                 <p>Cadastre e acompanhe processos incidentais.</p>
             </div>
         </div>
+
     `;
 
     document.getElementById('goto-exequentes').addEventListener('click', () => navigateTo('exequentes'));
@@ -852,7 +845,7 @@ async function renderDevedorDetailPage(devedorId) {
         const temIncidentes = !incidentesSnapshot.empty;
         const alertaIncidenteHTML = temIncidentes ? `
             <p style="margin-top: 8px; font-weight: 500; cursor: pointer; color: var(--cor-primaria);" id="ver-incidentes-devedor">
-                ⓘ Este executado possui incidentes vinculados. Clique para ver a lista.
+                Este executado possui incidentes vinculados. Clique para ver a lista.
             </p>` : '';
 
         pageTitle.textContent = devedor.razaoSocial;
@@ -1311,7 +1304,7 @@ function renderIncidenteFormModal(incidente = null) {
             
             <div class="form-group">
                 <label for="incidente-devedor">Grande Devedor Vinculado (Obrigatório)</label>
-                <select id="incidente-devedor" ${isEditing ? 'disabled' : ''}>
+                <select id="incidente-devedor" class="import-devedor-select" ${isEditing ? 'disabled' : ''}>
                     <option value="">Selecione um devedor...</option>
                     ${devedorOptions}
                 </select>
@@ -1340,7 +1333,7 @@ function renderIncidenteFormModal(incidente = null) {
 
             <div class="form-group">
                 <label for="incidente-status">Status</label>
-                <select id="incidente-status">
+                <select id="incidente-status" class="import-devedor-select">
                     <option value="Em Andamento" ${isEditing && incidente.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
                     <option value="Concluído" ${isEditing && incidente.status === 'Concluído' ? 'selected' : ''}>Concluído</option>
                 </select>
@@ -2336,31 +2329,64 @@ function setupGlobalSearch() {
         }
 
         searchTimeout = setTimeout(async () => {
-            const isProcesso = /\d/.test(searchTerm);
-            let devedoresFound = [];
-            let processosFound = [];
+            const searchTermLower = searchTerm.toLowerCase();
+            const searchTermNumerico = searchTerm.replace(/\D/g, '');
 
-            if (isProcesso) {
-                const processosRef = db.collection('processos');
-                const query = processosRef
-                    .where('numeroProcesso', '>=', searchTerm.replace(/\D/g, ''))
-                    .where('numeroProcesso', '<=', searchTerm.replace(/\D/g, '') + '\uf8ff');
+            const promises = [];
 
-                const snapshot = await query.get();
-                for (const doc of snapshot.docs) {
-                    const processo = { ...doc.data(), id: doc.id };
-                    const devedor = devedoresCache.find(d => d.id === processo.devedorId);
-                    if (devedor) {
-                        processosFound.push({ ...processo, devedorNome: devedor.razaoSocial });
-                    }
-                }
-            } else {
-                devedoresFound = devedoresCache.filter(devedor =>
-                    devedor.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()))
-                );
+            // 1. Busca por Devedores
+            const devedoresFound = devedoresCache.filter(devedor =>
+                devedor.razaoSocial.toLowerCase().includes(searchTermLower) ||
+                (devedor.nomeFantasia && devedor.nomeFantasia.toLowerCase().includes(searchTermLower))
+            );
+
+            if (searchTermNumerico.length > 0) {
+                // 2. Busca por Número de Processo
+                promises.push(db.collection('processos')
+                    .where('numeroProcesso', '>=', searchTermNumerico)
+                    .where('numeroProcesso', '<=', searchTermNumerico + '\uf8ff')
+                    .get());
+
+                // 3. Busca por CDA
+                promises.push(db.collection('processos')
+                    .where('cdasNormalizadas', 'array-contains', searchTermNumerico)
+                    .get());
+
+                // 4. Busca por Número do Incidente
+                promises.push(db.collection('incidentesProcessuais')
+                    .where('numeroIncidente', '>=', searchTermNumerico)
+                    .where('numeroIncidente', '<=', searchTermNumerico + '\uf8ff')
+                    .get());
             }
-            renderSearchResults(devedoresFound, processosFound);
+
+            const results = await Promise.all(promises);
+            let processosFound = [];
+            let cdasFound = [];
+            let incidentesFound = [];
+
+            if (results.length > 0) {
+                // Processa resultados da busca por número de processo
+                results[0].forEach(doc => {
+                    processosFound.push({ ...doc.data(), id: doc.id });
+                });
+
+                // Processa resultados da busca por CDA
+                results[1].forEach(doc => {
+                    if (!processosFound.some(p => p.id === doc.id)) {
+                        cdasFound.push({ ...doc.data(), id: doc.id });
+                    }
+                });
+
+                // Processa resultados da busca por Incidente
+                if (results[2]) {
+                    results[2].forEach(doc => {
+                        incidentesFound.push({ ...doc.data(), id: doc.id });
+                    });
+                }
+            }
+
+            renderSearchResults(devedoresFound, processosFound, cdasFound, incidentesFound);
+
         }, 300);
     });
 
@@ -2371,12 +2397,12 @@ function setupGlobalSearch() {
     });
 }
 
-function renderSearchResults(devedores, processos) {
+function renderSearchResults(devedores, processos, cdas, incidentes) {
     const resultsContainer = document.getElementById('search-results-container');
     const searchInput = document.getElementById('global-search-input');
     resultsContainer.innerHTML = '';
 
-    if (devedores.length === 0 && processos.length === 0) {
+    if (devedores.length === 0 && processos.length === 0 && cdas.length === 0 && incidentes.length === 0) {
         resultsContainer.innerHTML = `<div class="search-result-item"><span class="search-result-subtitle">Nenhum resultado encontrado.</span></div>`;
         resultsContainer.style.display = 'block';
         return;
@@ -2397,19 +2423,42 @@ function renderSearchResults(devedores, processos) {
         });
     }
 
-    if (processos.length > 0) {
-        resultsContainer.innerHTML += `<div class="search-results-header">Processos</div>`;
-        processos.forEach(processo => {
+    // Unifica a renderização para evitar duplicatas visuais
+    const allProcessos = [...processos, ...cdas, ...incidentes.map(inc => ({...inc, numeroProcesso: inc.numeroIncidente, isIncidente: true }))];
+    const uniqueProcessos = allProcessos.filter((p, index, self) => index === self.findIndex(t => t.id === p.id));
+    
+    if (uniqueProcessos.length > 0) {
+         resultsContainer.innerHTML += `<div class="search-results-header">Processos e Incidentes</div>`;
+         uniqueProcessos.forEach(processo => {
+            const devedor = devedoresCache.find(d => d.id === processo.devedorId);
             const item = document.createElement('div');
             item.className = 'search-result-item';
-            item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso)}</span><span class="search-result-subtitle">Devedor: ${processo.devedorNome}</span>`;
-            item.addEventListener('click', () => {
-                navigateTo('processoDetail', { id: processo.id });
+            item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso || processo.numeroIncidente)} ${processo.isIncidente ? '<span class="status-badge" style="background-color:#6a1b9a; font-size:10px;">Incidente</span>' : ''}</span><span class="search-result-subtitle">Devedor: ${devedor ? devedor.razaoSocial : 'N/A'}</span>`;
+            
+            item.addEventListener('click', async () => {
                 searchInput.value = '';
                 resultsContainer.style.display = 'none';
+
+                if (processo.isIncidente) {
+                    try {
+                        const query = db.collection("processos").where("numeroProcesso", "==", processo.numeroProcessoPrincipal).limit(1);
+                        const snapshot = await query.get();
+                        if (!snapshot.empty) {
+                            const processoPrincipalDoc = snapshot.docs[0];
+                            navigateTo('processoDetail', { id: processoPrincipalDoc.id });
+                        } else {
+                            showToast("Processo principal deste incidente não encontrado no SASIF.", "error");
+                        }
+                    } catch(err) {
+                        console.error("Erro ao buscar processo principal:", err);
+                        showToast("Erro ao buscar processo principal.", "error");
+                    }
+                } else {
+                    navigateTo('processoDetail', { id: processo.id });
+                }
             });
             resultsContainer.appendChild(item);
-        });
+         });
     }
 
     resultsContainer.style.display = 'block';
@@ -2884,6 +2933,7 @@ async function handleSaveProcesso(devedorId, processoId = null) {
     const motivoSuspensaoId = document.getElementById('motivo-suspensao')?.value;
     const valorInputString = document.getElementById('valor-divida').value.replace(',', '.');
     const valorInput = parseFloat(valorInputString) || 0;
+    const cdasInput = document.getElementById('cdas').value;
 
     const errorMessage = document.getElementById('error-message');
     errorMessage.textContent = '';
@@ -2908,6 +2958,12 @@ async function handleSaveProcesso(devedorId, processoId = null) {
         }
     }
 
+    // LÓGICA DE NORMALIZAÇÃO DAS CDAs (VERSÃO FINAL)
+    const cdasNormalizadas = cdasInput
+        .split(/[,;]/) // Divide a string APENAS por vírgula ou ponto e vírgula
+        .map(cda => cda.replace(/\D/g, '')) // Remove tudo que não for dígito de cada CDA
+        .filter(cda => cda.length > 0); // Remove entradas vazias
+
     const processoData = {
         devedorId,
         numeroProcesso: numeroProcesso,
@@ -2915,7 +2971,8 @@ async function handleSaveProcesso(devedorId, processoId = null) {
         tipoProcesso,
         status,
         motivoSuspensaoId: status === 'Suspenso' ? motivoSuspensaoId : null,
-        cdas: document.getElementById('cdas').value,
+        cdas: cdasInput,
+        cdasNormalizadas: cdasNormalizadas,
         uidUsuario: auth.currentUser.uid,
         valorAtual: {
             valor: valorInput,

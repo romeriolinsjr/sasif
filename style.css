@@ -903,28 +903,50 @@ body {
     fill: var(--cor-erro); /* Vermelho */
 }
 /* --- PÁGINA TAREFAS DO MÊS --- */
+
+/* ===== Bloco Definitivo de Alinhamento do Cabeçalho de Mês ===== */
 .tasks-month-header {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 24px;
     gap: 16px;
+    margin-bottom: 24px;
 }
 
 .tasks-month-header h2 {
+    /* Define a altura exata da caixa do título */
+    height: 36px;
+    /* Alinha o texto perfeitamente no centro vertical dessa altura */
+    line-height: 36px;
+
     margin: 0;
-    min-width: 250px; /* Garante que o título não "pule" */
+    padding: 0;
+    min-width: 250px;
     text-align: center;
+    font-size: 20px;
 }
 
-#prev-month-btn, #next-month-btn {
-    padding: 8px 16px;
-    font-size: 20px;
-    background-color: var(--cor-fundo);
+#prev-month-btn,
+#next-month-btn {
+    /* Define a altura e largura exatas da caixa do botão */
+    width: 36px;
+    height: 36px;
+
+    /* Centraliza o ícone da seta dentro da caixa */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Estilos visuais */
+    padding: 0;
     border: 1px solid var(--cor-borda);
+    background-color: var(--cor-fundo);
     border-radius: 4px;
     cursor: pointer;
+    font-size: 18px;
 }
+/* ===== Fim do Bloco Definitivo ===== */
+
 #prev-month-btn:disabled, #next-month-btn:disabled {
     cursor: not-allowed;
     opacity: 0.5;
@@ -961,7 +983,8 @@ body {
     text-transform: none;
 }
 
-/* --- ESTILOS PARA A PÁGINA DE IMPORTAÇÃO --- */
+/* --- ESTILOS PARA CAMPOS DE SELEÇÃO PADRONIZADOS --- */
+.form-container select,
 .import-devedor-select {
     width: 100%;
     padding: 12px;
@@ -971,4 +994,12 @@ body {
     font-family: 'Roboto', sans-serif;
     background-color: white;
     cursor: pointer;
+    -webkit-appearance: none; /* Remove a aparência padrão no Chrome/Safari */
+    -moz-appearance: none;    /* Remove a aparência padrão no Firefox */
+    appearance: none;         /* Remove a aparência padrão em outros navegadores */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 16px 12px;
 }
+
