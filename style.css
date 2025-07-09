@@ -1003,3 +1003,11 @@ body {
     background-size: 16px 12px;
 }
 
+.detail-actions-cell {
+    width: 100px; /* Largura fixa da coluna */
+    text-align: right;
+}
+
+.actions-container {
+    white-space: nowrap; /* Impede que os botões quebrem a linha */
+}

@@ -1201,15 +1201,21 @@ function renderCorresponsaveisList(corresponsaveis, processoId) {
         return;
     }
 
-    let tableHTML = `<table class="data-table"><thead><tr><th>Nome / Razão Social</th><th>CPF/CNPJ</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Nome / Razão Social</th><th>CPF/CNPJ</th><th class="detail-actions-cell">Ações</th></tr></thead><tbody>`;
     corresponsaveis.forEach(item => {
         tableHTML += `
             <tr data-id="${item.id}" data-nome="${item.nome}" data-cpf-cnpj="${item.cpfCnpj || ''}">
                 <td>${item.nome}</td>
                 <td>${formatDocumentForDisplay(item.cpfCnpj)}</td>
-                <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
-                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                <td class="detail-actions-cell">
+                    <div class="actions-container">
+                        <button class="action-icon icon-edit" title="Editar Corresponsável" data-id="${item.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <button class="action-icon icon-delete" title="Excluir Corresponsável" data-id="${item.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -1219,25 +1225,23 @@ function renderCorresponsaveisList(corresponsaveis, processoId) {
 
     container.querySelector('tbody').addEventListener('click', handleCorresponsavelAction);
 }
-
 function handleCorresponsavelAction(event) {
-    const button = event.target;
-    const action = button.dataset.action;
-    if (!action) return;
+    const button = event.target.closest('.action-icon');
+    if (!button) return;
 
     const row = button.closest('tr');
     const corresponsavelId = row.dataset.id;
     const container = document.getElementById('corresponsaveis-list-container');
     const processoId = container.dataset.processoId;
 
-    if (action === 'edit') {
+    if (button.classList.contains('icon-edit')) {
         const corresponsavelData = {
             id: corresponsavelId,
             nome: row.dataset.nome,
             cpfCnpj: row.dataset.cpfCnpj
         };
         renderCorresponsavelFormModal(processoId, corresponsavelData);
-    } else if (action === 'delete') {
+    } else if (button.classList.contains('icon-delete')) {
         handleDeleteCorresponsavel(corresponsavelId);
     }
 }
@@ -1518,7 +1522,7 @@ function renderPenhorasList(penhoras, processoId) {
         return text.substring(0, maxLength) + '...';
     };
 
-    let tableHTML = `<table class="data-table"><thead><tr><th>Descrição do Bem</th><th>Valor</th><th>Data</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Descrição do Bem</th><th>Valor</th><th>Data</th><th class="detail-actions-cell">Ações</th></tr></thead><tbody>`;
     penhoras.forEach(item => {
         let dataFormatada = 'Não informada';
         if (item.data) {
@@ -1538,9 +1542,15 @@ function renderPenhorasList(penhoras, processoId) {
                 </td>
                 <td>${formatCurrency(item.valor || 0)}</td>
                 <td>${dataFormatada}</td>
-                <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
-                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                <td class="detail-actions-cell">
+                    <div class="actions-container">
+                        <button class="action-icon icon-edit" title="Editar Penhora">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <button class="action-icon icon-delete" title="Excluir Penhora">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -1554,27 +1564,37 @@ function renderPenhorasList(penhoras, processoId) {
 function handlePenhoraAction(event) {
     event.preventDefault();
     const target = event.target;
-    const action = target.dataset.action;
-    if (!action) return;
 
-    const row = target.closest('tr');
-    const penhoraId = row.dataset.id;
-    const container = document.getElementById('penhoras-list-container');
-    const processoId = container.dataset.processoId;
+    // Ação de visualizar a descrição completa
+    const viewLink = target.closest('[data-action="view"]');
+    if (viewLink) {
+        const row = viewLink.closest('tr');
+        const penhoraData = {
+            descricao: row.dataset.descricao
+        };
+        renderPenhoraFormModal(null, penhoraData, true); // Passa null para processoId pois não é necessário para visualização
+        return;
+    }
 
-    const penhoraData = {
-        id: penhoraId,
-        descricao: row.dataset.descricao,
-        valor: row.dataset.valor,
-        data: row.dataset.data
-    };
+    // Ações de editar e excluir
+    const button = target.closest('.action-icon');
+    if (button) {
+        const row = button.closest('tr');
+        const penhoraId = row.dataset.id;
+        const container = document.getElementById('penhoras-list-container');
+        const processoId = container.dataset.processoId;
+        const penhoraData = {
+            id: penhoraId,
+            descricao: row.dataset.descricao,
+            valor: row.dataset.valor,
+            data: row.dataset.data
+        };
 
-    if (action === 'view') {
-        renderPenhoraFormModal(processoId, penhoraData, true);
-    } else if (action === 'edit') {
-        renderPenhoraFormModal(processoId, penhoraData, false);
-    } else if (action === 'delete') {
-        handleDeletePenhora(penhoraId);
+        if (button.classList.contains('icon-edit')) {
+            renderPenhoraFormModal(processoId, penhoraData, false);
+        } else if (button.classList.contains('icon-delete')) {
+            handleDeletePenhora(penhoraId);
+        }
     }
 }
 
@@ -1701,7 +1721,7 @@ function renderAudienciasList(audiencias, processoId) {
         return;
     }
 
-    let tableHTML = `<table class="data-table"><thead><tr><th>Data e Hora</th><th>Local</th><th>Observações</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+    let tableHTML = `<table class="data-table"><thead><tr><th>Data e Hora</th><th>Local</th><th>Observações</th><th class="detail-actions-cell">Ações</th></tr></thead><tbody>`;
     audiencias.forEach(item => {
         const data = new Date(item.dataHora.seconds * 1000);
         const dataFormatada = data.toLocaleString('pt-BR', {
@@ -1714,9 +1734,15 @@ function renderAudienciasList(audiencias, processoId) {
                 <td>${dataFormatada}</td>
                 <td>${item.local || 'Não informado'}</td>
                 <td style="white-space: pre-wrap;">${item.observacoes || ''}</td>
-                <td class="actions-cell">
-                    <button class="action-btn btn-edit" data-action="edit">Editar</button>
-                    <button class="action-btn btn-delete" data-action="delete">Excluir</button>
+                <td class="detail-actions-cell">
+                    <div class="actions-container">
+                        <button class="action-icon icon-edit" title="Editar Audiência">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <button class="action-icon icon-delete" title="Excluir Audiência">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -1728,9 +1754,8 @@ function renderAudienciasList(audiencias, processoId) {
 }
 
 function handleAudienciaAction(event, audiencias) {
-    const button = event.target;
-    const action = button.dataset.action;
-    if (!action) return;
+    const button = event.target.closest('.action-icon');
+    if (!button) return;
 
     const row = button.closest('tr');
     const audienciaId = row.dataset.id;
@@ -1739,9 +1764,9 @@ function handleAudienciaAction(event, audiencias) {
 
     const audienciaData = audiencias.find(a => a.id === audienciaId);
 
-    if (action === 'edit') {
+    if (button.classList.contains('icon-edit')) {
         renderAudienciaFormModal(processoId, audienciaData);
-    } else if (action === 'delete') {
+    } else if (button.classList.contains('icon-delete')) {
         handleDeleteAudiencia(audienciaId);
     }
 }
@@ -1819,23 +1844,31 @@ function handleDeleteAudiencia(audienciaId) {
 
 // Localize e substitua a função handleIncidenteAction inteira
 function handleIncidenteAction(event) {
-    const target = event.target.closest('[data-action]');
+    const target = event.target.closest('[data-action], .action-icon'); // Procura por links de ação ou botões de ícone
     if (!target) return;
 
-    event.preventDefault(); // Previne o comportamento padrão do link
+    event.preventDefault();
 
-    const action = target.dataset.action;
     const row = target.closest('tr');
+    if (!row) return; // Segurança extra
+
     const incidenteId = row.dataset.id;
+    const action = target.dataset.action || (target.classList.contains('icon-edit') ? 'edit' : 'delete');
 
     if (action === 'view-details') {
         const descricao = row.dataset.descricao;
         renderReadOnlyTextModal('Descrição do Incidente', descricao);
     } else if (action === 'edit') {
+        // A busca no banco de dados é a forma mais segura de obter o objeto completo
         db.collection("incidentesProcessuais").doc(incidenteId).get().then(doc => {
             if (doc.exists) {
                 renderIncidenteFormModal({ id: doc.id, ...doc.data() });
+            } else {
+                showToast("Não foi possível encontrar os dados do incidente para edição.", "error");
             }
+        }).catch(err => {
+            console.error("Erro ao buscar incidente para edição:", err);
+            showToast("Erro ao carregar dados para edição.", "error");
         });
     } else if (action === 'delete') {
         handleDeleteIncidente(incidenteId);
@@ -1860,17 +1893,34 @@ function setupIncidentesDoProcessoListener(numeroProcessoPrincipal) {
 function renderIncidentesDoProcessoList(incidentes) {
     const container = document.getElementById('incidentes-list-container');
     if (!container) return;
+
     if (incidentes.length === 0) {
         container.innerHTML = `<p class="empty-list-message">Nenhum incidente vinculado a este processo.</p>`;
         return;
     }
-    let tableHTML = `<table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Descrição</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
+
+    let tableHTML = `<table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Descrição</th><th>Status</th><th class="detail-actions-cell">Ações</th></tr></thead><tbody>`;
+
     incidentes.forEach(item => {
         const descricaoResumida = item.descricao.length > 100 ? item.descricao.substring(0, 100) + '...' : item.descricao;
-        tableHTML += `<tr data-id="${item.id}" data-descricao="${item.descricao}"><td><a href="#" class="view-processo-link" data-action="view-details">${formatProcessoForDisplay(item.numeroIncidente)}</a></td><td title="${item.descricao}">${descricaoResumida.replace(/\n/g, '<br>')}</td><td><span class="status-badge status-${item.status.toLowerCase().replace(' ', '-')}">${item.status}</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+
+        tableHTML += `
+            <tr data-id="${item.id}" data-descricao="${item.descricao}">
+                <td><a href="#" class="view-processo-link" data-action="view-details">${formatProcessoForDisplay(item.numeroIncidente)}</a></td>
+                <td title="${item.descricao}">${descricaoResumida.replace(/\n/g, '<br>')}</td>
+                <td><span class="status-badge status-${item.status.toLowerCase().replace(' ', '-')}">${item.status}</span></td>
+                <td class="detail-actions-cell">
+                    <div class="actions-container">
+                        <button class="action-icon icon-edit" title="Editar Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                        <button class="action-icon icon-delete" title="Excluir Incidente" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                    </div>
+                </td>
+            </tr>`;
     });
+
     tableHTML += `</tbody></table>`;
     container.innerHTML = tableHTML;
+
     const table = container.querySelector('.data-table');
     if (table) {
         table.addEventListener('click', handleIncidenteAction);
@@ -2256,7 +2306,9 @@ async function handlePromoteToPiloto(processoId) {
         const processoAlvoRef = db.collection("processos").doc(processoAlvo.id);
         batch.update(processoAlvoRef, {
             tipoProcesso: 'piloto',
-            processoPilotoId: null
+            processoPilotoId: null,
+            status: 'Ativo', // <-- LINHA ADICIONADA
+            motivoSuspensaoId: null // <-- BÔNUS: Limpa o motivo da suspensão, se houver
         });
 
         if (processoAlvo.tipoProcesso === 'apenso' && processoAlvo.processoPilotoId) {
@@ -2424,17 +2476,17 @@ function renderSearchResults(devedores, processos, cdas, incidentes) {
     }
 
     // Unifica a renderização para evitar duplicatas visuais
-    const allProcessos = [...processos, ...cdas, ...incidentes.map(inc => ({...inc, numeroProcesso: inc.numeroIncidente, isIncidente: true }))];
+    const allProcessos = [...processos, ...cdas, ...incidentes.map(inc => ({ ...inc, numeroProcesso: inc.numeroIncidente, isIncidente: true }))];
     const uniqueProcessos = allProcessos.filter((p, index, self) => index === self.findIndex(t => t.id === p.id));
-    
+
     if (uniqueProcessos.length > 0) {
-         resultsContainer.innerHTML += `<div class="search-results-header">Processos e Incidentes</div>`;
-         uniqueProcessos.forEach(processo => {
+        resultsContainer.innerHTML += `<div class="search-results-header">Processos e Incidentes</div>`;
+        uniqueProcessos.forEach(processo => {
             const devedor = devedoresCache.find(d => d.id === processo.devedorId);
             const item = document.createElement('div');
             item.className = 'search-result-item';
             item.innerHTML = `<span class="search-result-title">${formatProcessoForDisplay(processo.numeroProcesso || processo.numeroIncidente)} ${processo.isIncidente ? '<span class="status-badge" style="background-color:#6a1b9a; font-size:10px;">Incidente</span>' : ''}</span><span class="search-result-subtitle">Devedor: ${devedor ? devedor.razaoSocial : 'N/A'}</span>`;
-            
+
             item.addEventListener('click', async () => {
                 searchInput.value = '';
                 resultsContainer.style.display = 'none';
@@ -2449,7 +2501,7 @@ function renderSearchResults(devedores, processos, cdas, incidentes) {
                         } else {
                             showToast("Processo principal deste incidente não encontrado no SASIF.", "error");
                         }
-                    } catch(err) {
+                    } catch (err) {
                         console.error("Erro ao buscar processo principal:", err);
                         showToast("Erro ao buscar processo principal.", "error");
                     }
@@ -2458,7 +2510,7 @@ function renderSearchResults(devedores, processos, cdas, incidentes) {
                 }
             });
             resultsContainer.appendChild(item);
-         });
+        });
     }
 
     resultsContainer.style.display = 'block';
@@ -3215,7 +3267,7 @@ async function setupProcessosListener(devedorId) {
         .onSnapshot((snapshot) => {
             // LINHA CRUCIAL REINTRODUZIDA AQUI
             processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
+
             // Passa os dados para a função de renderização
             renderProcessosList(processosCache, incidentesDoDevedor);
         }, error => {
