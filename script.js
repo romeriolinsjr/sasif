@@ -1115,7 +1115,7 @@ function renderCorresponsavelFormModal(processoId, corresponsavel = null) {
             </div>
             <div class="form-group">
                 <label for="tipo-pessoa">Tipo de Pessoa</label>
-                <select id="tipo-pessoa">
+                <select id="tipo-pessoa" class="import-devedor-select">
                     <option value="fisica">Pessoa Física</option>
                     <option value="juridica">Pessoa Jurídica</option>
                 </select>
@@ -3213,9 +3213,11 @@ async function setupProcessosListener(devedorId) {
     processosListenerUnsubscribe = db.collection("processos")
         .where("devedorId", "==", devedorId)
         .onSnapshot((snapshot) => {
-            const processos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Passa AMBAS as listas para a função de renderização
-            renderProcessosList(processos, incidentesDoDevedor);
+            // LINHA CRUCIAL REINTRODUZIDA AQUI
+            processosCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Passa os dados para a função de renderização
+            renderProcessosList(processosCache, incidentesDoDevedor);
         }, error => {
             console.error("Erro ao buscar processos: ", error);
             if (error.code === 'failed-precondition' && document.getElementById('processos-list-container')) {
