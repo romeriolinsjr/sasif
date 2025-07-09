@@ -1083,3 +1083,8 @@ body {
   /* Garante uma largura mínima para a coluna */
   width: 220px;
 }
+
+#devedores-list-container .data-table td:nth-child(1) {
+  width: 30px;
+  white-space: nowrap; /* Boa prática para garantir que o número nunca quebre */
+}
