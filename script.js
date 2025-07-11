@@ -5249,13 +5249,12 @@ async function gerarRelatorioIncidentes() {
   }
 }
 
-// FUNÇÃO 2: RENDERIZA A TABELA DE INCIDENTES NA TELA
+// FUNÇÃO 2: RENDERIZA A TABELA DE INCIDENTES NA TELA (VERSÃO ATUALIZADA)
 function renderRelatorioIncidentesResultados(incidentes) {
   const resultsContainer = document.getElementById("report-results-container");
 
   let tableHTML = `
         <div class="detail-card">
-            <!-- NOME ATUALIZADO AQUI -->
             <h3>Resultados do Relatório de Incidentes Processuais</h3>
             <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 20px;">
                 <button id="download-pdf-incidente-btn" class="btn-secondary">Download PDF</button>
@@ -5275,21 +5274,59 @@ function renderRelatorioIncidentesResultados(incidentes) {
       incidente.descricao.length > 100
         ? incidente.descricao.substring(0, 100) + "..."
         : incidente.descricao;
+
+    // ALTERAÇÃO AQUI: As células agora são links clicáveis
     tableHTML += `
             <tr>
-                <td>${formatProcessoForDisplay(incidente.numeroIncidente)}</td>
+                <td>
+                    <a href="#" class="view-processo-link" data-action="view-incidente-desc" data-id="${
+                      incidente.id
+                    }">
+                        ${formatProcessoForDisplay(incidente.numeroIncidente)}
+                    </a>
+                </td>
                 <td>${formatProcessoForDisplay(
                   incidente.numeroProcessoPrincipal
                 )}</td>
-                <td title="${incidente.descricao}">${descricaoResumida.replace(
-      /\n/g,
-      "<br>"
-    )}</td>
+                <td title="Clique para ver a descrição completa">
+                    <a href="#" class="view-penhora-link" data-action="view-incidente-desc" data-id="${
+                      incidente.id
+                    }">
+                        ${descricaoResumida.replace(/\n/g, "<br>")}
+                    </a>
+                </td>
             </tr>`;
   });
 
   tableHTML += `</tbody></table></div>`;
   resultsContainer.innerHTML = tableHTML;
+
+  // ADIÇÃO AQUI: Event listener para os novos links
+  const tableBody = resultsContainer.querySelector("tbody");
+  if (tableBody) {
+    tableBody.addEventListener("click", (event) => {
+      const link = event.target.closest('[data-action="view-incidente-desc"]');
+      if (link) {
+        event.preventDefault();
+        const incidenteId = link.dataset.id;
+        const incidenteCompleto = currentReportData.find(
+          (inc) => inc.id === incidenteId
+        );
+
+        if (incidenteCompleto) {
+          renderReadOnlyTextModal(
+            "Descrição Completa do Incidente",
+            incidenteCompleto.descricao
+          );
+        } else {
+          showToast(
+            "Não foi possível encontrar os detalhes do incidente.",
+            "error"
+          );
+        }
+      }
+    });
+  }
 
   document
     .getElementById("download-pdf-incidente-btn")
