@@ -1088,3 +1088,37 @@ body {
   width: 30px;
   white-space: nowrap; /* Boa prática para garantir que o número nunca quebre */
 }
+
+/* --- ESTILOS PARA O MODAL DE DETALHES DA TAREFA --- */
+.task-details-container {
+  text-align: left;
+}
+
+.detail-item,
+.detail-item-full {
+  margin-bottom: 16px;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: var(--cor-texto-escuro);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.detail-value {
+  font-size: 16px;
+  color: #555;
+  word-break: break-word; /* Garante que textos longos quebrem a linha */
+}
+
+.detail-description-box {
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  padding: 12px;
+  min-height: 100px;
+  white-space: pre-wrap; /* Respeita as quebras de linha da descrição */
+  font-size: 15px;
+  line-height: 1.5;
+}

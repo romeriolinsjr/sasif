@@ -1117,7 +1117,6 @@ function handleDiligenciaAction(event) {
   } else if (action === "edit") {
     const tarefa = diligenciasCache.find((d) => d.id === diligenciaId);
     if (tarefa) {
-      // AQUI ESTÁ A MUDANÇA: Passamos a data da página para o formulário
       renderDiligenciaFormModal(tarefa);
     }
   } else if (action === "delete") {
@@ -1125,7 +1124,8 @@ function handleDiligenciaAction(event) {
   } else if (action === "view-desc") {
     const tarefa = diligenciasCache.find((d) => d.id === diligenciaId);
     if (tarefa) {
-      renderReadOnlyTextModal("Descrição da Tarefa", tarefa.descricao);
+      // AQUI ESTÁ A MUDANÇA: Chamando o novo modal
+      renderTaskDetailsModal(tarefa);
     }
   }
 }
@@ -1210,6 +1210,59 @@ function renderReadOnlyTextModal(title, content) {
 
   document
     .getElementById("close-readonly-modal")
+    .addEventListener("click", closeModal);
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+}
+
+// NOVO MODAL ESPECÍFICO PARA TAREFAS
+function renderTaskDetailsModal(tarefa) {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+
+  // Prepara o conteúdo do processo, se houver
+  let processoHTML = `
+        <div class="detail-item">
+            <span class="detail-label">Processo Vinculado:</span>
+            <span class="detail-value">Nenhum</span>
+        </div>`;
+  if (tarefa.processoVinculado) {
+    processoHTML = `
+        <div class="detail-item">
+            <span class="detail-label">Processo Vinculado:</span>
+            <span class="detail-value">${formatProcessoForDisplay(
+              tarefa.processoVinculado
+            )}</span>
+        </div>`;
+  }
+
+  // Prepara o conteúdo da descrição
+  const descricaoFormatada = (
+    tarefa.descricao || "Nenhuma descrição cadastrada."
+  ).replace(/\n/g, "<br>");
+
+  modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>Detalhes da Tarefa</h3>
+            <div class="task-details-container">
+                ${processoHTML}
+                <div class="detail-item-full">
+                    <span class="detail-label">Descrição:</span>
+                    <div class="detail-description-box">${descricaoFormatada}</div>
+                </div>
+            </div>
+            <div class="form-buttons" style="justify-content: flex-end; margin-top: 20px;">
+                <button id="close-task-details-modal" class="btn-secondary">Fechar</button>
+            </div>
+        </div>
+    `;
+
+  document.body.appendChild(modalOverlay);
+
+  const closeModal = () => document.body.removeChild(modalOverlay);
+  document
+    .getElementById("close-task-details-modal")
     .addEventListener("click", closeModal);
   modalOverlay.addEventListener("click", (e) => {
     if (e.target === modalOverlay) closeModal();
