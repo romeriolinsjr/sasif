@@ -28,6 +28,7 @@ let exequentesCache = [];
 let processosCache = [];
 let diligenciasCache = [];
 let motivosSuspensaoCache = [];
+let currentTasksPageDate = new Date(); // <-- ADICIONE ESTA LINHA
 let currentReportData = [];
 let currentSortState = { key: null, direction: "asc" };
 let processosListenerUnsubscribe = null;
@@ -401,6 +402,8 @@ function showDevedorPage(devedorId) {
 }
 
 function renderDiligenciasPage(date = new Date()) {
+  currentTasksPageDate = date; // ATUALIZA A VARIÁVEL GLOBAL COM A DATA ATUAL
+
   const mesAtual = date.toLocaleString("pt-BR", {
     month: "long",
     year: "numeric",
@@ -417,9 +420,7 @@ function renderDiligenciasPage(date = new Date()) {
   const desabilitarProximo = mesSeguinte >= dataLimite;
 
   contentArea.innerHTML = `
-        <div class="dashboard-actions">
-            <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button>
-        </div>
+        <div class="dashboard-actions"> <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button> </div>
         <div class="tasks-month-header">
             <button id="prev-month-btn" title="Mês Anterior">◀</button>
             <h2>${mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)}</h2>
@@ -437,17 +438,14 @@ function renderDiligenciasPage(date = new Date()) {
     .addEventListener("click", () => {
       renderDiligenciaFormModal();
     });
-
   document
     .getElementById("prev-month-btn")
     .addEventListener("click", () => renderDiligenciasPage(mesAnterior));
-
   if (!desabilitarProximo) {
     document
       .getElementById("next-month-btn")
       .addEventListener("click", () => renderDiligenciasPage(mesSeguinte));
   }
-
   if (
     typeof handleDiligenciaAction.isAttached === "undefined" ||
     !handleDiligenciaAction.isAttached
@@ -456,7 +454,6 @@ function renderDiligenciasPage(date = new Date()) {
     contentArea.addEventListener("click", handleDiligenciaAction);
     handleDiligenciaAction.isAttached = true;
   }
-
   setupDiligenciasListener(date);
 }
 
@@ -472,67 +469,41 @@ function renderDiligenciaFormModal(diligencia = null) {
       .split("T")[0];
   }
 
-  // CÓDIGO PARA SUBSTITUIR
+  // AQUI ESTÁ A MUDANÇA: O modal agora guarda a data de referência
   modalOverlay.innerHTML = `
-    <div class="modal-content modal-large">
+    <div class="modal-content modal-large" data-mes-referencia="${currentTasksPageDate.toISOString()}">
         <h3>${isEditing ? "Editar" : "Adicionar"} Tarefa</h3>
-        
-        <div class="form-group">
-            <label for="diligencia-titulo">Título da Tarefa (Obrigatório)</label>
-            <input type="text" id="diligencia-titulo" value="${
-              isEditing ? diligencia.titulo : ""
-            }" required>
-        </div>
-
-        <!-- CAMPO RECORRENTE MOVIDO PARA CIMA E ALINHADO -->
-        <div class="form-group" style="display: flex; align-items: center; gap: 10px; justify-content: flex-start;">
-            <input type="checkbox" id="diligencia-recorrente" ${
-              isEditing && diligencia.isRecorrente ? "checked" : ""
-            } style="width: auto;">
-            <label for="diligencia-recorrente" style="margin-bottom: 0; font-weight: normal;">Tarefa Recorrente (repete todo mês)</label>
-        </div>
-        
-        <div class="form-group">
-            <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label>
-            <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required>
-        </div>
-
-        <div class="form-group">
-            <label for="diligencia-processo">Processo Vinculado (Opcional)</label>
-            <input type="text" id="diligencia-processo" placeholder="Formato: 0000000-00.0000.0.00.0000" value="${
-              isEditing && diligencia.processoVinculado
-                ? formatProcessoForDisplay(diligencia.processoVinculado)
-                : ""
-            }">
-        </div>
-        
-        <div class="form-group">
-            <label for="diligencia-descricao">Descrição Completa (Opcional)</label>
-            <textarea id="diligencia-descricao" rows="4">${
-              isEditing ? diligencia.descricao : ""
-            }</textarea>
-        </div>
-
+        <div class="form-group"> <label for="diligencia-titulo">Título da Tarefa (Obrigatório)</label> <input type="text" id="diligencia-titulo" value="${
+          isEditing ? diligencia.titulo : ""
+        }" required> </div>
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px; justify-content: flex-start;"> <input type="checkbox" id="diligencia-recorrente" ${
+          isEditing && diligencia.isRecorrente ? "checked" : ""
+        } style="width: auto;"> <label for="diligencia-recorrente" style="margin-bottom: 0; font-weight: normal;">Tarefa Recorrente (repete todo mês)</label> </div>
+        <div class="form-group"> <label for="diligencia-data-alvo">Data Alvo (Obrigatório)</label> <input type="date" id="diligencia-data-alvo" value="${dataAlvoFormatada}" required> </div>
+        <div class="form-group"> <label for="diligencia-processo">Processo Vinculado (Opcional)</label> <input type="text" id="diligencia-processo" placeholder="Formato: 0000000-00.0000.0.00.0000" value="${
+          isEditing && diligencia.processoVinculado
+            ? formatProcessoForDisplay(diligencia.processoVinculado)
+            : ""
+        }"> </div>
+        <div class="form-group"> <label for="diligencia-descricao">Descrição Completa (Opcional)</label> <textarea id="diligencia-descricao" rows="4">${
+          isEditing ? diligencia.descricao : ""
+        }</textarea> </div>
         <div id="error-message"></div>
-        <div class="form-buttons">
-            <button id="save-diligencia-btn" class="btn-primary">Salvar</button>
-            <button id="cancel-diligencia-btn">Cancelar</button>
-        </div>
-    </div>
-`;
+        <div class="form-buttons"> <button id="save-diligencia-btn" class="btn-primary">Salvar</button> <button id="cancel-diligencia-btn">Cancelar</button> </div>
+    </div>`;
 
   document.body.appendChild(modalOverlay);
-
   document
     .getElementById("diligencia-processo")
     .addEventListener("input", (e) => maskProcesso(e.target));
-
   const closeModal = () => document.body.removeChild(modalOverlay);
-
   document
     .getElementById("save-diligencia-btn")
     .addEventListener("click", () => {
-      handleSaveDiligencia(isEditing ? diligencia.id : null);
+      handleSaveDiligencia(
+        isEditing ? diligencia.id : null,
+        isEditing ? diligencia : null
+      );
     });
   document
     .getElementById("cancel-diligencia-btn")
@@ -881,7 +852,10 @@ async function gerarRelatorioProcessosPorTipoStatus() {
   }
 }
 
-function handleSaveDiligencia(diligenciaId = null) {
+async function handleSaveDiligencia(
+  diligenciaId = null,
+  diligenciaOriginal = null
+) {
   const titulo = document.getElementById("diligencia-titulo").value.trim();
   const dataAlvoInput = document.getElementById("diligencia-data-alvo").value;
   const isRecorrente = document.getElementById("diligencia-recorrente").checked;
@@ -898,13 +872,11 @@ function handleSaveDiligencia(diligenciaId = null) {
     errorMessage.textContent = "Título e Data Alvo são obrigatórios.";
     return;
   }
-
   const dataAlvo = new Date(dataAlvoInput + "T00:00:00");
   if (isNaN(dataAlvo.getTime())) {
     errorMessage.textContent = "Data Alvo inválida.";
     return;
   }
-
   const processoVinculado = processoVinculadoInput.replace(/\D/g, "");
   if (processoVinculado && processoVinculado.length !== 20) {
     errorMessage.textContent =
@@ -912,6 +884,59 @@ function handleSaveDiligencia(diligenciaId = null) {
     return;
   }
 
+  const modal = document.querySelector(".modal-content");
+  const mesDeReferencia = new Date(modal.dataset.mesReferencia);
+
+  // NOVA LÓGICA DE EDIÇÃO PARA TAREFAS RECORRENTES
+  if (diligenciaId && diligenciaOriginal && diligenciaOriginal.isRecorrente) {
+    const confirmMessage = `Você está editando uma tarefa recorrente.\n\nAo continuar, as alterações serão aplicadas a partir deste mês, e o histórico anterior será preservado.\n\nDeseja prosseguir com a alteração?`;
+    if (confirm(confirmMessage)) {
+      const batch = db.batch();
+
+      // 1. Encerrar a tarefa antiga: define sua data de término
+      const originalTaskRef = db
+        .collection("diligenciasMensais")
+        .doc(diligenciaId);
+      const dataTermino = new Date(
+        mesDeReferencia.getFullYear(),
+        mesDeReferencia.getMonth(),
+        0
+      ); // Último dia do mês anterior
+      batch.update(originalTaskRef, {
+        recorrenciaTerminaEm:
+          firebase.firestore.Timestamp.fromDate(dataTermino),
+      });
+
+      // 2. Criar a nova tarefa com os dados atualizados
+      const newTaskRef = db.collection("diligenciasMensais").doc();
+      const novaTarefaData = {
+        ...diligenciaOriginal,
+        titulo,
+        dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo),
+        isRecorrente,
+        descricao,
+        processoVinculado: processoVinculado || null,
+        userId: auth.currentUser.uid,
+        historicoCumprimentos: {},
+        criadoEm: firebase.firestore.Timestamp.fromDate(
+          new Date(mesDeReferencia.getFullYear(), mesDeReferencia.getMonth(), 1)
+        ),
+      };
+      batch.set(newTaskRef, novaTarefaData);
+
+      try {
+        await batch.commit();
+        showToast("Tarefa recorrente atualizada com sucesso!");
+        document.body.removeChild(document.querySelector(".modal-overlay"));
+      } catch (error) {
+        console.error("Erro ao bifurcar tarefa:", error);
+        errorMessage.textContent = "Ocorreu um erro ao atualizar a tarefa.";
+      }
+    }
+    return; // Encerra a função aqui, seja após o sucesso ou o cancelamento
+  }
+
+  // LÓGICA EXISTENTE (para novas tarefas ou edição de tarefas únicas)
   const data = {
     titulo,
     dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo),
@@ -920,29 +945,36 @@ function handleSaveDiligencia(diligenciaId = null) {
     descricao,
     userId: auth.currentUser.uid,
   };
-
-  let promise;
   if (diligenciaId) {
     data.atualizadoEm = firebase.firestore.FieldValue.serverTimestamp();
-    promise = db
-      .collection("diligenciasMensais")
+    db.collection("diligenciasMensais")
       .doc(diligenciaId)
-      .update(data);
+      .update(data)
+      .then(() => {
+        showToast(`Tarefa atualizada com sucesso!`);
+        document.body.removeChild(document.querySelector(".modal-overlay"));
+      })
+      .catch((error) => {
+        console.error("Erro ao salvar tarefa:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar a tarefa.";
+      });
   } else {
-    data.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
     data.historicoCumprimentos = {};
-    promise = db.collection("diligenciasMensais").add(data);
+    const mesDeCriacao = currentTasksPageDate;
+    data.criadoEm = firebase.firestore.Timestamp.fromDate(
+      new Date(mesDeCriacao.getFullYear(), mesDeCriacao.getMonth(), 1)
+    );
+    db.collection("diligenciasMensais")
+      .add(data)
+      .then(() => {
+        showToast(`Tarefa salva com sucesso!`);
+        document.body.removeChild(document.querySelector(".modal-overlay"));
+      })
+      .catch((error) => {
+        console.error("Erro ao salvar tarefa:", error);
+        errorMessage.textContent = "Ocorreu um erro ao salvar a tarefa.";
+      });
   }
-
-  promise
-    .then(() => {
-      showToast(`Tarefa ${diligenciaId ? "atualizada" : "salva"} com sucesso!`);
-      document.body.removeChild(document.querySelector(".modal-overlay"));
-    })
-    .catch((error) => {
-      console.error("Erro ao salvar tarefa:", error);
-      errorMessage.textContent = "Ocorreu um erro ao salvar a tarefa.";
-    });
 }
 
 function setupDiligenciasListener(date) {
@@ -977,9 +1009,31 @@ function renderDiligenciasList(diligencias, date) {
   const anoMesSelecionado = `${date.getFullYear()}-${String(
     date.getMonth() + 1
   ).padStart(2, "0")}`;
+  const inicioDoMesVisivel = new Date(date.getFullYear(), date.getMonth(), 1);
 
   const tarefasDoMes = diligencias.filter((item) => {
     if (!item.dataAlvo) return false;
+
+    // REGRA DE INÍCIO: A tarefa não pode começar a existir depois do mês que estamos vendo.
+    const inicioDaVigencia = item.criadoEm
+      ? new Date(
+          item.criadoEm.toDate().getFullYear(),
+          item.criadoEm.toDate().getMonth(),
+          1
+        )
+      : new Date(1970, 0, 1);
+    if (inicioDoMesVisivel < inicioDaVigencia) {
+      return false;
+    }
+
+    // REGRA DE TÉRMINO: A tarefa não pode ter terminado antes do mês que estamos vendo.
+    if (item.recorrenciaTerminaEm) {
+      const dataTermino = item.recorrenciaTerminaEm.toDate();
+      if (inicioDoMesVisivel > dataTermino) {
+        return false;
+      }
+    }
+
     if (item.isRecorrente) return true;
 
     const dataAlvoTarefa = new Date(item.dataAlvo.seconds * 1000);
@@ -1001,7 +1055,6 @@ function renderDiligenciasList(diligencias, date) {
   });
 
   let tableHTML = `<table id="monthly-tasks-table" class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Tarefa</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
-
   tarefasDoMes.forEach((item) => {
     const isCumpridaUnica =
       !item.isRecorrente &&
@@ -1012,21 +1065,18 @@ function renderDiligenciasList(diligencias, date) {
       item.historicoCumprimentos &&
       item.historicoCumprimentos[anoMesSelecionado];
     const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-
     const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
     let statusBadge = "";
-    let acoesBtnDesfazer = ""; // Renomeado para clareza
+    let acoesBtnDesfazer = "";
     let linhaStyle = "";
     let tipoTarefa = item.isRecorrente
       ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>'
       : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
-
     const dataAlvoFormatada = item.isRecorrente
       ? `${String(dataAlvo.getUTCDate()).padStart(2, "0")}/${String(
           date.getMonth() + 1
         ).padStart(2, "0")}/${date.getFullYear()}`
       : dataAlvo.toLocaleDateString("pt-BR", { timeZone: "UTC" });
-
     if (isCumprida) {
       const dataCumprimentoTimestamp = isCumpridaUnica
         ? Object.values(item.historicoCumprimentos)[0]
@@ -1036,41 +1086,21 @@ function renderDiligenciasList(diligencias, date) {
         timeZone: "UTC",
       });
       statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
-      // Ícone "Desfazer" ATIVO
       acoesBtnDesfazer = `<button class="action-icon" title="Desfazer cumprimento" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
       linhaStyle = 'style="background-color: #e8f5e9;"';
     } else {
       statusBadge = `<span class="status-badge status-suspenso clickable-status" data-action="cumprir" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}" title="Clique para marcar como cumprido">Pendente</span>`;
-      // Ícone "Desfazer" INATIVO (com 'disabled' e opacidade)
       acoesBtnDesfazer = `<button class="action-icon" disabled style="opacity: 0.3; cursor: not-allowed;"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
       linhaStyle = "";
     }
-
-    tableHTML += `
-            <tr ${linhaStyle}>
-                <td>${dataAlvoFormatada}</td>
-                <td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td>
-                <td>${tipoTarefa}</td>
-                <td class="tasks-status-cell">${statusBadge}</td>
-                <td class="actions-cell tasks-actions-cell">
-                    <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-                        ${acoesBtnDesfazer}
-                        <button class="action-icon icon-edit" title="Editar Tarefa" data-action="edit" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                        <button class="action-icon icon-delete" title="Excluir Tarefa" data-action="delete" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                    </div>
-                </td>
-            </tr>`;
+    tableHTML += `<tr ${linhaStyle}><td>${dataAlvoFormatada}</td><td><a href="#" class="view-processo-link" data-action="view-desc" data-id="${item.id}">${item.titulo}</a></td><td>${tipoTarefa}</td><td class="tasks-status-cell">${statusBadge}</td><td class="actions-cell tasks-actions-cell"><div style="display: flex; justify-content: center; align-items: center; gap: 8px;">${acoesBtnDesfazer}<button class="action-icon icon-edit" title="Editar Tarefa" data-action="edit" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Tarefa" data-action="delete" data-id="${item.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></td></tr>`;
   });
-
   tableHTML += `</tbody></table>`;
   container.innerHTML = tableHTML;
 }
 
 function handleDiligenciaAction(event) {
-  // Encontra o elemento com data-action que foi realmente clicado, subindo na árvore do DOM
   const target = event.target.closest("[data-action]");
-
-  // Se não encontrou um elemento de ação, ou se o clique não foi na tabela de tarefas, ignora.
   if (!target || !target.closest("#diligencias-list-container")) return;
 
   event.preventDefault();
@@ -1086,6 +1116,7 @@ function handleDiligenciaAction(event) {
   } else if (action === "edit") {
     const tarefa = diligenciasCache.find((d) => d.id === diligenciaId);
     if (tarefa) {
+      // AQUI ESTÁ A MUDANÇA: Passamos a data da página para o formulário
       renderDiligenciaFormModal(tarefa);
     }
   } else if (action === "delete") {
@@ -3007,6 +3038,7 @@ function setupDashboardWidgets() {
 }
 
 // CÓDIGO PARA SUBSTITUIR
+// Substitua esta função inteira
 function renderProximasDiligenciasWidget(diligencias) {
   const container = document.getElementById("diligencias-widget-container");
   if (!container) return;
@@ -3021,26 +3053,54 @@ function renderProximasDiligenciasWidget(diligencias) {
     hoje.getMonth() + 1
   ).padStart(2, "0")}`;
 
+  // FILTRO ATUALIZADO COM A MESMA LÓGICA DA PÁGINA DE TAREFAS
   const diligenciasParaExibir = diligencias.filter((item) => {
     if (!item.dataAlvo) return false;
 
-    if (item.isRecorrente) {
-      if (item.historicoCumprimentos && item.historicoCumprimentos[anoMesAtual])
+    // REGRA DE INÍCIO: A tarefa deve ter sido criada no mês atual ou antes
+    const inicioDaVigencia = item.criadoEm
+      ? new Date(
+          item.criadoEm.toDate().getFullYear(),
+          item.criadoEm.toDate().getMonth(),
+          1
+        )
+      : new Date(1970, 0, 1);
+    if (new Date(hoje.getFullYear(), hoje.getMonth(), 1) < inicioDaVigencia) {
+      return false;
+    }
+
+    // REGRA DE TÉRMINO: A tarefa não pode ter terminado antes do mês atual
+    if (item.recorrenciaTerminaEm) {
+      const dataTermino = item.recorrenciaTerminaEm.toDate();
+      if (new Date(hoje.getFullYear(), hoje.getMonth(), 1) > dataTermino) {
         return false;
+      }
+    }
+
+    // REGRA DE CUMPRIMENTO: Não mostra tarefas já cumpridas este mês
+    if (item.isRecorrente) {
+      if (
+        item.historicoCumprimentos &&
+        item.historicoCumprimentos[anoMesAtual]
+      ) {
+        return false;
+      }
     } else {
       if (
         item.historicoCumprimentos &&
         Object.keys(item.historicoCumprimentos).length > 0
-      )
+      ) {
         return false;
+      }
     }
 
+    // REGRA DE DATA ALVO: Mostra tarefas que vencem nos próximos 5 dias ou que estão atrasadas
     const dataAlvoOriginal = new Date(item.dataAlvo.seconds * 1000);
     let dataRelevante = item.isRecorrente
       ? new Date(
           hoje.getFullYear(),
           hoje.getMonth(),
-          dataAlvoOriginal.getDate()
+          dataAlvoOriginal.getUTCDate()
         )
       : dataAlvoOriginal;
     dataRelevante.setHours(0, 0, 0, 0);
@@ -3053,14 +3113,14 @@ function renderProximasDiligenciasWidget(diligencias) {
       ? new Date(
           hoje.getFullYear(),
           hoje.getMonth(),
-          new Date(a.dataAlvo.seconds * 1000).getDate()
+          new Date(a.dataAlvo.seconds * 1000).getUTCDate()
         )
       : new Date(a.dataAlvo.seconds * 1000);
     const dataB = b.isRecorrente
       ? new Date(
           hoje.getFullYear(),
           hoje.getMonth(),
-          new Date(b.dataAlvo.seconds * 1000).getDate()
+          new Date(b.dataAlvo.seconds * 1000).getUTCDate()
         )
       : new Date(b.dataAlvo.seconds * 1000);
     return dataA - dataB;
@@ -3074,7 +3134,7 @@ function renderProximasDiligenciasWidget(diligencias) {
     diligenciasParaExibir.forEach((item) => {
       const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
       const dataRelevante = item.isRecorrente
-        ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvo.getDate())
+        ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvo.getUTCDate())
         : dataAlvo;
       dataRelevante.setHours(0, 0, 0, 0);
 
