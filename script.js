@@ -887,13 +887,11 @@ async function handleSaveDiligencia(
   const modal = document.querySelector(".modal-content");
   const mesDeReferencia = new Date(modal.dataset.mesReferencia);
 
-  // NOVA LÓGICA DE EDIÇÃO PARA TAREFAS RECORRENTES
   if (diligenciaId && diligenciaOriginal && diligenciaOriginal.isRecorrente) {
     const confirmMessage = `Você está editando uma tarefa recorrente.\n\nAo continuar, as alterações serão aplicadas a partir deste mês, e o histórico anterior será preservado.\n\nDeseja prosseguir com a alteração?`;
     if (confirm(confirmMessage)) {
       const batch = db.batch();
 
-      // 1. Encerrar a tarefa antiga: define sua data de término
       const originalTaskRef = db
         .collection("diligenciasMensais")
         .doc(diligenciaId);
@@ -901,16 +899,19 @@ async function handleSaveDiligencia(
         mesDeReferencia.getFullYear(),
         mesDeReferencia.getMonth(),
         0
-      ); // Último dia do mês anterior
+      );
       batch.update(originalTaskRef, {
         recorrenciaTerminaEm:
           firebase.firestore.Timestamp.fromDate(dataTermino),
       });
 
-      // 2. Criar a nova tarefa com os dados atualizados
+      // AQUI ESTÁ A CORREÇÃO:
+      // Desestruturamos a tarefa original para remover o ID antigo
+      const { id, ...dadosDaTarefaOriginalSemId } = diligenciaOriginal;
+
       const newTaskRef = db.collection("diligenciasMensais").doc();
       const novaTarefaData = {
-        ...diligenciaOriginal,
+        ...dadosDaTarefaOriginalSemId, // Usamos os dados limpos
         titulo,
         dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo),
         isRecorrente,
@@ -933,10 +934,10 @@ async function handleSaveDiligencia(
         errorMessage.textContent = "Ocorreu um erro ao atualizar a tarefa.";
       }
     }
-    return; // Encerra a função aqui, seja após o sucesso ou o cancelamento
+    return;
   }
 
-  // LÓGICA EXISTENTE (para novas tarefas ou edição de tarefas únicas)
+  // Lógica existente para novas tarefas ou edição de tarefas únicas
   const data = {
     titulo,
     dataAlvo: firebase.firestore.Timestamp.fromDate(dataAlvo),
