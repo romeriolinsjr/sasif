@@ -265,6 +265,7 @@ function setupDiligenciasListener(date) {
   const unsubscribe = db
     .collection("diligenciasMensais")
     .where("userId", "==", userId)
+    .orderBy("dataAlvo")
     .onSnapshot(
       (snapshot) => {
         const diligencias = snapshot.docs.map((doc) => ({
@@ -275,6 +276,7 @@ function setupDiligenciasListener(date) {
         renderDiligenciasList(diligencias, date); // Passa a data para a função de renderização
       },
       (error) => {
+        console.error("Erro detalhado do Firebase:", error);
         const container = document.getElementById("diligencias-list-container");
         if (container)
           container.innerHTML = `<p class="empty-list-message">Ocorreu um erro ao carregar as tarefas.</p>`;
@@ -322,10 +324,6 @@ function renderDiligenciasList(diligencias, date) {
     container.innerHTML = `<p class="empty-list-message">Nenhuma tarefa para este mês.</p>`;
     return;
   }
-
-  tarefasDoMes.sort(
-    (a, b) => (a.dataAlvo?.seconds || 0) - (b.dataAlvo?.seconds || 0)
-  );
 
   let tableHTML = `<table id="monthly-tasks-table" class="data-table"><thead><tr><th>Data Alvo</th><th>Título da Tarefa</th><th>Tipo</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
   tarefasDoMes.forEach((item) => {

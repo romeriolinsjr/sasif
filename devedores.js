@@ -3,13 +3,14 @@
 // Responsabilidade: Gerenciamento completo da entidade "Grandes Devedores".
 // ==================================================================
 
-import { db } from "./firebase.js";
-import { contentArea, pageTitle, showToast } from "./ui.js";
+import { db, auth } from "./firebase.js"; // <--- ADICIONE , auth
+import { contentArea, pageTitle, showToast, renderSidebar } from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import {
   formatCNPJForDisplay,
   getAnaliseStatus,
   formatProcessoForDisplay,
+  maskCNPJ, // <--- ADICIONE ESTA LINHA
 } from "./utils.js";
 import * as state from "./state.js";
 import { renderProcessoForm, setupProcessosListener } from "./processos.js";
@@ -224,7 +225,7 @@ function renderDevedorForm(devedor = null) {
   contentArea.innerHTML = `
         <div class="form-container" data-id="${isEditing ? devedor.id : ""}">
             <div class="form-group"><label for="razao-social">Razão Social (Obrigatório)</label><input type="text" id="razao-social" value="${razaoSocial}" required></div>
-            <div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required oninput="maskCNPJ(this)"></div>
+            <div class="form-group"><label for="cnpj">CNPJ (Obrigatório)</label><input type="text" id="cnpj" value="${cnpj}" required></div>
             <div class="form-group"><label for="nome-fantasia">Nome Fantasia</label><input type="text" id="nome-fantasia" value="${nomeFantasia}"></div>
             <div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div>
             <div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div>

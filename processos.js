@@ -9,6 +9,7 @@ import {
   pageTitle,
   showToast,
   renderReadOnlyTextModal,
+  renderSidebar, // <-- ADICIONE ESTA LINHA
 } from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import { renderDevedorDetailPage } from "./devedores.js";
@@ -215,7 +216,7 @@ export function renderProcessoForm(devedorId, processo = null) {
 
   contentArea.innerHTML = `
         <div class="form-container">
-            <div class="form-group"><label for="numero-processo">Número do Processo (Obrigatório)</label><input type="text" id="numero-processo" required oninput="maskProcesso(this)" value="${
+            <div class="form-group"><label for="numero-processo">Número do Processo (Obrigatório)</label><input type="text" id="numero-processo" required value="${
               isEditing ? formatProcessoForDisplay(processo.numeroProcesso) : ""
             }"></div>
             <div class="form-group"><label for="exequente">Exequente (Obrigatório)</label><select id="exequente"><option value="">Selecione...</option>${exequenteOptions}</select></div>
@@ -238,6 +239,10 @@ export function renderProcessoForm(devedorId, processo = null) {
             <div id="error-message"></div>
             <div class="form-buttons"><button id="save-processo-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div>
         </div>`;
+
+  document
+    .getElementById("numero-processo")
+    .addEventListener("input", (e) => maskProcesso(e.target));
 
   const tipoProcessoSelect = document.getElementById("tipo-processo");
   const exequenteSelect = document.getElementById("exequente");
@@ -1053,12 +1058,10 @@ function handleSaveCorresponsavel(processoId, corresponsavelId = null) {
           ...data,
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         })
-    : db
-        .collection("corresponsaveis")
-        .add({
-          ...data,
-          criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+    : db.collection("corresponsaveis").add({
+        ...data,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      });
   promise
     .then(() => {
       showToast(
@@ -1230,12 +1233,10 @@ function handleSavePenhora(processoId, penhoraId = null) {
           ...penhoraData,
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         })
-    : db
-        .collection("penhoras")
-        .add({
-          ...penhoraData,
-          criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+    : db.collection("penhoras").add({
+        ...penhoraData,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      });
   promise
     .then(() => {
       showToast(`Penhora ${penhoraId ? "atualizada" : "salva"} com sucesso!`);
@@ -1396,12 +1397,10 @@ function handleSaveAudiencia(processoId, audienciaId = null) {
           ...audienciaData,
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         })
-    : db
-        .collection("audiencias")
-        .add({
-          ...audienciaData,
-          criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+    : db.collection("audiencias").add({
+        ...audienciaData,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      });
   promise
     .then(() => {
       showToast(
@@ -1545,19 +1544,17 @@ async function handleSaveAnexo(processoId) {
     const storagePath = `anexos/${processoId}/${Date.now()}-${file.name}`;
     const uploadTask = await storage.ref(storagePath).put(file);
     const downloadURL = await uploadTask.ref.getDownloadURL();
-    await db
-      .collection("anexos")
-      .add({
-        processoId,
-        nomeArquivo,
-        nomeOriginal: file.name,
-        storagePath,
-        downloadURL,
-        tipoArquivo: file.type,
-        tamanhoArquivo: file.size,
-        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        userId: auth.currentUser.uid,
-      });
+    await db.collection("anexos").add({
+      processoId,
+      nomeArquivo,
+      nomeOriginal: file.name,
+      storagePath,
+      downloadURL,
+      tipoArquivo: file.type,
+      tamanhoArquivo: file.size,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      userId: auth.currentUser.uid,
+    });
     showToast("Anexo salvo com sucesso!");
     document.body.removeChild(document.querySelector(".modal-overlay"));
   } catch (error) {
