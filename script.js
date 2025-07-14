@@ -14,7 +14,7 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-
+const storage = firebase.storage();
 const appContainer = document.getElementById("app-container");
 const loginContainer = document.getElementById("login-container");
 const userEmailSpan = document.getElementById("user-email");
@@ -36,6 +36,8 @@ let corresponsaveisListenerUnsubscribe = null;
 let penhorasListenerUnsubscribe = null;
 let audienciasListenerUnsubscribe = null;
 let diligenciasListenerUnsubscribe = null;
+let incidentesListenerUnsubscribe = null; // <-- ADICIONE ESTA
+let anexosListenerUnsubscribe = null; // <-- E ESTA
 
 function showToast(message, type = "success") {
   const container = document.getElementById("toast-container");
@@ -244,6 +246,14 @@ function navigateTo(page, params = {}) {
     diligenciasListenerUnsubscribe();
     diligenciasListenerUnsubscribe = null;
   }
+  if (incidentesListenerUnsubscribe) {
+    incidentesListenerUnsubscribe();
+    incidentesListenerUnsubscribe = null;
+  }
+  if (anexosListenerUnsubscribe) {
+    anexosListenerUnsubscribe();
+    anexosListenerUnsubscribe = null;
+  }
 
   renderSidebar(page);
   switch (page) {
@@ -306,66 +316,62 @@ function renderDevedoresList(devedores) {
   }
 
   let tableHTML = `
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th class="number-cell">#</th>
-                    <th>Razão Social</th>
-                    <th>CNPJ</th>
-                    <th>
-                        <div class="info-tooltip-container">
-                            <span>Prioridade</span>
-                            <span class="info-icon">i</span>
-                            <div class="info-tooltip-text">Executados com prioridade 1 devem ser analisados, no máximo, a cada 30 dias. Executados com prioridade 2, a cada 45 dias. E executados com prioridade 3, a cada 60 dias.</div>
-                        </div>
-                    </th>
-                    <th>Análise</th>
-                    <th class="actions-cell">Ações</th>
-                </tr>
-            </thead>
-            <tbody>`;
+        <div class="table-responsive-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th class="number-cell">#</th>
+                        <th>Razão Social</th>
+                        <th>CNPJ</th>
+                        <th>
+                            <div class="info-tooltip-container">
+                                <span>Prioridade</span>
+                                <span class="info-icon">i</span>
+                                <div class="info-tooltip-text">Executados com prioridade 1 devem ser analisados, no máximo, a cada 30 dias. Executados com prioridade 2, a cada 45 dias. E executados com prioridade 3, a cada 60 dias.</div>
+                            </div>
+                        </th>
+                        <th>Análise</th>
+                        <th class="actions-cell">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>`;
 
   devedores.forEach((devedor, index) => {
     const analise = getAnaliseStatus(devedor);
-
     let statusCellHTML = "";
     if (analise.status !== "status-ok") {
-      statusCellHTML = `
-                <td class="clickable-status" data-action="registrar-analise" data-id="${devedor.id}" title="Clique para registrar a análise hoje">
-                    <span class="status-dot ${analise.status}"></span>${analise.text}
-                </td>`;
+      statusCellHTML = `<td class="clickable-status" data-action="registrar-analise" data-id="${devedor.id}" title="Clique para registrar a análise hoje"><span class="status-dot ${analise.status}"></span>${analise.text}</td>`;
     } else {
-      statusCellHTML = `
-                <td>
-                    <span class="status-dot ${analise.status}"></span>${analise.text}
-                </td>`;
+      statusCellHTML = `<td><span class="status-dot ${analise.status}"></span>${analise.text}</td>`;
     }
-
-    tableHTML += `
-            <tr data-id="${devedor.id}" class="clickable-row">
-                <td class="number-cell">${index + 1}</td>
-                <td>${devedor.razaoSocial}</td>
-                <td>${formatCNPJForDisplay(devedor.cnpj)}</td>
-                <td class="level-${devedor.nivelPrioridade}">Nível ${
+    tableHTML += `<tr data-id="${
+      devedor.id
+    }" class="clickable-row"><td class="number-cell">${index + 1}</td><td>${
+      devedor.razaoSocial
+    }</td><td>${formatCNPJForDisplay(devedor.cnpj)}</td><td class="level-${
       devedor.nivelPrioridade
-    }</td>
-                ${statusCellHTML}
-                <td class="actions-cell">
-                    <button class="action-icon icon-edit" title="Editar Devedor" data-id="${
-                      devedor.id
-                    }" data-action="edit">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                    </button>
-                    <button class="action-icon icon-delete" title="Excluir Devedor" data-id="${
-                      devedor.id
-                    }" data-action="delete">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                    </button>
-                </td>
-            </tr>`;
+    }">Nível ${
+      devedor.nivelPrioridade
+    }</td>${statusCellHTML}<td class="actions-cell">
+            <!-- BOTÃO NOVO ADICIONADO AQUI -->
+            <button class="action-icon icon-analise" title="Registrar Análise de Hoje" data-id="${
+              devedor.id
+            }" data-action="registrar-analise">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            </button>
+            <button class="action-icon icon-edit" title="Editar Devedor" data-id="${
+              devedor.id
+            }" data-action="edit"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+            <button class="action-icon icon-delete" title="Excluir Devedor" data-id="${
+              devedor.id
+            }" data-action="delete"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+            </td></tr>`;
   });
 
-  tableHTML += `</tbody></table>`;
+  tableHTML += `</tbody>
+            </table>
+        </div>`;
+
   container.innerHTML = tableHTML;
   container
     .querySelector("tbody")
@@ -1592,107 +1598,71 @@ function renderProcessoDetailPage(processoId) {
       document.title = `SASIF | ${pageTitleText}`;
 
       contentArea.innerHTML = `
-            <div class="dashboard-actions">
-                <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${
-                  devedor ? devedor.razaoSocial : "Devedor"
-                }</button>
-                ${
-                  processo.tipoProcesso === "apenso" ||
-                  processo.tipoProcesso === "autônomo"
-                    ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>`
-                    : ""
-                }
-                ${
-                  processo.tipoProcesso === "apenso"
-                    ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>`
-                    : ""
-                }
-                
-                <div style="margin-left: auto; display: flex; gap: 8px;">
-                    <button id="edit-processo-btn" class="action-icon icon-edit" title="Editar Processo">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                    </button>
-                    <button id="delete-processo-btn" class="action-icon icon-delete" title="Excluir Processo">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                    </button>
-                </div>
-            </div>
-            <div class="detail-card">
-                <h3>Detalhes do Processo</h3>
-                <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
-                    <div>
-                        <p><strong>Exequente:</strong> ${
-                          exequente ? exequente.nome : "N/A"
-                        }</p>
-                        <p><strong>Executado:</strong> ${
-                          devedor ? devedor.razaoSocial : "N/A"
-                        }</p>
+                <div class="dashboard-actions">
+                    <button id="back-to-devedor-btn" class="btn-secondary"> ← Voltar para ${
+                      devedor ? devedor.razaoSocial : "Devedor"
+                    }</button>
+                    ${
+                      processo.tipoProcesso === "apenso" ||
+                      processo.tipoProcesso === "autônomo"
+                        ? `<button id="promote-piloto-btn" class="btn-primary" style="background-color: var(--cor-sucesso);">★ Promover a Piloto</button>`
+                        : ""
+                    }
+                    ${
+                      processo.tipoProcesso === "apenso"
+                        ? `<button id="unattach-processo-btn" class="btn-secondary" style="background-color: #ffc107; color: #333;">⬚ Desapensar</button>`
+                        : ""
+                    }
+                    <div style="margin-left: auto; display: flex; gap: 8px;">
+                        <button id="edit-processo-btn" class="action-icon icon-edit" title="Editar Processo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                        <button id="delete-processo-btn" class="action-icon icon-delete" title="Excluir Processo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                     </div>
-                    <div>
-                        <p><strong>Tipo:</strong> ${
+                </div>
+                <div class="detail-card">
+                    <h3>Detalhes do Processo</h3>
+                    <div class="detail-grid" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
+                        <div> <p><strong>Exequente:</strong> ${
+                          exequente ? exequente.nome : "N/A"
+                        }</p> <p><strong>Executado:</strong> ${
+        devedor ? devedor.razaoSocial : "N/A"
+      }</p> </div>
+                        <div> <p><strong>Tipo:</strong> ${
                           processo.tipoProcesso.charAt(0).toUpperCase() +
                           processo.tipoProcesso.slice(1)
-                        }</p>
-                        <div class="valor-divida-container">
-                            <p><strong>Valor da Dívida:</strong> ${formatCurrency(
-                              processo.valorAtual
-                                ? processo.valorAtual.valor
-                                : processo.valorDivida
-                            )}</p>
-                            <div class="valor-divida-actions">
-                                <button id="update-valor-btn" class="action-btn btn-edit">Atualizar</button>
-                                <button id="view-history-btn" class="action-btn btn-secondary">Histórico</button>
-                            </div>
-                        </div>
+                        }</p> <div class="valor-divida-container"> <p><strong>Valor da Dívida:</strong> ${formatCurrency(
+        processo.valorAtual ? processo.valorAtual.valor : processo.valorDivida
+      )}</p> <div class="valor-divida-actions"> <button id="update-valor-btn" class="action-btn btn-edit">Atualizar</button> <button id="view-history-btn" class="action-btn btn-secondary">Histórico</button> </div> </div> </div>
                     </div>
-                </div>
-                <div class="detail-full-width">
-                    <strong>CDA(s):</strong> 
-                    <p>${
+                    <div class="detail-full-width"> <strong>CDA(s):</strong> <p>${
                       processo.cdas
                         ? processo.cdas.replace(/\n/g, "<br>")
                         : "Nenhuma CDA cadastrada."
-                    }</p>
+                    }</p> </div>
                 </div>
-            </div>
+                <div class="content-section"> <div class="section-header"> <h2>Corresponsáveis Tributários</h2> <button id="add-corresponsavel-btn" class="btn-primary">Adicionar</button> </div> <div id="corresponsaveis-list-container"></div> </div>
+                <div class="content-section"> <div class="section-header"> <h2>Constrições Patrimoniais</h2> <button id="add-penhora-btn" class="btn-primary">Adicionar</button> </div> <div id="penhoras-list-container"></div> </div>
+                <div class="content-section"> <div class="section-header"> <h2>Audiências Agendadas</h2> <button id="add-audiencia-btn" class="btn-primary">Adicionar</button> </div> <div id="audiencias-list-container"></div> </div>
+                <div class="content-section"> <div class="section-header"> <h2>Incidentes Processuais Vinculados</h2> </div> <div id="incidentes-list-container"></div> </div>
 
-            <div class="content-section">
-                <div class="section-header">
-                    <h2>Corresponsáveis Tributários</h2>
-                    <button id="add-corresponsavel-btn" class="btn-primary">Adicionar</button>
+                <!-- NOVA SEÇÃO DE ANEXOS -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2>Anexos</h2>
+                        <div id="anexos-actions-container">
+                            <!-- Botões de visualizar e anexar serão inseridos aqui -->
+                        </div>
+                    </div>
+                    <div id="anexos-list-container">
+                         <p class="empty-list-message">Nenhum anexo para este processo.</p>
+                    </div>
                 </div>
-                <div id="corresponsaveis-list-container"></div>
-            </div>
-
-            <div class="content-section">
-                <div class="section-header">
-                    <h2>Penhoras Realizadas</h2>
-                    <button id="add-penhora-btn" class="btn-primary">Adicionar</button>
-                </div>
-                <div id="penhoras-list-container"></div>
-            </div>
-            <div class="content-section">
-                <div class="section-header">
-                    <h2>Audiências Agendadas</h2>
-                    <button id="add-audiencia-btn" class="btn-primary">Adicionar</button>
-                </div>
-                <div id="audiencias-list-container"></div>
-            </div>
-
-            <div class="content-section">
-                <div class="section-header">
-                    <h2>Incidentes Processuais Vinculados</h2>
-                </div>
-                <div id="incidentes-list-container"></div>
-            </div>
-        `;
+            `;
 
       document
         .getElementById("back-to-devedor-btn")
         .addEventListener("click", () => {
           renderDevedorDetailPage(processo.devedorId);
         });
-
       document
         .getElementById("add-corresponsavel-btn")
         .addEventListener("click", () =>
@@ -1707,8 +1677,10 @@ function renderProcessoDetailPage(processoId) {
         .getElementById("add-audiencia-btn")
         .addEventListener("click", () => renderAudienciaFormModal(processoId));
       setupAudienciasListener(processoId);
-
       setupIncidentesDoProcessoListener(processo.numeroProcesso);
+      setupAnexosListener(processoId);
+
+      // Adicionaremos o setupAnexosListener aqui no Passo 4
 
       if (document.getElementById("promote-piloto-btn")) {
         document
@@ -5061,7 +5033,8 @@ function handlePasswordResetRequest(event) {
       errorMessage.style.color = "var(--cor-erro)";
     });
 }
-// FUNÇÃO 1: LÓGICA PRINCIPAL DO RELATÓRIO DE PENHORAS
+
+// Substitua esta função inteira
 async function gerarRelatorioPenhoras() {
   const devedorId = document.getElementById("filtro-devedor-penhora").value;
   const exequenteId = document.getElementById("filtro-exequente-penhora").value;
@@ -5075,7 +5048,6 @@ async function gerarRelatorioPenhoras() {
   resultsContainer.innerHTML = `<p class="empty-list-message">Gerando relatório, por favor aguarde...</p>`;
 
   try {
-    // 1. Buscar os processos relevantes
     let processosQuery = db
       .collection("processos")
       .where("devedorId", "==", devedorId);
@@ -5104,12 +5076,20 @@ async function gerarRelatorioPenhoras() {
     );
     const processoIds = Array.from(processosMap.keys());
 
-    // 2. Buscar as penhoras desses processos (em lotes de 30)
+    if (processoIds.length === 0) {
+      resultsContainer.innerHTML = `<p class="empty-list-message">Nenhuma penhora encontrada para os processos deste executado.</p>`;
+      return;
+    }
+
+    // AQUI ESTÁ A CORREÇÃO PRINCIPAL: Buscando em "chunks" de 10
     let penhoras = [];
     const chunks = [];
-    for (let i = 0; i < processoIds.length; i += 30) {
-      chunks.push(processoIds.slice(i, i + 30));
+    // Quebra a lista de IDs em pedaços de no máximo 10
+    for (let i = 0; i < processoIds.length; i += 10) {
+      chunks.push(processoIds.slice(i, i + 10));
     }
+
+    // Executa uma busca para cada pedaço em paralelo
     await Promise.all(
       chunks.map(async (chunk) => {
         const penhorasSnapshot = await db
@@ -5127,11 +5107,9 @@ async function gerarRelatorioPenhoras() {
       return;
     }
 
-    // 3. Agrupar os dados
     const groupedData = penhoras.reduce((acc, penhora) => {
       const processo = processosMap.get(penhora.processoId);
       if (!processo) return acc;
-
       const exId = processo.exequenteId;
       if (!acc[exId]) {
         acc[exId] = {};
@@ -5139,19 +5117,15 @@ async function gerarRelatorioPenhoras() {
       if (!acc[exId][processo.id]) {
         acc[exId][processo.id] = [];
       }
-
       acc[exId][processo.id].push(penhora);
       return acc;
     }, {});
 
-    // ALTERAÇÃO AQUI: Salva também o processosMap para uso futuro no PDF
     currentReportData = {
       raw: penhoras,
       grouped: groupedData,
       processos: processosMap,
     };
-
-    // ALTERAÇÃO AQUI: Passa o processosMap para a função de renderização
     renderRelatorioPenhorasResultados(groupedData, processosMap);
   } catch (error) {
     console.error("Erro ao gerar relatório de penhoras:", error);
@@ -5482,4 +5456,235 @@ function gerarPDFRelatorioIncidentes() {
     .toLocaleDateString("pt-BR")
     .replace(/\//g, "-");
   doc.save(`SASIF-Relatorio-Incidentes-${dataGeracao}.pdf`);
+}
+
+// ==================================================================
+// MÓDULO DE ANEXOS
+// ==================================================================
+
+function setupAnexosListener(processoId) {
+  if (anexosListenerUnsubscribe) {
+    anexosListenerUnsubscribe();
+    anexosListenerUnsubscribe = null;
+  }
+
+  anexosListenerUnsubscribe = db
+    .collection("anexos")
+    .where("processoId", "==", processoId)
+    .orderBy("criadoEm", "desc")
+    .onSnapshot(
+      (snapshot) => {
+        const anexos = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        renderAnexosUI(anexos, processoId);
+      },
+      (error) => {
+        console.error("Erro ao buscar anexos: ", error);
+        const container = document.getElementById("anexos-list-container");
+        if (container)
+          container.innerHTML = `<p class="empty-list-message error">Ocorreu um erro ao carregar os anexos.</p>`;
+      }
+    );
+}
+
+function renderAnexosUI(anexos, processoId) {
+  const actionsContainer = document.getElementById("anexos-actions-container");
+  const listContainer = document.getElementById("anexos-list-container");
+
+  if (!actionsContainer || !listContainer) return;
+
+  let actionsHTML = "";
+  if (anexos.length > 0) {
+    actionsHTML += `<button id="view-anexos-btn" class="btn-secondary">Visualizar Anexos (${anexos.length})</button>`;
+  }
+  actionsHTML += `<button id="add-anexo-btn" class="btn-primary" style="margin-left: 8px;">Anexar Novo</button>`;
+  actionsContainer.innerHTML = actionsHTML;
+
+  if (anexos.length > 0) {
+    document
+      .getElementById("view-anexos-btn")
+      .addEventListener("click", () => renderAnexosListModal(anexos));
+  }
+  document
+    .getElementById("add-anexo-btn")
+    .addEventListener("click", () => renderAnexoFormModal(processoId));
+
+  listContainer.innerHTML =
+    anexos.length === 0
+      ? `<p class="empty-list-message">Nenhum anexo para este processo.</p>`
+      : "";
+}
+
+function renderAnexoFormModal(processoId) {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+
+  modalOverlay.innerHTML = `
+        <div class="modal-content">
+            <h3>Anexar Novo Arquivo</h3>
+            <div class="form-group">
+                <label for="anexo-nome">Nome do Arquivo (Obrigatório)</label>
+                <input type="text" id="anexo-nome" placeholder="Ex: Petição da União, Decisão, etc." required>
+            </div>
+            <div class="form-group">
+                <label for="anexo-file">Selecionar Arquivo (PDF)</label>
+                <input type="file" id="anexo-file" accept=".pdf" required>
+            </div>
+            <div id="error-message"></div>
+            <div class="form-buttons">
+                <button id="save-anexo-btn" class="btn-primary">Salvar Anexo</button>
+                <button id="cancel-anexo-btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+  document.body.appendChild(modalOverlay);
+
+  const closeModal = () => document.body.removeChild(modalOverlay);
+  document
+    .getElementById("cancel-anexo-btn")
+    .addEventListener("click", closeModal);
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+  document
+    .getElementById("save-anexo-btn")
+    .addEventListener("click", () => handleSaveAnexo(processoId));
+}
+
+async function handleSaveAnexo(processoId) {
+  const nomeArquivo = document.getElementById("anexo-nome").value.trim();
+  const fileInput = document.getElementById("anexo-file");
+  const file = fileInput.files[0];
+  const saveButton = document.getElementById("save-anexo-btn");
+  const errorMessage = document.getElementById("error-message");
+  errorMessage.textContent = "";
+
+  if (!nomeArquivo || !file) {
+    errorMessage.textContent =
+      "Nome do arquivo e a seleção de um arquivo são obrigatórios.";
+    return;
+  }
+
+  saveButton.disabled = true;
+  saveButton.textContent = "Enviando...";
+
+  try {
+    const uniqueId = Date.now();
+    const storagePath = `anexos/${processoId}/${uniqueId}-${file.name}`;
+    const storageRef = storage.ref(storagePath);
+
+    const uploadTask = await storageRef.put(file);
+    const downloadURL = await uploadTask.ref.getDownloadURL();
+
+    await db.collection("anexos").add({
+      processoId,
+      nomeArquivo,
+      nomeOriginal: file.name,
+      storagePath,
+      downloadURL,
+      tipoArquivo: file.type,
+      tamanhoArquivo: file.size,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      userId: auth.currentUser.uid,
+    });
+
+    showToast("Anexo salvo com sucesso!");
+    document.body.removeChild(document.querySelector(".modal-overlay"));
+  } catch (error) {
+    console.error("Erro ao salvar anexo:", error);
+    errorMessage.textContent =
+      "Ocorreu um erro durante o upload. Tente novamente.";
+    saveButton.disabled = false;
+    saveButton.textContent = "Salvar Anexo";
+  }
+}
+
+function renderAnexosListModal(anexos) {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+
+  let anexosHTML = "";
+  if (anexos.length === 0) {
+    anexosHTML = `<p class="empty-list-message">Nenhum anexo encontrado.</p>`;
+  } else {
+    anexosHTML = `<ul class="anexos-list">`;
+    anexos.forEach((anexo) => {
+      const dataAnexo = anexo.criadoEm
+        ? anexo.criadoEm.toDate().toLocaleDateString("pt-BR")
+        : "Data indisponível";
+      anexosHTML += `
+                <li class="anexo-item">
+                    <div class="anexo-info">
+                        <span class="anexo-nome">${anexo.nomeArquivo}</span>
+                        <span class="anexo-data">Anexado em: ${dataAnexo}</span>
+                    </div>
+                    <div class="anexo-actions">
+                        <a href="${anexo.downloadURL}" target="_blank" rel="noopener noreferrer" class="action-icon" title="Visualizar/Baixar">
+                           <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#555"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                        </a>
+                        <button class="action-icon icon-delete" title="Excluir Anexo" data-id="${anexo.id}" data-path="${anexo.storagePath}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </div>
+                </li>
+            `;
+    });
+    anexosHTML += `</ul>`;
+  }
+
+  modalOverlay.innerHTML = `
+        <div class="modal-content modal-large">
+            <h3>Anexos do Processo</h3>
+            ${anexosHTML}
+            <div class="form-buttons" style="justify-content: flex-end; margin-top: 20px;">
+                <button id="close-anexos-modal" class="btn-secondary">Fechar</button>
+            </div>
+        </div>
+    `;
+  document.body.appendChild(modalOverlay);
+
+  const closeModal = () => document.body.removeChild(modalOverlay);
+  document
+    .getElementById("close-anexos-modal")
+    .addEventListener("click", closeModal);
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  modalOverlay.querySelector(".anexos-list")?.addEventListener("click", (e) => {
+    const deleteButton = e.target.closest(".icon-delete");
+    if (deleteButton) {
+      const anexoId = deleteButton.dataset.id;
+      const storagePath = deleteButton.dataset.path;
+      handleDeleteAnexo(anexoId, storagePath);
+    }
+  });
+}
+
+async function handleDeleteAnexo(anexoId, storagePath) {
+  if (!confirm("Tem certeza que deseja excluir este anexo permanentemente?")) {
+    return;
+  }
+
+  try {
+    if (storagePath) {
+      const storageRef = storage.ref(storagePath);
+      await storageRef.delete();
+    } else {
+      console.warn(
+        "Storage path não encontrado para o anexo, pulando deleção do Storage."
+      );
+    }
+
+    await db.collection("anexos").doc(anexoId).delete();
+
+    showToast("Anexo excluído com sucesso.");
+    const modal = document.querySelector(".modal-overlay");
+    if (modal) modal.remove();
+  } catch (error) {
+    console.error("Erro ao excluir anexo: ", error);
+    showToast("Ocorreu um erro ao excluir o anexo.", "error");
+  }
 }
