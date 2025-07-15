@@ -103,7 +103,10 @@ function renderExequenteForm(exequente = null) {
     isEditing ? exequente.nome : ""
   }" required></div><div class="form-group"><label for="cnpj">CNPJ</label><input type="text" id="cnpj" value="${
     isEditing ? formatCNPJForDisplay(exequente.cnpj) : ""
-  }" oninput="maskCNPJ(this)"></div><div id="error-message"></div><div class="form-buttons"><button id="save-exequente-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`;
+  }" ></div><div id="error-message"></div><div class="form-buttons"><button id="save-exequente-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div></div>`;
+  document
+    .getElementById("cnpj")
+    .addEventListener("input", (e) => maskCNPJ(e.target));
   document
     .getElementById("save-exequente-btn")
     .addEventListener("click", () =>
@@ -391,12 +394,10 @@ export function handleSaveIncidente(incidenteId = null) {
           ...data,
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
         })
-    : db
-        .collection("incidentesProcessuais")
-        .add({
-          ...data,
-          criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+    : db.collection("incidentesProcessuais").add({
+        ...data,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      });
   promise
     .then(() => {
       showToast(
