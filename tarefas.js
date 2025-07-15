@@ -320,6 +320,24 @@ function renderDiligenciasList(diligencias, date) {
     );
   });
 
+  tarefasDoMes.sort((a, b) => {
+    const dataA = a.isRecorrente
+      ? new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          new Date(a.dataAlvo.seconds * 1000).getUTCDate()
+        )
+      : new Date(a.dataAlvo.seconds * 1000);
+    const dataB = b.isRecorrente
+      ? new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          new Date(b.dataAlvo.seconds * 1000).getUTCDate()
+        )
+      : new Date(b.dataAlvo.seconds * 1000);
+    return dataA - dataB;
+  });
+
   if (tarefasDoMes.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhuma tarefa para este mês.</p>`;
     return;
