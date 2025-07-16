@@ -4,7 +4,14 @@
 // ==================================================================
 
 import { db, auth } from "./firebase.js"; // <--- ADICIONE , auth
-import { contentArea, pageTitle, showToast, renderSidebar } from "./ui.js";
+import {
+  contentArea,
+  pageTitle,
+  showToast,
+  renderSidebar,
+  showLoadingOverlay,
+  hideLoadingOverlay,
+} from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import {
   formatCNPJForDisplay,
@@ -170,17 +177,93 @@ function handleEditDevedor(devedorId) {
  * Deleta um devedor do banco de dados após confirmação.
  * @param {string} devedorId O ID do devedor a ser deletado.
  */
-function handleDeleteDevedor(devedorId) {
+
+/**
+ * Deleta um devedor e todos os seus dados associados (processos, incidentes, etc.)
+ * de forma atômica usando um batch write.
+ * @param {string} devedorId O ID do devedor a ser deletado.
+ */
+async function handleDeleteDevedor(devedorId) {
+  const devedorRef = db.collection("grandes_devedores").doc(devedorId);
+
+  // 1. Confirmação do usuário (MUITO IMPORTANTE)
   if (
-    confirm(
-      "Tem certeza que deseja excluir este Grande Devedor? Esta ação não pode ser desfeita e removerá todos os dados associados."
+    !confirm(
+      "ATENÇÃO!\n\nVocê tem certeza que deseja excluir este Grande Devedor? Todos os processos, anexos e dados vinculados a ele serão excluídos PERMANENTEMENTE. Esta ação não pode ser desfeita."
     )
   ) {
-    db.collection("grandes_devedores")
-      .doc(devedorId)
-      .delete()
-      .then(() => showToast("Devedor excluído com sucesso."))
-      .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
+    return;
+  }
+
+  showLoadingOverlay("Excluindo devedor e todos os dados...");
+
+  try {
+    const batch = db.batch();
+
+    // 2. Encontrar e marcar para exclusão os processos e seus sub-itens
+    const processosSnapshot = await db
+      .collection("processos")
+      .where("devedorId", "==", devedorId)
+      .get();
+    if (!processosSnapshot.empty) {
+      const subCollectionsPromises = [];
+
+      processosSnapshot.forEach((processoDoc) => {
+        const processoId = processoDoc.id;
+        // Adiciona o próprio processo ao lote de exclusão
+        batch.delete(processoDoc.ref);
+
+        // Cria promessas para buscar todas as sub-coleções e itens relacionados
+        const collectionsToDelete = [
+          "corresponsaveis",
+          "penhoras",
+          "audiencias",
+          "anexos",
+        ];
+        collectionsToDelete.forEach((collName) => {
+          subCollectionsPromises.push(
+            db.collection(collName).where("processoId", "==", processoId).get()
+          );
+        });
+
+        // Busca a sub-coleção 'historicoValores' que está aninhada
+        subCollectionsPromises.push(
+          processoDoc.ref.collection("historicoValores").get()
+        );
+      });
+
+      // Executa todas as buscas em paralelo
+      const allSubCollections = await Promise.all(subCollectionsPromises);
+      allSubCollections.forEach((snapshot) => {
+        snapshot.forEach((doc) => batch.delete(doc.ref));
+      });
+    }
+
+    // 3. Encontrar e marcar para exclusão os incidentes processuais
+    const incidentesSnapshot = await db
+      .collection("incidentesProcessuais")
+      .where("devedorId", "==", devedorId)
+      .get();
+    incidentesSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+    // 4. Marcar o próprio devedor para exclusão
+    batch.delete(devedorRef);
+
+    // 5. Executar a operação em lote
+    await batch.commit();
+
+    showToast(
+      "Devedor e todos os dados associados foram excluídos com sucesso!"
+    );
+  } catch (error) {
+    console.error("Erro na exclusão em cascata: ", error);
+    showToast(
+      "Ocorreu um erro crítico durante a exclusão. Os dados não foram alterados.",
+      "error"
+    );
+  } finally {
+    // 6. Garantir que o overlay de carregamento seja sempre removido
+    hideLoadingOverlay();
   }
 }
 
