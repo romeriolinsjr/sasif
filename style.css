@@ -48,8 +48,16 @@ body {
 
 .sidebar-header {
   padding: 20px;
-  text-align: center;
   border-bottom: 1px solid var(--cor-secundaria);
+  display: flex; /* Adicionado para centralizar o conteúdo */
+  justify-content: center; /* Adicionado para centralizar o conteúdo */
+  align-items: center; /* Adicionado para centralizar o conteúdo */
+}
+
+/* NOVA REGRA PARA A IMAGEM DO LOGO */
+.sidebar-header img {
+  max-width: 140px; /* Define uma largura máxima para o logo */
+  height: auto; /* Mantém a proporção da imagem */
 }
 
 .sidebar-header h1 {
