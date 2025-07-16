@@ -13,6 +13,7 @@
     />
 
     <!-- Favicon do SASIF -->
+    <link rel="manifest" href="manifest.json" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='15' fill='%230d47a1'%3E%3C/rect%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Roboto, sans-serif' font-size='60' fill='%23ffffff'%3ES%3C/text%3E%3C/svg%3E"
@@ -78,5 +79,23 @@
 
     <!-- Nosso Script -->
     <script type="module" src="main.js"></script>
+    <!-- Script de registro do Service Worker -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/sasif/service-worker.js")
+            .then((registration) => {
+              console.log(
+                "Service Worker registrado com sucesso:",
+                registration
+              );
+            })
+            .catch((error) => {
+              console.log("Falha ao registrar Service Worker:", error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
