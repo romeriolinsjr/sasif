@@ -52,7 +52,8 @@ export function renderImportacaoPage() {
 }
 
 /**
- * Processa os dados colados da planilha e os importa para o Firebase.
+ * Processa os dados colados da planilha e os importa para o Firebase,
+ * verificando duplicados e pedindo a ação do usuário.
  */
 async function handleProcessarImportacao() {
   const devedorId = document.getElementById("devedor-import-select").value;
@@ -60,24 +61,59 @@ async function handleProcessarImportacao() {
   const resultsContainer = document.getElementById("import-results-container");
   const processarBtn = document.getElementById("processar-import-btn");
 
-  if (!devedorId) {
+  if (!devedorId || !rawData.trim()) {
     resultsContainer.innerHTML =
-      '<div class="result-line error">Erro: Por favor, selecione um Grande Devedor.</div>';
-    return;
-  }
-  if (!rawData.trim()) {
-    resultsContainer.innerHTML =
-      '<div class="result-line error">Erro: Por favor, cole os dados da planilha.</div>';
+      '<div class="result-line error">Erro: Selecione um devedor e cole os dados da planilha.</div>';
     return;
   }
 
   processarBtn.disabled = true;
-  processarBtn.textContent = "Processando...";
-  resultsContainer.innerHTML = "Iniciando o processamento...";
+  processarBtn.textContent = "Verificando...";
+  resultsContainer.innerHTML =
+    "Iniciando verificação de processos existentes...";
 
   const linhas = rawData.trim().split("\n");
-  const processosParaCriar = [];
+  let importMode = "manter"; // 'manter' ou 'substituir'
+
+  // ===== LÓGICA DE VERIFICAÇÃO DE DUPLICADOS =====
+  const numerosDeProcessoNaLista = linhas
+    .map((linha) => linha.split("\t")[0].replace(/\D/g, ""))
+    .filter((np) => np.length === 20);
+
+  // Para evitar limitações do 'where-in', fazemos a consulta em lotes de 10 se necessário
+  const chunks = [];
+  for (let i = 0; i < numerosDeProcessoNaLista.length; i += 10) {
+    chunks.push(numerosDeProcessoNaLista.slice(i, i + 10));
+  }
+
+  const processosExistentesMap = new Map();
+  for (const chunk of chunks) {
+    const processosExistentesSnapshot = await db
+      .collection("processos")
+      .where("devedorId", "==", devedorId)
+      .where("numeroProcesso", "in", chunk)
+      .get();
+    processosExistentesSnapshot.forEach((doc) => {
+      processosExistentesMap.set(doc.data().numeroProcesso, doc.id);
+    });
+  }
+
+  const duplicados = numerosDeProcessoNaLista.filter((np) =>
+    processosExistentesMap.has(np)
+  );
+
+  if (duplicados.length > 0) {
+    const userChoice = confirm(
+      `Foram encontrados ${duplicados.length} processos que já existem no sistema para este devedor.\n\nClique em "OK" para SUBSTITUIR os dados dos processos existentes com as informações da sua lista.\n\nClique em "Cancelar" para MANTER os processos existentes e importar apenas os que são novos.`
+    );
+    importMode = userChoice ? "substituir" : "manter";
+  }
+  // ===== FIM DA LÓGICA DE VERIFICAÇÃO =====
+
+  processarBtn.textContent = "Processando...";
   const resultadosLog = [];
+  const processosParaCriar = [];
+  const processosParaAtualizar = [];
   let ultimoPilotoId = null;
 
   for (const [index, linha] of linhas.entries()) {
@@ -110,7 +146,6 @@ async function handleProcessarImportacao() {
       });
       continue;
     }
-
     const exequente = state.exequentesCache.find(
       (e) => e.nome.toLowerCase() === exequenteNome.toLowerCase()
     );
@@ -119,7 +154,7 @@ async function handleProcessarImportacao() {
         type: "error",
         message: `Linha ${
           index + 1
-        } (${numeroProcessoRaw}): Exequente "${exequenteNome}" não encontrado. Cadastre-o primeiro. Pulando.`,
+        } (${numeroProcessoRaw}): Exequente "${exequenteNome}" não encontrado. Pulando.`,
       });
       continue;
     }
@@ -129,19 +164,46 @@ async function handleProcessarImportacao() {
         String(valorRaw).replace("R$", "").replace(/\./g, "").replace(",", ".")
       ) || 0;
     const processoData = {
-      numeroProcesso,
+      numeroProcesso: numeroProcesso,
       exequenteId: exequente.id,
-      tipoProcesso,
+      tipoProcesso: tipoProcesso,
       cdas: cdasRaw.trim(),
-      devedorId,
+      devedorId: devedorId,
       uidUsuario: auth.currentUser.uid,
-      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
       valorAtual: {
-        valor,
+        valor: valor,
         data: firebase.firestore.FieldValue.serverTimestamp(),
       },
+      // Os campos 'status' e 'processoPilotoId' são definidos abaixo
     };
 
+    // ===== LÓGICA CONDICIONAL DE AÇÃO =====
+    if (processosExistentesMap.has(numeroProcesso)) {
+      if (importMode === "substituir") {
+        const idExistente = processosExistentesMap.get(numeroProcesso);
+        processosParaAtualizar.push({ id: idExistente, data: processoData });
+        resultadosLog.push({
+          type: "success",
+          message: `Linha ${index + 1}: ${formatProcessoForDisplay(
+            numeroProcesso
+          )} marcado para SUBSTITUIÇÃO.`,
+        });
+      } else {
+        resultadosLog.push({
+          type: "info",
+          message: `Linha ${index + 1}: ${formatProcessoForDisplay(
+            numeroProcesso
+          )} MANTIDO (ignorado).`,
+        });
+      }
+      // Importante: atualiza o último piloto, mesmo se estiver mantendo
+      if (tipoProcesso === "piloto") {
+        ultimoPilotoId = processosExistentesMap.get(numeroProcesso);
+      }
+      continue;
+    }
+
+    // Lógica para processos NOVOS
     if (tipoProcesso === "piloto") {
       processoData.status = "Ativo";
       processoData.id = db.collection("processos").doc().id;
@@ -172,39 +234,47 @@ async function handleProcessarImportacao() {
       });
       continue;
     }
-
     processosParaCriar.push(processoData);
     resultadosLog.push({
       type: "success",
-      message: `Linha ${index + 1}: Processo ${formatProcessoForDisplay(
+      message: `Linha ${index + 1}: ${formatProcessoForDisplay(
         numeroProcesso
-      )} validado.`,
+      )} validado para CRIAÇÃO.`,
     });
   }
 
-  if (processosParaCriar.some((p) => p.id)) {
+  if (processosParaCriar.length > 0 || processosParaAtualizar.length > 0) {
     const batch = db.batch();
+
     processosParaCriar.forEach((proc) => {
       const { id, ...dataToSave } = proc;
+      dataToSave.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
       batch.set(db.collection("processos").doc(id), dataToSave);
+    });
+
+    processosParaAtualizar.forEach((proc) => {
+      proc.data.atualizadoEmImportacao =
+        firebase.firestore.FieldValue.serverTimestamp();
+      batch.update(db.collection("processos").doc(proc.id), proc.data);
     });
 
     try {
       await batch.commit();
       resultadosLog.push({
         type: "success",
-        message: `\nLOTE FINALIZADO: ${processosParaCriar.length} processos importados com sucesso!`,
+        message: `\nLOTE FINALIZADO: ${processosParaCriar.length} processos criados e ${processosParaAtualizar.length} atualizados.`,
       });
     } catch (error) {
+      console.error("Erro na importação em lote:", error);
       resultadosLog.push({
         type: "error",
-        message: `\nERRO CRÍTICO: A importação falhou. Nenhum processo foi salvo.`,
+        message: `\nERRO CRÍTICO: A importação falhou. Nenhuma alteração foi salva.`,
       });
     }
   } else {
     resultadosLog.push({
-      type: "error",
-      message: `\nNenhum processo válido encontrado para importação.`,
+      type: "info",
+      message: `\nNenhum processo novo para importar ou substituir.`,
     });
   }
 
@@ -213,7 +283,6 @@ async function handleProcessarImportacao() {
     resultadosLog
       .map((log) => `<div class="result-line ${log.type}">${log.message}</div>`)
       .join("");
-
   processarBtn.disabled = false;
   processarBtn.textContent = "Processar e Importar";
   document.getElementById("import-data-textarea").value = "";
