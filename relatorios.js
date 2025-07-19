@@ -282,53 +282,81 @@ function updateSortIcons() {
     }
   });
 }
+/**
+ * Lida com o clique no cabeçalho da tabela de relatório para ordenar os dados.
+ */
 function handleReportSort(event) {
   const target = event.target.closest("th.sortable");
   if (!target) return;
+
   const sortKey = target.dataset.sortKey;
 
-  let direction = "asc";
-  if (
+  // Lógica de toggle aprimorada: se for a mesma coluna, inverte a direção.
+  // Se for uma coluna diferente, sempre começa com 'asc'.
+  const newDirection =
     state.currentSortState.key === sortKey &&
     state.currentSortState.direction === "asc"
-  ) {
-    direction = "desc";
-  }
-  state.setCurrentSortState({ key: sortKey, direction });
+      ? "desc"
+      : "asc";
 
+  // Atualiza o estado global usando a função setter correta.
+  state.setCurrentSortState({ key: sortKey, direction: newDirection });
+
+  // Ordena os dados em memória.
   state.currentReportData.sort((a, b) => {
-    let valA, valB;
-    if (sortKey === "numeroProcesso") {
-      const anoA = parseInt(a.numeroProcesso.substring(9, 13), 10);
-      const anoB = parseInt(b.numeroProcesso.substring(9, 13), 10);
-      if (anoA !== anoB) return anoA - anoB;
-      const seqA = parseInt(a.numeroProcesso.substring(0, 7), 10);
-      const seqB = parseInt(b.numeroProcesso.substring(0, 7), 10);
-      return seqA - seqB;
-    } else if (sortKey === "valor") {
-      valA = a.valorAtual?.valor || a.valorDivida || 0;
-      valB = b.valorAtual?.valor || b.valorDivida || 0;
-    } else if (sortKey === "devedor") {
-      valA =
-        state.devedoresCache.find((d) => d.id === a.devedorId)?.razaoSocial ||
-        "";
-      valB =
-        state.devedoresCache.find((d) => d.id === b.devedorId)?.razaoSocial ||
-        "";
-    } else if (sortKey === "exequente") {
-      valA =
-        state.exequentesCache.find((e) => e.id === a.exequenteId)?.nome || "";
-      valB =
-        state.exequentesCache.find((e) => e.id === b.exequenteId)?.nome || "";
+    let comparison = 0;
+
+    switch (sortKey) {
+      // LÓGICA CORRIGIDA E MAIS CLARA PARA NÚMERO DE PROCESSO
+      case "numeroProcesso": {
+        const anoA = parseInt(a.numeroProcesso.substring(9, 13), 10);
+        const anoB = parseInt(b.numeroProcesso.substring(9, 13), 10);
+
+        // 1. Compara pelo ano primeiro
+        comparison = anoA - anoB;
+
+        // 2. Se os anos são iguais, e somente nesse caso, compara pelo número sequencial
+        if (comparison === 0) {
+          const seqA = parseInt(a.numeroProcesso.substring(0, 7), 10);
+          const seqB = parseInt(b.numeroProcesso.substring(0, 7), 10);
+          comparison = seqA - seqB;
+        }
+        break;
+      }
+
+      case "valor": {
+        const valA = a.valorAtual?.valor || a.valorDivida || 0;
+        const valB = b.valorAtual?.valor || b.valorDivida || 0;
+        comparison = valA - valB;
+        break;
+      }
+
+      case "devedor": {
+        const valA =
+          state.devedoresCache.find((d) => d.id === a.devedorId)?.razaoSocial ||
+          "";
+        const valB =
+          state.devedoresCache.find((d) => d.id === b.devedorId)?.razaoSocial ||
+          "";
+        comparison = valA.localeCompare(valB, "pt-BR");
+        break;
+      }
+
+      case "exequente": {
+        const valA =
+          state.exequentesCache.find((e) => e.id === a.exequenteId)?.nome || "";
+        const valB =
+          state.exequentesCache.find((e) => e.id === b.exequenteId)?.nome || "";
+        comparison = valA.localeCompare(valB, "pt-BR");
+        break;
+      }
     }
 
-    const comparison =
-      typeof valA === "string"
-        ? valA.localeCompare(valB, "pt-BR")
-        : valA - valB;
-    return direction === "asc" ? comparison : -comparison;
+    // Aplica a direção (ascendente ou descendente) ao resultado final da comparação.
+    return newDirection === "asc" ? comparison : -comparison;
   });
 
+  // Re-renderiza a tabela com os dados agora ordenados e atualiza os ícones.
   renderReportTableBody(state.currentReportData);
   updateSortIcons();
 }
