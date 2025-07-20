@@ -34,7 +34,9 @@ export function renderDiligenciasPage(date = new Date()) {
         <div class="dashboard-actions"> <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button> </div>
         <div class="tasks-month-header">
             <button id="prev-month-btn" title="Mês Anterior">◀</button>
-            <h2>${mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)}</h2>
+<div class="month-title">${
+    mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)
+  }</div>
             <button id="next-month-btn" title="Mês Seguinte" ${
               desabilitarProximo ? "disabled" : ""
             }>▶</button>

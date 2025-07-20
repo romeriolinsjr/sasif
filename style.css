@@ -106,7 +106,7 @@ body {
 
 #content-area {
   padding: 24px;
-  overflow-y: auto;
+  overflow-y: scroll;
   flex-grow: 1;
 }
 
@@ -956,13 +956,17 @@ body {
   margin-bottom: 24px;
 }
 
-.tasks-month-header h2 {
-  margin: 0; /* Remove margens padrão do H2 que poderiam interferir */
-  padding: 0;
+.tasks-month-header .month-title {
+  color: var(--cor-texto-escuro); /* Mantém a cor do título */
+  font-size: 20px; /* Mantém o tamanho da fonte */
+  font-weight: 500; /* Mantém o peso da fonte (h2 é bold, 500 é um bom meio termo) */
   min-width: 250px;
-  text-align: center;
-  font-size: 20px;
-  /* As propriedades 'height' e 'line-height' foram removidas intencionalmente */
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #prev-month-btn,
