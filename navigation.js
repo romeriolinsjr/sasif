@@ -16,6 +16,7 @@ import {
   renderIncidentesPage,
 } from "./configuracoes.js";
 import { renderSidebar } from "./ui.js";
+import { renderDemandasEstruturaisPage } from "./demandasEstruturais.js";
 
 // Importa todas as variáveis de listener e suas funções 'setter' do módulo de estado
 import * as state from "./state.js";
@@ -74,6 +75,9 @@ export function navigateTo(page, params = {}) {
       break;
     case "grandesDevedores":
       renderGrandesDevedoresPage();
+      break;
+    case "demandasEstruturais":
+      renderDemandasEstruturaisPage();
       break;
     case "diligencias":
       renderDiligenciasPage();

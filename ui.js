@@ -42,6 +42,7 @@ export function renderSidebar(activePage) {
   const pages = [
     { id: "dashboard", name: "Dashboard" },
     { id: "grandesDevedores", name: "Grandes Devedores" },
+    { id: "demandasEstruturais", name: "Demandas Estruturais" },
     { id: "diligencias", name: "Tarefas do Mês" },
     { id: "relatorios", name: "Relatórios" },
     { id: "importacao", name: "Importação em Lote" },
