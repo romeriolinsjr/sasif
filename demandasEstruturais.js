@@ -37,7 +37,7 @@ export function renderDemandasEstruturaisPage() {
   document.body.removeEventListener("click", handlePageActions);
   document.body.addEventListener("click", handlePageActions);
   setupDemandasListener();
-  contentArea.innerHTML = `<div class="dashboard-actions"><button data-action="add-demanda-modal" class="btn-primary">Cadastrar Nova Demanda Estrutural</button></div><div id="demandas-list-container"><p class="empty-list-message">Carregando demandas...</p></div>`;
+  contentArea.innerHTML = `<div class="dashboard-actions"><button data-action="add-demanda-modal" class="btn-primary">Cadastrar Nova Demanda Estrutural</button></div><div id="demandas-list-container"><p class="empty-list-message">Carregando...</p></div>`;
 }
 function setupDemandasListener() {
   db.collection("demandasEstruturais")
@@ -58,7 +58,7 @@ function setupDemandasListener() {
         }
       },
       (error) => {
-        console.error("Erro ao buscar demandas:", error);
+        console.error("Erro:", error);
       }
     );
 }
@@ -124,12 +124,13 @@ async function handleSaveDemanda() {
         eixos: [],
         atores: [],
         eventos: [],
+        atosDeAudiencia: [],
         criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
       });
-    showToast("Demanda cadastrada com sucesso!");
+    showToast("Demanda cadastrada!");
     document.body.removeChild(document.querySelector(".modal-overlay"));
   } catch (error) {
-    document.getElementById("error-message").textContent = "Ocorreu um erro.";
+    document.getElementById("error-message").textContent = "Erro.";
   }
 }
 function handleDeleteDemanda(demandaId) {
@@ -153,7 +154,8 @@ export function renderDemandaEstruturalDetailPage(demandaId, devedorId) {
   const tabs = [
     { id: "visaoGeral", name: "Visão Geral" },
     { id: "atores", name: "Atores Envolvidos" },
-    { id: "historico", name: "Histórico de Eventos" },
+    { id: "historico", name: "Histórico" },
+    { id: "encaminhamentos", name: "Encaminhamentos" },
     { id: "gerenciarEixos", name: "Gerenciar Eixos" },
   ];
   contentArea.innerHTML = `<div class="detail-page-header"><h2>${
@@ -189,6 +191,9 @@ function renderActiveTabContent() {
     case "historico":
       renderHistoricoTab(demanda);
       break;
+    case "encaminhamentos":
+      renderEncaminhamentosTab(demanda);
+      break;
     case "gerenciarEixos":
       renderGerenciarEixosTab(demanda);
       break;
@@ -199,49 +204,51 @@ function renderActiveTabContent() {
 
 // --- RENDERIZADORES DE CONTEÚDO DAS ABAS ---
 function renderVisaoGeralTab(demanda) {
-  const container = document.getElementById("tab-content");
-  container.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição Geral da Demanda</h3><button class="action-icon" data-action="edit-descricao-geral" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
+  const c = document.getElementById("tab-content");
+  c.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição Geral</h3><button class="action-icon" data-action="edit-descricao-geral" title="Editar"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
     demanda.descricaoGeral ? "" : "empty"
-  }">${
-    demanda.descricaoGeral || "Nenhuma descrição geral cadastrada."
-  }</div></div><p class="empty-list-message">Outras informações de visão geral podem ser adicionadas aqui no futuro.</p>`;
+  }">${demanda.descricaoGeral || "Nenhuma descrição geral."}</div></div>`;
 }
 function renderAtoresTab(demanda) {
-  const container = document.getElementById("tab-content");
-  const editAtoresIconFill = activeDemandaState.isEditingAtores
+  const c = document.getElementById("tab-content");
+  const fill = activeDemandaState.isEditingAtores
     ? "var(--cor-primaria)"
     : "#555";
-  container.innerHTML = `<div class="atores-card ${
+  c.innerHTML = `<div class="atores-card ${
     activeDemandaState.isEditingAtores ? "edit-mode" : ""
-  }"><div class="atores-header"><h3>Atores Envolvidos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-ator" title="Adicionar Ator"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-atores" title="Gerenciar Atores"><svg viewBox="0 0 24 24" fill="${editAtoresIconFill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="atores-list-container"></div></div>`;
+  }"><div class="atores-header"><h3>Atores Envolvidos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-ator" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-atores" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="atores-list-container"></div></div>`;
   renderAtoresList(demanda.atores || []);
 }
 function renderHistoricoTab(demanda) {
-  const container = document.getElementById("tab-content");
-  const editEventosIconFill = activeDemandaState.isEditingEventos
+  const c = document.getElementById("tab-content");
+  const fill = activeDemandaState.isEditingEventos
     ? "var(--cor-primaria)"
     : "#555";
   const hasEvents = demanda.eventos && demanda.eventos.length > 0;
-  container.innerHTML = `<div class="atores-card"><div class="atores-header"><h3>Histórico de Eventos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-evento" title="Adicionar Evento"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-eventos" title="Gerenciar Eventos"><svg viewBox="0 0 24 24" fill="${editEventosIconFill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="timeline-container" class="timeline-container ${
+  c.innerHTML = `<div class="atores-card"><div class="atores-header"><h3>Histórico de Eventos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-evento" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-eventos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="timeline-container" class="timeline-container ${
     activeDemandaState.isEditingEventos ? "edit-mode" : ""
   } ${hasEvents ? "" : "no-events"}"></div></div>`;
   renderTimeline(demanda.eventos || []);
 }
 function renderGerenciarEixosTab(demanda) {
-  const container = document.getElementById("tab-content");
-  const editEixosIconFill = activeDemandaState.isEditingEixos
+  const c = document.getElementById("tab-content");
+  const fill = activeDemandaState.isEditingEixos
     ? "var(--cor-primaria)"
     : "#555";
-  container.innerHTML = `<div class="eixos-section ${
+  c.innerHTML = `<div class="eixos-section ${
     activeDemandaState.isEditingEixos ? "edit-mode" : ""
-  }"><div class="eixos-header"><h3>Eixos da Demanda</h3><div class="eixos-actions"><button class="action-icon" data-action="add-eixo" title="Adicionar Eixo"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar Eixos"><svg viewBox="0 0 24 24" fill="${editEixosIconFill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="eixos-buttons-list" class="eixos-list"></div></div><div id="eixo-content-area"></div>`;
+  }"><div class="eixos-header"><h3>Eixos da Demanda</h3><div class="eixos-actions"><button class="action-icon" data-action="add-eixo" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="eixos-buttons-list" class="eixos-list"></div></div><div id="eixo-content-area"></div>`;
   renderEixosUI(demanda);
+}
+function renderEncaminhamentosTab(demanda) {
+  const container = document.getElementById("tab-content");
+  container.innerHTML = `<div class="atores-card"><div class="atores-header"><h3>Atos Processuais e Encaminhamentos</h3><button class="action-icon" data-action="add-ato" title="Adicionar Ato Processual"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button></div><div id="atos-timeline-container"></div></div>`;
+  renderAtosTimeline(demanda.atosDeAudiencia || []);
 }
 
 // ==================================================================
 // FUNÇÕES DE LÓGICA INTERNA
 // ==================================================================
-
 function renderAtoresList(atores) {
   const container = document.getElementById("atores-list-container");
   if (!container) return;
@@ -363,7 +370,6 @@ async function handleMoveAtor(atorId, direction) {
     showToast("Erro ao reordenar.", "error");
   }
 }
-
 function renderEixosUI(demanda) {
   const eixos = demanda.eixos || [];
   const container = document.getElementById("eixos-buttons-list");
@@ -496,7 +502,6 @@ async function handleDeleteEixo(eixoId, eixoNome) {
     showToast("Erro.", "error");
   }
 }
-
 function renderTimeline(eventos) {
   const container = document.getElementById("timeline-container");
   if (!container) return;
@@ -530,7 +535,7 @@ function renderEventoModal(evento = null) {
     ? new Date(evento.data.seconds * 1000).toISOString().split("T")[0]
     : "";
   const anexoDisplayHTML = evento?.anexoURL
-    ? `<div class="current-anexo-display" id="current-anexo-display"><span>${evento.anexoNome}</span><button class="action-icon icon-delete" data-action="remove-anexo" title="Remover anexo existente"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>`
+    ? `<div class="current-anexo-display" id="current-anexo-display"><span>${evento.anexoNome}</span><button class="action-icon icon-delete" data-action="remove-anexo" title="Remover anexo"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>`
     : "";
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
@@ -542,7 +547,7 @@ function renderEventoModal(evento = null) {
     evento?.tipo || ""
   }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" rows="5">${
     evento?.descricao || ""
-  }</textarea></div><div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar Documento (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
+  }</textarea></div><div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
     evento?.id || ""
   }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
@@ -624,8 +629,8 @@ async function handleSaveEvento(eventoId = null) {
     showToast(`Evento ${eventoId ? "atualizado" : "salvo"}!`);
     document.body.removeChild(document.querySelector(".modal-overlay"));
   } catch (error) {
-    console.error("Erro ao salvar evento:", error);
-    errorMsg.textContent = "Ocorreu um erro ao salvar o anexo.";
+    console.error("Erro:", error);
+    errorMsg.textContent = "Erro ao salvar anexo.";
     saveBtn.disabled = false;
     saveBtn.textContent = "Salvar";
   }
@@ -653,6 +658,261 @@ async function handleDeleteEvento(eventoId) {
     .update({ eventos: eventosAtualizados })
     .then(() => showToast("Evento excluído."))
     .catch(() => showToast("Erro.", "error"));
+}
+
+function renderAtosTimeline(atos) {
+  const container = document.getElementById("atos-timeline-container");
+  if (!container) return;
+  const sortedAtos = (atos || []).sort(
+    (a, b) => b.data.toDate() - a.data.toDate()
+  );
+  if (sortedAtos.length === 0) {
+    container.innerHTML = `<p class="empty-list-message">Nenhum ato processual cadastrado.</p>`;
+    return;
+  }
+  container.innerHTML = sortedAtos
+    .map((ato, index) => {
+      const position = index % 2 === 0 ? "left" : "right";
+      const dataFormatada = ato.data.toDate().toLocaleDateString("pt-BR");
+      return `<div class="timeline-event timeline-${position}"><div id="${ato.id}" class="timeline-event-content"><div class="audiencia-card-header"><h4>Ato Processual</h4><div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Ato" data-action="edit-ato" data-ato-id="${ato.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Ato" data-action="delete-ato" data-ato-id="${ato.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></div><div class="audiencia-card-info"><span><strong>Processo:</strong> ${ato.processoNumero}</span><span><strong>Data:</strong> ${dataFormatada}</span><span><strong>Hora:</strong> ${ato.hora}</span></div><div class="encaminhamentos-header"><h5>Encaminhamentos</h5><button class="action-icon" data-action="add-encaminhamento" data-ato-id="${ato.id}" title="Adicionar Encaminhamento"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button></div><div id="encaminhamentos-list-${ato.id}"></div></div></div>`;
+    })
+    .join("");
+  sortedAtos.forEach((ato) =>
+    renderEncaminhamentosList(ato.id, ato.encaminhamentos || [])
+  );
+}
+function renderEncaminhamentosList(atoId, encaminhamentos) {
+  const container = document.getElementById(`encaminhamentos-list-${atoId}`);
+  if (!container) return;
+  if (encaminhamentos.length === 0) {
+    container.innerHTML = `<p style="font-size:14px; text-align:center; padding:10px;">Nenhum encaminhamento.</p>`;
+    return;
+  }
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const tableRows = encaminhamentos
+    .map((enc) => {
+      const ator = (demanda.atores || []).find((a) => a.id === enc.entidadeId);
+      return `<tr class="${
+        enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
+      }"><td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${atoId}" data-enc-id="${
+        enc.id
+      }" ${enc.status === "cumprido" ? "checked" : ""}></td><td><strong>${
+        ator?.nome || "Entidade não encontrada"
+      }</strong><br><span style="font-size:13px; color:#555;">${
+        enc.descricao
+      }</span></td><td>${
+        enc.prazo
+      }</td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
+        enc.id
+      }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
+        enc.id
+      }"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+    })
+    .join("");
+  container.innerHTML = `<table class="encaminhamentos-table"><thead><tr><th style="width:40px;">Status</th><th>Descrição</th><th>Prazo</th><th class="actions-cell">Ações</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+}
+function renderAtoModal(ato = null) {
+  const isEditing = ato !== null;
+  const dataFormatada = ato
+    ? new Date(ato.data.seconds * 1000).toISOString().split("T")[0]
+    : "";
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+  modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${
+    isEditing ? "Editar" : "Adicionar"
+  } Ato Processual</h3><div class="form-group"><label for="ato-processo">Nº do Processo</label><input type="text" id="ato-processo" value="${
+    ato?.processoNumero || ""
+  }"></div><div style="display:flex;gap:16px;"><div class="form-group" style="flex:1;"><label for="ato-data">Data</label><input type="date" id="ato-data" value="${dataFormatada}"></div><div class="form-group" style="flex:1;"><label for="ato-hora">Hora</label><input type="time" id="ato-hora" value="${
+    ato?.hora || ""
+  }"></div></div><div class="form-group"><label for="ato-descricao">Descrição (Opcional)</label><textarea id="ato-descricao" rows="3">${
+    ato?.descricao || ""
+  }</textarea></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-ato" data-ato-id="${
+    ato?.id || ""
+  }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  document.body.appendChild(modalOverlay);
+}
+async function handleSaveAto(atoId = null) {
+  const processoNumero = document.getElementById("ato-processo").value.trim();
+  const dataInput = document.getElementById("ato-data").value;
+  const hora = document.getElementById("ato-hora").value.trim();
+  const descricao = document.getElementById("ato-descricao").value.trim();
+  if (!processoNumero || !dataInput || !hora) {
+    document.getElementById("error-message").textContent =
+      "Processo, Data e Hora são obrigatórios.";
+    return;
+  }
+  const data = firebase.firestore.Timestamp.fromDate(
+    new Date(dataInput + "T00:00:00")
+  );
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  let atos = demanda.atosDeAudiencia || [];
+  if (atoId) {
+    atos = atos.map((a) =>
+      a.id === atoId ? { ...a, processoNumero, data, hora, descricao } : a
+    );
+  } else {
+    const novoAto = {
+      id: `_${Math.random().toString(36).substr(2, 9)}`,
+      processoNumero,
+      data,
+      hora,
+      descricao,
+      encaminhamentos: [],
+    };
+    atos.push(novoAto);
+  }
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atos });
+    showToast(`Ato ${atoId ? "atualizado" : "salvo"}!`);
+    document.body.removeChild(document.querySelector(".modal-overlay"));
+  } catch (e) {
+    document.getElementById("error-message").textContent = "Erro ao salvar.";
+  }
+}
+async function handleDeleteAto(atoId) {
+  if (!confirm("Excluir este ato e todos os seus encaminhamentos?")) return;
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atosAtualizados = (demanda.atosDeAudiencia || []).filter(
+    (a) => a.id !== atoId
+  );
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atosAtualizados });
+    showToast("Ato excluído!");
+  } catch (e) {
+    showToast("Erro.", "error");
+  }
+}
+function renderEncaminhamentoModal(atoId, encaminhamento = null) {
+  const isEditing = encaminhamento !== null;
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atoresOptions = (demanda.atores || [])
+    .map(
+      (ator) =>
+        `<option value="${ator.id}" ${
+          encaminhamento?.entidadeId === ator.id ? "selected" : ""
+        }>${ator.nome}</option>`
+    )
+    .join("");
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+  modalOverlay.innerHTML = `<div class="modal-content"><h3>${
+    isEditing ? "Editar" : "Adicionar"
+  } Encaminhamento</h3><div class="form-group"><label for="enc-entidade">Entidade Responsável</label><select id="enc-entidade"><option value="">-- Selecione --</option>${atoresOptions}</select></div><div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
+    encaminhamento?.pessoa || ""
+  }"></div><div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" value="${
+    encaminhamento?.prazo || ""
+  }"></div><div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" rows="4">${
+    encaminhamento?.descricao || ""
+  }</textarea></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
+    encaminhamento?.id || ""
+  }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  document.body.appendChild(modalOverlay);
+}
+async function handleSaveEncaminhamento(atoId, encId = null) {
+  const entidadeId = document.getElementById("enc-entidade").value;
+  const pessoa = document.getElementById("enc-pessoa").value.trim();
+  const prazo = document.getElementById("enc-prazo").value.trim();
+  const descricao = document.getElementById("enc-descricao").value.trim();
+  if (!entidadeId || !prazo || !descricao) {
+    document.getElementById("error-message").textContent =
+      "Entidade, Prazo e Descrição são obrigatórios.";
+    return;
+  }
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atos = demanda.atosDeAudiencia || [];
+  const atoIndex = atos.findIndex((a) => a.id === atoId);
+  if (atoIndex === -1) return;
+  let encaminhamentos = atos[atoIndex].encaminhamentos || [];
+  if (encId) {
+    encaminhamentos = encaminhamentos.map((enc) =>
+      enc.id === encId ? { ...enc, entidadeId, pessoa, prazo, descricao } : enc
+    );
+  } else {
+    const novoEnc = {
+      id: `_${Math.random().toString(36).substr(2, 9)}`,
+      entidadeId,
+      pessoa,
+      prazo,
+      descricao,
+      status: "pendente",
+    };
+    encaminhamentos.push(novoEnc);
+  }
+  atos[atoIndex].encaminhamentos = encaminhamentos;
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atos });
+    showToast(`Encaminhamento ${encId ? "atualizado" : "salvo"}!`);
+    document.body.removeChild(document.querySelector(".modal-overlay"));
+  } catch (e) {
+    document.getElementById("error-message").textContent = "Erro ao salvar.";
+  }
+}
+async function handleDeleteEncaminhamento(atoId, encId) {
+  if (!confirm("Excluir este encaminhamento?")) return;
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atos = demanda.atosDeAudiencia || [];
+  const atoIndex = atos.findIndex((a) => a.id === atoId);
+  if (atoIndex === -1) return;
+  atos[atoIndex].encaminhamentos = (
+    atos[atoIndex].encaminhamentos || []
+  ).filter((enc) => enc.id !== encId);
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atos });
+    showToast("Encaminhamento excluído!");
+  } catch (e) {
+    showToast("Erro.", "error");
+  }
+}
+async function handleToggleEncaminhamentoStatus(atoId, encId) {
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atos = demanda.atosDeAudiencia || [];
+  const atoIndex = atos.findIndex((a) => a.id === atoId);
+  if (atoIndex === -1) return;
+  atos[atoIndex].encaminhamentos = (atos[atoIndex].encaminhamentos || []).map(
+    (enc) => {
+      if (enc.id === encId) {
+        return {
+          ...enc,
+          status: enc.status === "pendente" ? "cumprido" : "pendente",
+        };
+      }
+      return enc;
+    }
+  );
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atos });
+  } catch (e) {
+    showToast("Erro ao atualizar status.", "error");
+  }
 }
 
 // ==================================================================
@@ -787,5 +1047,49 @@ function handlePageActions(event) {
       if (anexoDisplay) anexoDisplay.remove();
       break;
     }
+    // Encaminhamentos
+    case "add-ato":
+      renderAtoModal();
+      break;
+    case "save-ato":
+      handleSaveAto(target.dataset.atoId);
+      break;
+    case "edit-ato": {
+      const d = demandasCache.find(
+        (d) => d.id === activeDemandaState.demandaId
+      );
+      const a = d.atosDeAudiencia.find((a) => a.id === target.dataset.atoId);
+      renderAtoModal(a);
+      break;
+    }
+    case "delete-ato":
+      handleDeleteAto(target.dataset.atoId);
+      break;
+    case "add-encaminhamento":
+      renderEncaminhamentoModal(target.dataset.atoId);
+      break;
+    case "edit-encaminhamento": {
+      const d = demandasCache.find(
+        (d) => d.id === activeDemandaState.demandaId
+      );
+      const a = d.atosDeAudiencia.find((a) => a.id === target.dataset.atoId);
+      const e = a.encaminhamentos.find(
+        (enc) => enc.id === target.dataset.encId
+      );
+      renderEncaminhamentoModal(target.dataset.atoId, e);
+      break;
+    }
+    case "save-encaminhamento":
+      handleSaveEncaminhamento(target.dataset.atoId, target.dataset.encId);
+      break;
+    case "delete-encaminhamento":
+      handleDeleteEncaminhamento(target.dataset.atoId, target.dataset.encId);
+      break;
+    case "toggle-encaminhamento-status":
+      handleToggleEncaminhamentoStatus(
+        target.dataset.atoId,
+        target.dataset.encId
+      );
+      break;
   }
 }
