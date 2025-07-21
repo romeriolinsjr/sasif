@@ -16,7 +16,10 @@ import {
   renderIncidentesPage,
 } from "./configuracoes.js";
 import { renderSidebar } from "./ui.js";
-import { renderDemandasEstruturaisPage } from "./demandasEstruturais.js";
+import {
+  renderDemandasEstruturaisPage,
+  renderDemandaEstruturalDetailPage,
+} from "./demandasEstruturais.js";
 
 // Importa todas as variáveis de listener e suas funções 'setter' do módulo de estado
 import * as state from "./state.js";
@@ -78,6 +81,9 @@ export function navigateTo(page, params = {}) {
       break;
     case "demandasEstruturais":
       renderDemandasEstruturaisPage();
+      break;
+    case "demandaEstruturalDetail":
+      renderDemandaEstruturalDetailPage(params.id, params.devedorId);
       break;
     case "diligencias":
       renderDiligenciasPage();
