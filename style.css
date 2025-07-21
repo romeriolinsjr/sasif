@@ -1425,11 +1425,6 @@ body {
   border-bottom-color: var(--cor-primaria);
 }
 
-.tab-content {
-  /* O conteúdo de cada aba será renderizado aqui. */
-  /* Não precisa de estilo específico por enquanto. */
-}
-
 /* --- LINHA DO TEMPO (TIMELINE) --- */
 .timeline-container {
   position: relative;
