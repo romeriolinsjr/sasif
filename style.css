@@ -1187,3 +1187,204 @@ body {
 .anexo-actions .action-icon svg {
   fill: #555;
 }
+
+/* --- PÁGINA DE DETALHES - DEMANDA ESTRUTURAL --- */
+
+.detail-page-header {
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  margin-bottom: 24px;
+}
+
+.detail-page-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  color: var(--cor-primaria);
+}
+
+.detail-page-header p {
+  margin: 0;
+  font-size: 16px;
+  color: #555;
+}
+
+.eixos-section {
+  padding: 20px;
+  background-color: #eef1f5;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.eixos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.eixos-header h3 {
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+}
+
+.eixos-actions .action-icon {
+  margin-left: 4px; /* Menor espaçamento entre ícones */
+}
+
+.eixos-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.eixo-button {
+  padding: 12px 24px; /* Botões maiores e mais elegantes */
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background-color: white;
+  color: var(--cor-texto-escuro);
+  cursor: pointer;
+  font-size: 16px; /* Fonte maior */
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eixo-button:hover {
+  background-color: #f8f9fa;
+  border-color: #ccc;
+}
+
+.eixo-button.active {
+  background-color: var(--cor-primaria);
+  color: white;
+  border-color: var(--cor-primaria);
+  font-weight: 700;
+}
+
+.eixo-delete-btn {
+  display: none; /* Escondido por padrão */
+  margin-left: 12px; /* Espaço entre nome e 'x' */
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+}
+
+/* Regra para quando o modo de edição está ativo */
+.eixos-section.edit-mode .eixo-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#eixo-content-area {
+  padding: 24px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  min-height: 200px;
+}
+
+/* --- COMPONENTES DA PÁGINA DE DETALHES --- */
+.description-card {
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  margin-bottom: 24px;
+}
+
+.description-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--cor-borda);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.description-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.description-content {
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap; /* Respeita quebras de linha e espaços */
+  color: #333;
+}
+
+.description-content.empty {
+  color: #888;
+  font-style: italic;
+}
+
+/* --- SEÇÃO ATORES ENVOLVIDOS --- */
+.atores-card {
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  margin-bottom: 24px;
+}
+
+.atores-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--cor-borda);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.atores-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* --- CONTROLES DE ORDENAÇÃO DE ATORES --- */
+.order-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cor-borda);
+  background-color: var(--cor-fundo);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.order-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.order-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: #555;
+}
+
+.order-btn:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
