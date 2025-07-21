@@ -1568,3 +1568,57 @@ body {
 .timeline-container.edit-mode .timeline-actions {
   display: flex; /* Aparece no modo de edição */
 }
+
+/* --- ANEXOS DA LINHA DO TEMPO --- */
+.timeline-event-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cor-borda);
+}
+
+.anexo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--cor-secundaria);
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.anexo-link:hover {
+  background-color: #eef1f5;
+  text-decoration: underline;
+}
+
+.anexo-link svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--cor-secundaria);
+}
+
+/* --- FORMULÁRIO DE ANEXO NO MODAL --- */
+.anexo-upload-container {
+  margin-top: 16px;
+  padding: 16px;
+  border: 2px dashed var(--cor-borda);
+  border-radius: 8px;
+  background-color: var(--cor-fundo);
+}
+
+.current-anexo-display {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #e8f5e9;
+  border: 1px solid var(--cor-sucesso);
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.current-anexo-display span {
+  font-weight: 500;
+}
