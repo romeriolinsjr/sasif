@@ -663,7 +663,6 @@ async function handleDeleteEvento(eventoId) {
     .then(() => showToast("Evento excluído."))
     .catch(() => showToast("Erro.", "error"));
 }
-
 function renderAtosTimeline(atos) {
   const container = document.getElementById("atos-timeline-container");
   if (!container) return;
@@ -683,7 +682,9 @@ function renderAtosTimeline(atos) {
         ato.id
       }" class="timeline-event-content ${
         isEditing ? "edit-mode" : ""
-      }"><div class="audiencia-card-header"><h4>Ato Processual</h4><div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Ato" data-action="edit-ato" data-ato-id="${
+      }"><div class="audiencia-card-header"><h4>${
+        ato.tipo || "Ato Processual"
+      }</h4><div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Ato" data-action="edit-ato" data-ato-id="${
         ato.id
       }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Ato" data-action="delete-ato" data-ato-id="${
         ato.id
@@ -746,32 +747,61 @@ function renderAtoModal(ato = null) {
   modalOverlay.className = "modal-overlay";
   modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${
     isEditing ? "Editar" : "Adicionar"
-  } Ato Processual</h3><div class="form-group"><label for="ato-processo">Nº do Processo</label><input type="text" id="ato-processo" value="${
-    ato?.processoNumero || ""
-  }"></div><div style="display:flex;gap:16px;"><div class="form-group" style="flex:1;"><label for="ato-data">Data</label><input type="date" id="ato-data" value="${dataFormatada}"></div><div class="form-group" style="flex:1;"><label for="ato-hora">Hora</label><input type="time" id="ato-hora" value="${
-    ato?.hora || ""
-  }"></div></div><div class="form-group"><label for="ato-descricao">Descrição (Opcional)</label><textarea id="ato-descricao" rows="3">${
-    ato?.descricao || ""
-  }</textarea></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-ato" data-ato-id="${
-    ato?.id || ""
-  }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  } Ato Processual</h3>
+    <div style="display:flex;gap:16px;">
+        <div class="form-group" style="flex:2;">
+            <label for="ato-tipo">Tipo de Ato</label>
+            <input type="text" id="ato-tipo" value="${
+              ato?.tipo || ""
+            }" placeholder="Ex: Audiência, Reunião, Decisão">
+        </div>
+        <div class="form-group" style="flex:3;">
+            <label for="ato-processo">Nº do Processo</label>
+            <input type="text" id="ato-processo" value="${
+              ato?.processoNumero || ""
+            }">
+        </div>
+    </div>
+    <div style="display:flex;gap:16px;">
+        <div class="form-group" style="flex:1;">
+            <label for="ato-data">Data</label>
+            <input type="date" id="ato-data" value="${dataFormatada}">
+        </div>
+        <div class="form-group" style="flex:1;">
+            <label for="ato-hora">Hora</label>
+            <input type="time" id="ato-hora" value="${ato?.hora || ""}">
+        </div>
+    </div>
+    <div class="form-group">
+        <label for="ato-descricao">Descrição (Opcional)</label>
+        <textarea id="ato-descricao" rows="3">${ato?.descricao || ""}</textarea>
+    </div>
+    <div id="error-message"></div>
+    <div class="form-buttons">
+        <button data-action="save-ato" data-ato-id="${
+          ato?.id || ""
+        }" class="btn-primary">Salvar</button>
+        <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+    </div>
+  </div>`;
   document.body.appendChild(modalOverlay);
 
   const processoInput = document.getElementById("ato-processo");
   if (processoInput) {
     processoInput.addEventListener("input", (e) => {
-      maskProcesso(e.target); // <-- MUDANÇA PRINCIPAL AQUI
+      maskProcesso(e.target);
     });
   }
 }
 async function handleSaveAto(atoId = null) {
+  const tipo = document.getElementById("ato-tipo").value.trim();
   const processoNumero = document.getElementById("ato-processo").value.trim();
   const dataInput = document.getElementById("ato-data").value;
   const hora = document.getElementById("ato-hora").value.trim();
   const descricao = document.getElementById("ato-descricao").value.trim();
-  if (!processoNumero || !dataInput || !hora) {
+  if (!tipo || !processoNumero || !dataInput || !hora) {
     document.getElementById("error-message").textContent =
-      "Processo, Data e Hora são obrigatórios.";
+      "Tipo, Processo, Data e Hora são obrigatórios.";
     return;
   }
   const data = firebase.firestore.Timestamp.fromDate(
@@ -783,11 +813,12 @@ async function handleSaveAto(atoId = null) {
   let atos = demanda.atosDeAudiencia || [];
   if (atoId) {
     atos = atos.map((a) =>
-      a.id === atoId ? { ...a, processoNumero, data, hora, descricao } : a
+      a.id === atoId ? { ...a, tipo, processoNumero, data, hora, descricao } : a
     );
   } else {
     const novoAto = {
       id: `_${Math.random().toString(36).substr(2, 9)}`,
+      tipo,
       processoNumero,
       data,
       hora,
