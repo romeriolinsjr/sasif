@@ -1724,3 +1724,32 @@ body {
   color: #666;
   text-decoration: line-through;
 }
+
+/* --- CONTROLES DO MODO DE EDIÇÃO (ENCAMINHAMENTOS) --- */
+
+/* Por padrão, esconde os botões de ação do Ato Processual... */
+.timeline-event-content .timeline-actions {
+  display: none;
+}
+
+/* ...o botão de adicionar novo encaminhamento... */
+.encaminhamentos-header .action-icon[data-action="add-encaminhamento"] {
+  display: none;
+}
+
+/* ...e a coluna de ações da tabela. */
+.encaminhamentos-table .actions-cell {
+  display: none;
+}
+
+/* Quando o card do Ato Processual está em modo de edição, exibe os elementos. */
+.timeline-event-content.edit-mode .timeline-actions,
+.timeline-event-content.edit-mode
+  .encaminhamentos-header
+  .action-icon[data-action="add-encaminhamento"] {
+  display: inline-flex; /* ou flex, dependendo do elemento */
+}
+
+.timeline-event-content.edit-mode .encaminhamentos-table .actions-cell {
+  display: table-cell;
+}

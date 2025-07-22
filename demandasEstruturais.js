@@ -7,6 +7,7 @@ import { db, storage } from "./firebase.js";
 import { contentArea, pageTitle, showToast } from "./ui.js";
 import { devedoresCache } from "./state.js";
 import { navigateTo } from "./navigation.js";
+import { formatCNPJForDisplay, maskProcesso } from "./utils.js";
 
 let demandasCache = [];
 let activeDemandaState = {
@@ -17,6 +18,7 @@ let activeDemandaState = {
   isEditingAtores: false,
   isEditingEixos: false,
   isEditingEventos: false,
+  isEditingEncaminhamentos: false,
 };
 
 // ==================================================================
@@ -33,6 +35,7 @@ export function renderDemandasEstruturaisPage() {
     isEditingAtores: false,
     isEditingEixos: false,
     isEditingEventos: false,
+    isEditingEncaminhamentos: false,
   };
   document.body.removeEventListener("click", handlePageActions);
   document.body.addEventListener("click", handlePageActions);
@@ -116,17 +119,15 @@ async function handleSaveDemanda() {
     return;
   }
   try {
-    await db
-      .collection("demandasEstruturais")
-      .add({
-        devedorId,
-        descricaoGeral: "",
-        eixos: [],
-        atores: [],
-        eventos: [],
-        atosDeAudiencia: [],
-        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-      });
+    await db.collection("demandasEstruturais").add({
+      devedorId,
+      descricaoGeral: "",
+      eixos: [],
+      atores: [],
+      eventos: [],
+      atosDeAudiencia: [],
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+    });
     showToast("Demanda cadastrada!");
     document.body.removeChild(document.querySelector(".modal-overlay"));
   } catch (error) {
@@ -159,8 +160,10 @@ export function renderDemandaEstruturalDetailPage(demandaId, devedorId) {
     { id: "gerenciarEixos", name: "Gerenciar Eixos" },
   ];
   contentArea.innerHTML = `<div class="detail-page-header"><h2>${
-    devedor?.razaoSocial
-  }</h2><p>CNPJ: ${devedor?.cnpj}</p></div><div class="detail-tabs">${tabs
+    devedor?.razaoSocial || "Carregando..."
+  }</h2><p>CNPJ: ${formatCNPJForDisplay(
+    devedor?.cnpj
+  )}</p></div><div class="detail-tabs">${tabs
     .map(
       (tab) =>
         `<button class="tab-link ${
@@ -242,7 +245,10 @@ function renderGerenciarEixosTab(demanda) {
 }
 function renderEncaminhamentosTab(demanda) {
   const container = document.getElementById("tab-content");
-  container.innerHTML = `<div class="atores-card"><div class="atores-header"><h3>Atos Processuais e Encaminhamentos</h3><button class="action-icon" data-action="add-ato" title="Adicionar Ato Processual"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button></div><div id="atos-timeline-container"></div></div>`;
+  const fill = activeDemandaState.isEditingEncaminhamentos
+    ? "var(--cor-primaria)"
+    : "#555";
+  container.innerHTML = `<div class="atores-card"><div class="atores-header"><h3>Atos Processuais e Encaminhamentos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-ato" title="Adicionar Ato Processual"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-encaminhamentos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="atos-timeline-container"></div></div>`;
   renderAtosTimeline(demanda.atosDeAudiencia || []);
 }
 
@@ -515,13 +521,11 @@ function renderTimeline(eventos) {
   container.innerHTML = sortedEventos
     .map((evento, index) => {
       const position = index % 2 === 0 ? "left" : "right";
-      const dataFormatada = evento.data
-        .toDate()
-        .toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
+      const dataFormatada = evento.data.toDate().toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
       const anexoHTML = evento.anexoURL
         ? `<div class="timeline-event-footer"><a href="${evento.anexoURL}" target="_blank" class="anexo-link" title="Abrir anexo: ${evento.anexoNome}"><svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg><span>${evento.anexoNome}</span></a></div>`
         : "";
@@ -670,11 +674,28 @@ function renderAtosTimeline(atos) {
     container.innerHTML = `<p class="empty-list-message">Nenhum ato processual cadastrado.</p>`;
     return;
   }
+  const isEditing = activeDemandaState.isEditingEncaminhamentos;
   container.innerHTML = sortedAtos
     .map((ato, index) => {
       const position = index % 2 === 0 ? "left" : "right";
       const dataFormatada = ato.data.toDate().toLocaleDateString("pt-BR");
-      return `<div class="timeline-event timeline-${position}"><div id="${ato.id}" class="timeline-event-content"><div class="audiencia-card-header"><h4>Ato Processual</h4><div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Ato" data-action="edit-ato" data-ato-id="${ato.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Ato" data-action="delete-ato" data-ato-id="${ato.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></div><div class="audiencia-card-info"><span><strong>Processo:</strong> ${ato.processoNumero}</span><span><strong>Data:</strong> ${dataFormatada}</span><span><strong>Hora:</strong> ${ato.hora}</span></div><div class="encaminhamentos-header"><h5>Encaminhamentos</h5><button class="action-icon" data-action="add-encaminhamento" data-ato-id="${ato.id}" title="Adicionar Encaminhamento"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button></div><div id="encaminhamentos-list-${ato.id}"></div></div></div>`;
+      return `<div class="timeline-event timeline-${position}"><div id="${
+        ato.id
+      }" class="timeline-event-content ${
+        isEditing ? "edit-mode" : ""
+      }"><div class="audiencia-card-header"><h4>Ato Processual</h4><div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Ato" data-action="edit-ato" data-ato-id="${
+        ato.id
+      }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Ato" data-action="delete-ato" data-ato-id="${
+        ato.id
+      }"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></div><div class="audiencia-card-info"><span><strong>Processo:</strong> ${
+        ato.processoNumero
+      }</span><span><strong>Data:</strong> ${dataFormatada}</span><span><strong>Hora:</strong> ${
+        ato.hora
+      }</span></div><div class="encaminhamentos-header"><h5>Encaminhamentos</h5><button class="action-icon" data-action="add-encaminhamento" data-ato-id="${
+        ato.id
+      }" title="Adicionar Encaminhamento"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button></div><div id="encaminhamentos-list-${
+        ato.id
+      }"></div></div></div>`;
     })
     .join("");
   sortedAtos.forEach((ato) =>
@@ -691,9 +712,14 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
+  const isEditing = activeDemandaState.isEditingEncaminhamentos;
   const tableRows = encaminhamentos
     .map((enc) => {
       const ator = (demanda.atores || []).find((a) => a.id === enc.entidadeId);
+      const actionsCell = isEditing
+        ? `<td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>`
+        : "";
+
       return `<tr class="${
         enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
       }"><td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${atoId}" data-enc-id="${
@@ -702,16 +728,14 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
         ator?.nome || "Entidade não encontrada"
       }</strong><br><span style="font-size:13px; color:#555;">${
         enc.descricao
-      }</span></td><td>${
-        enc.prazo
-      }</td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
-        enc.id
-      }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
-        enc.id
-      }"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+      }</span></td><td>${enc.prazo}</td>${actionsCell}</tr>`;
     })
     .join("");
-  container.innerHTML = `<table class="encaminhamentos-table"><thead><tr><th style="width:40px;">Status</th><th>Descrição</th><th>Prazo</th><th class="actions-cell">Ações</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+
+  const headerActionsCell = isEditing
+    ? `<th class="actions-cell">Ações</th>`
+    : "";
+  container.innerHTML = `<table class="encaminhamentos-table"><thead><tr><th style="width:40px;">Status</th><th>Descrição</th><th>Prazo</th>${headerActionsCell}</tr></thead><tbody>${tableRows}</tbody></table>`;
 }
 function renderAtoModal(ato = null) {
   const isEditing = ato !== null;
@@ -732,6 +756,13 @@ function renderAtoModal(ato = null) {
     ato?.id || ""
   }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
+
+  const processoInput = document.getElementById("ato-processo");
+  if (processoInput) {
+    processoInput.addEventListener("input", (e) => {
+      maskProcesso(e.target); // <-- MUDANÇA PRINCIPAL AQUI
+    });
+  }
 }
 async function handleSaveAto(atoId = null) {
   const processoNumero = document.getElementById("ato-processo").value.trim();
@@ -1047,6 +1078,11 @@ function handlePageActions(event) {
       if (anexoDisplay) anexoDisplay.remove();
       break;
     }
+    case "toggle-edit-encaminhamentos":
+      activeDemandaState.isEditingEncaminhamentos =
+        !activeDemandaState.isEditingEncaminhamentos;
+      renderActiveTabContent();
+      break;
     // Encaminhamentos
     case "add-ato":
       renderAtoModal();
