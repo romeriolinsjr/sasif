@@ -1753,3 +1753,27 @@ body {
 .timeline-event-content.edit-mode .encaminhamentos-table .actions-cell {
   display: table-cell;
 }
+
+/* --- ESTILOS PARA SELETOR MÚLTIPLO DE ENTIDADES --- */
+.form-group select[multiple] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none; /* Remove a seta padrão */
+  height: 150px; /* Altura fixa para mostrar várias opções */
+  padding: 12px;
+  overflow-y: auto; /* Adiciona barra de rolagem vertical */
+}
+
+.form-group select[multiple] option {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.form-group select[multiple] option:checked {
+  background-color: var(--cor-primaria);
+  color: var(--cor-texto-claro);
+  font-weight: 500;
+}

@@ -19,6 +19,7 @@ let activeDemandaState = {
   isEditingEixos: false,
   isEditingEventos: false,
   isEditingEncaminhamentos: false,
+  isEditingDemandas: false,
 };
 
 // ==================================================================
@@ -36,11 +37,19 @@ export function renderDemandasEstruturaisPage() {
     isEditingEixos: false,
     isEditingEventos: false,
     isEditingEncaminhamentos: false,
+    isEditingDemandas: false,
   };
   document.body.removeEventListener("click", handlePageActions);
   document.body.addEventListener("click", handlePageActions);
   setupDemandasListener();
-  contentArea.innerHTML = `<div class="dashboard-actions"><button data-action="add-demanda-modal" class="btn-primary">Cadastrar Nova Demanda Estrutural</button></div><div id="demandas-list-container"><p class="empty-list-message">Carregando...</p></div>`;
+  contentArea.innerHTML = `
+    <div class="section-header">
+      <div id="demandas-page-actions" class="eixos-actions">
+          <button class="action-icon" data-action="add-demanda-modal" title="Adicionar Demanda"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+          <button class="action-icon" data-action="toggle-edit-demandas" title="Gerenciar Demandas"><svg viewBox="0 0 24 24"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button>
+      </div>
+    </div>
+    <div id="demandas-list-container"><p class="empty-list-message">Carregando...</p></div>`;
 }
 function setupDemandasListener() {
   db.collection("demandasEstruturais")
@@ -68,10 +77,27 @@ function setupDemandasListener() {
 function renderDemandasList() {
   const container = document.getElementById("demandas-list-container");
   if (!container) return;
+
+  const pageActionsContainer = document.getElementById("demandas-page-actions");
+  if (pageActionsContainer) {
+    const isEditing = activeDemandaState.isEditingDemandas;
+    const addBtn = pageActionsContainer.querySelector(
+      '[data-action="add-demanda-modal"]'
+    );
+    const editIconSvg = pageActionsContainer.querySelector(
+      '[data-action="toggle-edit-demandas"] svg'
+    );
+
+    if (addBtn) addBtn.style.display = isEditing ? "inline-flex" : "none";
+    if (editIconSvg)
+      editIconSvg.style.fill = isEditing ? "var(--cor-primaria)" : "#555";
+  }
+
   if (demandasCache.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhuma demanda cadastrada.</p>`;
     return;
   }
+
   const sortedDemandas = [...demandasCache].sort((a, b) =>
     (
       devedoresCache.find((d) => d.id === a.devedorId)?.razaoSocial || ""
@@ -79,20 +105,48 @@ function renderDemandasList() {
       devedoresCache.find((d) => d.id === b.devedorId)?.razaoSocial || ""
     )
   );
-  container.innerHTML = `<table class="data-table"><thead><tr><th>#</th><th>Razão Social</th><th class="actions-cell">Ações</th></tr></thead><tbody>${sortedDemandas
-    .map((demanda, index) => {
-      const devedor = devedoresCache.find((d) => d.id === demanda.devedorId);
-      return `<tr class="clickable-row" data-action="view-details" data-id="${
-        demanda.id
-      }" data-devedor-id="${demanda.devedorId}"><td class="number-cell">${
-        index + 1
-      }</td><td>${
-        devedor?.razaoSocial || "..."
-      }</td><td class="actions-cell"><button class="action-icon icon-delete" title="Excluir" data-action="delete-demanda" data-id="${
-        demanda.id
-      }"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
-    })
-    .join("")}</tbody></table>`;
+
+  const isEditing = activeDemandaState.isEditingDemandas;
+  const headerActionsCell = isEditing
+    ? `<th class="actions-cell">Ações</th>`
+    : "";
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Razão Social</th>
+          ${headerActionsCell}
+        </tr>
+      </thead>
+      <tbody>
+        ${sortedDemandas
+          .map((demanda, index) => {
+            const devedor = devedoresCache.find(
+              (d) => d.id === demanda.devedorId
+            );
+            const actionsCell = isEditing
+              ? `
+            <td class="actions-cell">
+              <button class="action-icon icon-delete" title="Excluir" data-action="delete-demanda" data-id="${demanda.id}">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              </button>
+            </td>`
+              : "";
+
+            return `
+            <tr class="clickable-row" data-action="view-details" data-id="${
+              demanda.id
+            }" data-devedor-id="${demanda.devedorId}">
+              <td class="number-cell">${index + 1}</td>
+              <td>${devedor?.razaoSocial || "..."}</td>
+              ${actionsCell}
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`;
 }
 function renderCadastroModal() {
   const devedoresJaVinculados = new Set(demandasCache.map((d) => d.devedorId));
@@ -716,7 +770,29 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
   const isEditing = activeDemandaState.isEditingEncaminhamentos;
   const tableRows = encaminhamentos
     .map((enc) => {
-      const ator = (demanda.atores || []).find((a) => a.id === enc.entidadeId);
+      // Lógica para encontrar os nomes dos responsáveis
+      let responsaveisNomes = [];
+      if (Array.isArray(enc.entidadeIds)) {
+        // Formato novo
+        responsaveisNomes = enc.entidadeIds
+          .map((id) => {
+            const ator = (demanda.atores || []).find((a) => a.id === id);
+            return ator ? ator.nome : "ID não encontrado";
+          })
+          .filter((nome) => nome); // Filtra nomes não encontrados
+      } else if (enc.entidadeId) {
+        // Fallback para formato antigo
+        const ator = (demanda.atores || []).find(
+          (a) => a.id === enc.entidadeId
+        );
+        if (ator) responsaveisNomes.push(ator.nome);
+      }
+
+      const responsaveisDisplay =
+        responsaveisNomes.length > 0
+          ? responsaveisNomes.join(", ")
+          : "Ninguém designado";
+
       const actionsCell = isEditing
         ? `<td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>`
         : "";
@@ -725,9 +801,9 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
         enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
       }"><td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${atoId}" data-enc-id="${
         enc.id
-      }" ${enc.status === "cumprido" ? "checked" : ""}></td><td><strong>${
-        ator?.nome || "Entidade não encontrada"
-      }</strong><br><span style="font-size:13px; color:#555;">${
+      }" ${
+        enc.status === "cumprido" ? "checked" : ""
+      }></td><td><strong>${responsaveisDisplay}</strong><br><span style="font-size:13px; color:#555;">${
         enc.descricao
       }</span></td><td>${enc.prazo}</td>${actionsCell}</tr>`;
     })
@@ -861,19 +937,38 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
-  const atoresOptions = (demanda.atores || [])
-    .map(
-      (ator) =>
-        `<option value="${ator.id}" ${
-          encaminhamento?.entidadeId === ator.id ? "selected" : ""
-        }>${ator.nome}</option>`
-    )
+
+  // Normaliza os IDs selecionados
+  let selectedIds = [];
+  if (isEditing) {
+    if (Array.isArray(encaminhamento.entidadeIds)) {
+      selectedIds = encaminhamento.entidadeIds;
+    } else if (encaminhamento.entidadeId) {
+      selectedIds = [encaminhamento.entidadeId];
+    }
+  }
+
+  const todosAtores = demanda.atores || [];
+
+  // <-- ALTERAÇÃO PRINCIPAL AQUI: Filtra para obter apenas atores com nomes únicos
+  const atoresUnicos = todosAtores.filter(
+    (ator, index, self) => self.findIndex((a) => a.nome === ator.nome) === index
+  );
+
+  const atoresOptions = atoresUnicos // Usa a lista filtrada
+    .map((ator) => {
+      const isSelected = selectedIds.includes(ator.id);
+      return `<option value="${ator.id}" ${isSelected ? "selected" : ""}>${
+        ator.nome
+      }</option>`;
+    })
     .join("");
+
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
   modalOverlay.innerHTML = `<div class="modal-content"><h3>${
     isEditing ? "Editar" : "Adicionar"
-  } Encaminhamento</h3><div class="form-group"><label for="enc-entidade">Entidade Responsável</label><select id="enc-entidade"><option value="">-- Selecione --</option>${atoresOptions}</select></div><div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
+  } Encaminhamento</h3><div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple>${atoresOptions}</select></div><div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
     encaminhamento?.pessoa || ""
   }"></div><div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" value="${
     encaminhamento?.prazo || ""
@@ -885,30 +980,40 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
   document.body.appendChild(modalOverlay);
 }
 async function handleSaveEncaminhamento(atoId, encId = null) {
-  const entidadeId = document.getElementById("enc-entidade").value;
+  const selectedOptions =
+    document.getElementById("enc-entidade").selectedOptions;
+  const entidadeIds = Array.from(selectedOptions).map((option) => option.value);
   const pessoa = document.getElementById("enc-pessoa").value.trim();
   const prazo = document.getElementById("enc-prazo").value.trim();
   const descricao = document.getElementById("enc-descricao").value.trim();
-  if (!entidadeId || !prazo || !descricao) {
+
+  if (entidadeIds.length === 0 || !prazo || !descricao) {
     document.getElementById("error-message").textContent =
-      "Entidade, Prazo e Descrição são obrigatórios.";
+      "Selecione ao menos uma Entidade, e preencha Prazo e Descrição.";
     return;
   }
+
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
   const atos = demanda.atosDeAudiencia || [];
   const atoIndex = atos.findIndex((a) => a.id === atoId);
   if (atoIndex === -1) return;
+
   let encaminhamentos = atos[atoIndex].encaminhamentos || [];
   if (encId) {
-    encaminhamentos = encaminhamentos.map((enc) =>
-      enc.id === encId ? { ...enc, entidadeId, pessoa, prazo, descricao } : enc
-    );
+    encaminhamentos = encaminhamentos.map((enc) => {
+      if (enc.id === encId) {
+        const updatedEnc = { ...enc, entidadeIds, pessoa, prazo, descricao };
+        delete updatedEnc.entidadeId; // Remove a chave antiga se existir
+        return updatedEnc;
+      }
+      return enc;
+    });
   } else {
     const novoEnc = {
       id: `_${Math.random().toString(36).substr(2, 9)}`,
-      entidadeId,
+      entidadeIds,
       pessoa,
       prazo,
       descricao,
@@ -916,6 +1021,7 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
     };
     encaminhamentos.push(novoEnc);
   }
+
   atos[atoIndex].encaminhamentos = encaminhamentos;
   try {
     await db
@@ -1010,6 +1116,14 @@ function handlePageActions(event) {
       break;
     case "delete-demanda":
       handleDeleteDemanda(target.dataset.id);
+      break;
+    case "delete-demanda":
+      handleDeleteDemanda(target.dataset.id);
+      break;
+    case "toggle-edit-demandas":
+      activeDemandaState.isEditingDemandas =
+        !activeDemandaState.isEditingDemandas;
+      renderDemandasList();
       break;
     case "view-details":
       navigateTo("demandaEstruturalDetail", {
