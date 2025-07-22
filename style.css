@@ -1777,3 +1777,8 @@ body {
   color: var(--cor-texto-claro);
   font-weight: 500;
 }
+
+/* --- AJUSTE DE LARGURA PARA A PÁGINA DE DEMANDAS ESTRUTURAIS --- */
+#demandas-list-container .data-table .number-cell {
+  width: 40px; /* Define uma largura fixa e estreita para a coluna '#' */
+}

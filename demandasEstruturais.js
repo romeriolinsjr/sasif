@@ -81,14 +81,11 @@ function renderDemandasList() {
   const pageActionsContainer = document.getElementById("demandas-page-actions");
   if (pageActionsContainer) {
     const isEditing = activeDemandaState.isEditingDemandas;
-    const addBtn = pageActionsContainer.querySelector(
-      '[data-action="add-demanda-modal"]'
-    );
     const editIconSvg = pageActionsContainer.querySelector(
       '[data-action="toggle-edit-demandas"] svg'
     );
 
-    if (addBtn) addBtn.style.display = isEditing ? "inline-flex" : "none";
+    // A linha que escondia o botão "+" foi removida.
     if (editIconSvg)
       editIconSvg.style.fill = isEditing ? "var(--cor-primaria)" : "#555";
   }
