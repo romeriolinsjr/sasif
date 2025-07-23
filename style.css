@@ -1814,3 +1814,8 @@ body {
 .timeline-title-container h4 {
   margin: 0;
 }
+
+/* --- ALINHAMENTO DOS ÍCONES NA PÁGINA PRINCIPAL DE DEMANDAS --- */
+#demandas-page-actions {
+  margin-left: auto;
+}

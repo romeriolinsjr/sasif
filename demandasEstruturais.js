@@ -286,13 +286,45 @@ function renderHistoricoTab(demanda) {
 }
 function renderGerenciarEixosTab(demanda) {
   const c = document.getElementById("tab-content");
+  const eixos = demanda.eixos || [];
   const fill = activeDemandaState.isEditingEixos
     ? "var(--cor-primaria)"
     : "#555";
-  c.innerHTML = `<div class="eixos-section ${
-    activeDemandaState.isEditingEixos ? "edit-mode" : ""
-  }"><div class="eixos-header"><h3>Eixos da Demanda</h3><div class="eixos-actions"><button class="action-icon" data-action="add-eixo" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="eixos-buttons-list" class="eixos-list"></div></div><div id="eixo-content-area"></div>`;
-  renderEixosUI(demanda);
+
+  let contentInsideSection;
+  // Define o conteúdo que virá DEPOIS do cabeçalho da seção
+  if (eixos.length > 0) {
+    // Se houver eixos, prepara os placeholders para os botões e a descrição
+    contentInsideSection = `
+        <div id="eixos-buttons-list" class="eixos-list"></div>
+      </div> 
+      <div id="eixo-content-area"></div>`;
+  } else {
+    // Se não houver eixos, prepara a mensagem informativa
+    contentInsideSection = `
+        <p class="empty-list-message" style="margin-top: 16px;">Esta demanda estrutural não possui divisão em eixos.</p>
+      </div>`;
+  }
+
+  // Renderiza a estrutura principal, que SEMPRE inclui o cabeçalho com os botões de ação
+  c.innerHTML = `
+    <div class="eixos-section ${
+      activeDemandaState.isEditingEixos ? "edit-mode" : ""
+    }">
+      <div class="eixos-header">
+        <h3>Eixos da Demanda</h3>
+        <div class="eixos-actions">
+          <button class="action-icon" data-action="add-eixo" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+          <button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button>
+        </div>
+      </div>
+      ${contentInsideSection}
+  `;
+
+  // Se houver eixos, chama a função para renderizá-los dentro dos placeholders
+  if (eixos.length > 0) {
+    renderEixosUI(demanda);
+  }
 }
 function renderEncaminhamentosTab(demanda) {
   const container = document.getElementById("tab-content");
