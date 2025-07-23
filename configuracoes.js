@@ -38,6 +38,7 @@ export function renderConfiguracoesPage() {
             <div class="setting-card" id="goto-exequentes"><h3>Gerenciar Exequentes</h3><p>Adicione, edite ou remova os entes exequentes.</p></div>
             <div class="setting-card" id="goto-motivos"><h3>Gerenciar Motivos de Suspensão</h3><p>Customize os motivos utilizados para suspender processos.</p></div>
             <div class="setting-card" id="goto-incidentes"><h3>Gerenciar Incidentes Processuais</h3><p>Cadastre e acompanhe processos incidentais.</p></div>
+            <div class="setting-card" id="goto-importacao"><h3>Importação em Lote</h3><p>Importe múltiplos processos de uma só vez.</p></div>
         </div>
     `;
 
@@ -50,8 +51,10 @@ export function renderConfiguracoesPage() {
   document
     .getElementById("goto-incidentes")
     .addEventListener("click", () => navigateTo("incidentes"));
+  document
+    .getElementById("goto-importacao")
+    .addEventListener("click", () => navigateTo("importacao"));
 }
-
 // ==================================================================
 // SEÇÃO: GERENCIAMENTO DE EXEQUENTES
 // ==================================================================

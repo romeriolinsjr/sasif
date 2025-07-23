@@ -45,7 +45,6 @@ export function renderSidebar(activePage) {
     { id: "demandasEstruturais", name: "Demandas Estruturais" },
     { id: "diligencias", name: "Tarefas do Mês" },
     { id: "relatorios", name: "Relatórios" },
-    { id: "importacao", name: "Importação em Lote" },
     { id: "configuracoes", name: "Configurações" },
   ];
   mainNav.innerHTML = `<ul>${pages
@@ -63,7 +62,6 @@ export function renderSidebar(activePage) {
     });
   });
 }
-
 /**
  * Renderiza um modal genérico para exibir um texto somente leitura.
  * @param {string} title O título do modal.
