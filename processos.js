@@ -37,7 +37,28 @@ import {
  * @param {Array} processos - Lista de processos do devedor.
  * @param {Array} incidentesDoDevedor - Lista de incidentes para marcar os processos.
  */
+/**
+ * Helper para extrair o ano e a cabeça de um número de processo de 20 dígitos.
+ * @param {string} numero - O número do processo (20 dígitos).
+ * @returns {{ano: string, cabeca: string}}
+ */
+function getNumeroProcessoParts(numero) {
+  if (!numero || numero.length !== 20) {
+    return { ano: "0", cabeca: "0" }; // Retorno seguro para dados inválidos
+  }
+  return {
+    ano: numero.substring(9, 13),
+    cabeca: numero.substring(0, 7),
+  };
+}
+
+/**
+ * Renderiza la lista de processos na página de detalhes de um devedor.
+ * @param {Array} processos - Lista de processos do devedor.
+ * @param {Array} incidentesDoDevedor - Lista de incidentes para marcar os processos.
+ */
 export function renderProcessosList(processos, incidentesDoDevedor = []) {
+  // --- 1. Lógica de Resumo Financeiro (sem alterações) ---
   const totalProcessos = processos.length;
   const totaisPorExequente = {};
   const contagemPorExequente = {};
@@ -87,20 +108,43 @@ export function renderProcessosList(processos, incidentesDoDevedor = []) {
   const container = document.getElementById("processos-list-container");
   if (!container) return;
 
+  // --- 2. NOVA LÓGICA DE ORDENAÇÃO ---
+
+  // Separa os processos por tipo
   const itemsParaOrdenar = processos.filter(
     (p) => p.tipoProcesso === "autônomo" || p.tipoProcesso === "piloto"
   );
   const apensos = processos.filter((p) => p.tipoProcesso === "apenso");
+
+  // Ordena a lista principal (pilotos e autônomos)
   itemsParaOrdenar.sort((a, b) => {
+    // Nível 1: Ordena por Exequente (A-Z)
     const exequenteA =
       state.exequentesCache.find((ex) => ex.id === a.exequenteId)?.nome || "";
     const exequenteB =
       state.exequentesCache.find((ex) => ex.id === b.exequenteId)?.nome || "";
-    if (exequenteA < exequenteB) return -1;
-    if (exequenteA > exequenteB) return 1;
-    return (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0);
+    if (exequenteA.localeCompare(exequenteB) !== 0) {
+      return exequenteA.localeCompare(exequenteB);
+    }
+
+    // Nível 2: Ordena por Tipo (Piloto > Autônomo)
+    const tipoValor = { piloto: 1, autônomo: 2 };
+    const valorA = tipoValor[a.tipoProcesso] || 3;
+    const valorB = tipoValor[b.tipoProcesso] || 3;
+    if (valorA !== valorB) {
+      return valorA - valorB;
+    }
+
+    // Nível 3: Ordena por Número do Processo (Mais novo primeiro)
+    const partsA = getNumeroProcessoParts(a.numeroProcesso);
+    const partsB = getNumeroProcessoParts(b.numeroProcesso);
+    if (partsB.ano !== partsA.ano) {
+      return partsB.ano.localeCompare(partsA.ano); // Ano descendente
+    }
+    return partsB.cabeca.localeCompare(partsA.cabeca); // Cabeça descendente
   });
 
+  // Cria um mapa de apensos e já ordena cada lista de apensos
   const apensosMap = apensos.reduce((map, apenso) => {
     const pilotoId = apenso.processoPilotoId;
     if (!map.has(pilotoId)) map.set(pilotoId, []);
@@ -108,6 +152,19 @@ export function renderProcessosList(processos, incidentesDoDevedor = []) {
     return map;
   }, new Map());
 
+  // Ordena a lista de apensos dentro de cada piloto
+  apensosMap.forEach((apensosDoPiloto) => {
+    apensosDoPiloto.sort((a, b) => {
+      const partsA = getNumeroProcessoParts(a.numeroProcesso);
+      const partsB = getNumeroProcessoParts(b.numeroProcesso);
+      if (partsB.ano !== partsA.ano) {
+        return partsB.ano.localeCompare(partsA.ano); // Ano descendente
+      }
+      return partsB.cabeca.localeCompare(partsA.cabeca); // Cabeça descendente
+    });
+  });
+
+  // --- 3. Lógica de Renderização (sem alterações na estrutura) ---
   if (itemsParaOrdenar.length === 0 && apensos.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhum processo cadastrado.</p>`;
     return;
@@ -186,7 +243,6 @@ export function renderProcessosList(processos, incidentesDoDevedor = []) {
     .querySelector("tbody")
     .addEventListener("click", handleProcessoAction);
 }
-
 /**
  * Renderiza o formulário para criar ou editar um processo.
  * @param {string} devedorId - ID do devedor ao qual o processo pertence.
