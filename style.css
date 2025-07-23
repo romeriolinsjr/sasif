@@ -1782,3 +1782,35 @@ body {
 #demandas-list-container .data-table .number-cell {
   width: 40px; /* Define uma largura fixa e estreita para a coluna '#' */
 }
+
+/* --- ESTILOS PARA O VÍNCULO INTELIGENTE --- */
+.icon-link svg {
+  fill: var(--cor-secundaria); /* Azul médio */
+}
+
+.timeline-event-content.highlight {
+  animation: highlight-fade 2s ease-out;
+}
+
+@keyframes highlight-fade {
+  0% {
+    background-color: #fffde7; /* Amarelo claro */
+    box-shadow: 0 0 10px #ffc107;
+  }
+  100% {
+    background-color: white;
+    box-shadow: var(--sombra);
+  }
+}
+
+/* --- ALINHAMENTO DO ÍCONE DE VÍNCULO NO HISTÓRICO --- */
+.timeline-title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Espaçamento entre o título e o ícone de link */
+}
+
+/* Garante que o título não tenha margens que atrapalhem o alinhamento */
+.timeline-title-container h4 {
+  margin: 0;
+}

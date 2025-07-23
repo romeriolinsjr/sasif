@@ -577,15 +577,55 @@ function renderTimeline(eventos) {
         month: "2-digit",
         year: "numeric",
       });
+
+      const vinculoHTML = evento.atoVinculadoId
+        ? `<button class="action-icon icon-link" title="Ir para o Ato Processual vinculado" data-action="navigate-to-ato" data-ato-id="${evento.atoVinculadoId}"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></button>`
+        : "";
+
       const anexoHTML = evento.anexoURL
         ? `<div class="timeline-event-footer"><a href="${evento.anexoURL}" target="_blank" class="anexo-link" title="Abrir anexo: ${evento.anexoNome}"><svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg><span>${evento.anexoNome}</span></a></div>`
         : "";
-      return `<div class="timeline-event timeline-${position}"><div class="timeline-event-content"><div class="timeline-event-header"><h4>${evento.titulo}</h4><span class="timeline-event-tipo">${evento.tipo}</span></div><div class="timeline-event-data">${dataFormatada}</div><p class="timeline-event-descricao">${evento.descricao}</p>${anexoHTML}<div class="timeline-actions"><button class="action-icon icon-edit" title="Editar Evento" data-action="edit-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir Evento" data-action="delete-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div></div></div>`;
+
+      // <-- ALTERAÇÃO PRINCIPAL AQUI: O 'vinculoHTML' foi movido para o cabeçalho.
+      return `<div class="timeline-event timeline-${position}"><div class="timeline-event-content">
+                <div class="timeline-event-header">
+                  <div class="timeline-title-container">
+                    <h4>${evento.titulo}</h4>
+                    ${vinculoHTML}
+                  </div>
+                  <span class="timeline-event-tipo">${evento.tipo}</span>
+                </div>
+                <div class="timeline-event-data">${dataFormatada}</div>
+                <p class="timeline-event-descricao">${evento.descricao}</p>
+                ${anexoHTML}
+                <div class="timeline-actions">
+                  <button class="action-icon icon-edit" title="Editar Evento" data-action="edit-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                  <button class="action-icon icon-delete" title="Excluir Evento" data-action="delete-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                </div>
+              </div></div>`;
     })
     .join("");
 }
 function renderEventoModal(evento = null) {
   const isEditing = evento !== null;
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atos = demanda.atosDeAudiencia || [];
+
+  const atosOptions = atos
+    .map((ato) => {
+      const dataFormatada = ato.data.toDate().toLocaleDateString("pt-BR");
+      const textoOpcao = `${ato.tipo || "Ato"} - ${dataFormatada} - ${
+        ato.processoNumero
+      }`;
+      const isSelected = isEditing && evento.atoVinculadoId === ato.id;
+      return `<option value="${ato.id}" ${
+        isSelected ? "selected" : ""
+      }>${textoOpcao}</option>`;
+    })
+    .join("");
+
   const dataFormatada = evento
     ? new Date(evento.data.seconds * 1000).toISOString().split("T")[0]
     : "";
@@ -602,7 +642,7 @@ function renderEventoModal(evento = null) {
     evento?.tipo || ""
   }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" rows="5">${
     evento?.descricao || ""
-  }</textarea></div><div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
+  }</textarea></div><div class="form-group"><label for="evento-vinculo-ato">Vincular ao Ato Processual (Opcional)</label><select id="evento-vinculo-ato"><option value="">-- Sem Vínculo --</option>${atosOptions}</select></div><div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
     evento?.id || ""
   }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
@@ -624,14 +664,18 @@ async function handleSaveEvento(eventoId = null) {
   const eventoExistente = eventoId
     ? eventos.find((e) => e.id === eventoId)
     : null;
+
+  // Lê os dados do formulário, incluindo o novo campo de vínculo
   let eventoData = {
     titulo: document.getElementById("evento-titulo").value.trim(),
     dataInput: document.getElementById("evento-data").value,
     tipo: document.getElementById("evento-tipo").value.trim(),
     descricao: document.getElementById("evento-descricao").value.trim(),
+    atoVinculadoId: document.getElementById("evento-vinculo-ato").value, // <-- ALTERAÇÃO AQUI
     anexoURL: eventoExistente?.anexoURL || null,
     anexoNome: eventoExistente?.anexoNome || null,
   };
+
   if (
     !eventoData.titulo ||
     !eventoData.dataInput ||
@@ -661,6 +705,8 @@ async function handleSaveEvento(eventoId = null) {
       eventoData.anexoURL = null;
       eventoData.anexoNome = null;
     }
+
+    // Constrói o objeto final para salvar, incluindo o novo campo
     const dataFinal = {
       id: eventoId || `_${Math.random().toString(36).substr(2, 9)}`,
       titulo: eventoData.titulo,
@@ -669,9 +715,11 @@ async function handleSaveEvento(eventoId = null) {
       ),
       tipo: eventoData.tipo,
       descricao: eventoData.descricao,
+      atoVinculadoId: eventoData.atoVinculadoId || null, // <-- ALTERAÇÃO AQUI
       anexoURL: eventoData.anexoURL,
       anexoNome: eventoData.anexoNome,
     };
+
     if (eventoId) {
       eventos = eventos.map((e) => (e.id === eventoId ? dataFinal : e));
     } else {
@@ -1225,6 +1273,25 @@ function handlePageActions(event) {
         !activeDemandaState.isEditingEncaminhamentos;
       renderActiveTabContent();
       break;
+    case "navigate-to-ato": {
+      const atoId = target.dataset.atoId;
+      activeDemandaState.activeTab = "encaminhamentos";
+      renderDemandaEstruturalDetailPage(
+        activeDemandaState.demandaId,
+        activeDemandaState.devedorId
+      );
+
+      // Aguarda um instante para o DOM ser atualizado
+      setTimeout(() => {
+        const card = document.getElementById(atoId);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.classList.add("highlight");
+          setTimeout(() => card.classList.remove("highlight"), 2000); // Remove o destaque após 2s
+        }
+      }, 100);
+      break;
+    }
     // Encaminhamentos
     case "add-ato":
       renderAtoModal();
