@@ -177,7 +177,7 @@ export function renderProcessosList(processos, incidentesDoDevedor = []) {
       proc.numeroProcesso
     );
     const indicadorIncidente = temIncidentes
-      ? ` <svg title="Possui incidente(s) vinculado(s)" style="width:16px; height:16px; vertical-align:middle; fill:#555;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>`
+      ? ` <svg title="Possui incidente(s) processual(is) vinculado(s)" style="width:16px; height:16px; vertical-align:text-bottom; fill:#555;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18,15v-3c0-1.1-0.9-2-2-2h-4V8.81c1.21-0.41,2-1.52,2-2.81c0-1.66-1.34-3-3-3s-3,1.34-3,3c0,1.29,0.79,2.4,2,2.81V10H8c-1.1,0-2,0.9-2,2v3H4v2h2v3c0,1.1,0.9,2,2,2h4v1h-1.5c-0.83,0-1.5,0.67-1.5,1.5S9.67,24,10.5,24h3c0.83,0,1.5-0.67,1.5-1.5S14.33,21,13.5,21H12v-1h4c1.1,0,2-0.9,2-2v-3h2v-2H18z"/></svg>`
       : "";
     const exequente = state.exequentesCache.find(
       (ex) => ex.id === proc.exequenteId
