@@ -1,6 +1,6 @@
 // ==================================================================
-// Módulo: configuracoes.js
-// Responsabilidade: Gerenciamento das entidades de configuração (Exequentes, Motivos, Incidentes).
+// Módulo: configuracoes.js (VERSÃO FINAL E CORRIGIDA)
+// Responsabilidade: Gerenciamento de Configurações, Backup e Restauração.
 // ==================================================================
 
 import { db } from "./firebase.js";
@@ -9,6 +9,8 @@ import {
   pageTitle,
   showToast,
   renderReadOnlyTextModal,
+  showLoadingOverlay,
+  hideLoadingOverlay,
 } from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import * as state from "./state.js";
@@ -33,12 +35,26 @@ export function renderConfiguracoesPage() {
             .setting-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
             .setting-card h3 { margin: 0 0 10px 0; font-size: 20px; color: var(--cor-primaria); }
             .setting-card p { margin: 0; color: #555; }
+            .setting-card.restore-card h3 { color: var(--cor-perigo); }
+            .setting-card.cleanup-card h3 { color: var(--cor-aviso); }
         </style>
         <div class="settings-grid">
             <div class="setting-card" id="goto-exequentes"><h3>Gerenciar Exequentes</h3><p>Adicione, edite ou remova os entes exequentes.</p></div>
             <div class="setting-card" id="goto-motivos"><h3>Gerenciar Motivos de Suspensão</h3><p>Customize os motivos utilizados para suspender processos.</p></div>
             <div class="setting-card" id="goto-incidentes"><h3>Gerenciar Incidentes Processuais</h3><p>Cadastre e acompanhe processos incidentais.</p></div>
             <div class="setting-card" id="goto-importacao"><h3>Importação em Lote</h3><p>Importe múltiplos processos de uma só vez.</p></div>
+            <div class="setting-card" id="start-backup">
+                <h3>Backup de Dados</h3>
+                <p>Gere e baixe um arquivo com todos os dados do sistema.</p>
+            </div>
+            <div class="setting-card restore-card" id="start-restore">
+                <h3>Restauração de Dados</h3>
+                <p>Restaure o sistema a partir de um arquivo de backup.</p>
+            </div>
+            <div class="setting-card cleanup-card" id="cleanup-test-data">
+                <h3>Limpar Dados de Teste</h3>
+                <p>Remove as coleções temporárias criadas pelo "Modo de Teste".</p>
+            </div>
         </div>
     `;
 
@@ -54,10 +70,339 @@ export function renderConfiguracoesPage() {
   document
     .getElementById("goto-importacao")
     .addEventListener("click", () => navigateTo("importacao"));
+  document
+    .getElementById("start-backup")
+    .addEventListener("click", startBackupProcess);
+  document
+    .getElementById("start-restore")
+    .addEventListener("click", startRestoreProcess);
+  document
+    .getElementById("cleanup-test-data")
+    .addEventListener("click", cleanupTestData);
 }
+
 // ==================================================================
-// SEÇÃO: GERENCIAMENTO DE EXEQUENTES
+// SEÇÃO: BACKUP E RESTAURAÇÃO
 // ==================================================================
+
+const COLLECTIONS_SCHEMA = {
+  exequentes: {},
+  motivos_suspensao: {},
+  diligenciasMensais: {},
+  incidentesProcessuais: {},
+  grandes_devedores: {},
+  demandasEstruturais: {},
+  processos: {
+    corresponsaveis: {},
+    penhoras: {},
+    audiencias: {},
+    anexos: {},
+    historico_valores: {},
+  },
+};
+
+// ---- Funções de Backup (LÓGICA CORRETA E FINAL) ----
+
+async function startBackupProcess() {
+  if (
+    !confirm(
+      "Você deseja criar um backup completo do sistema? O processo pode levar alguns minutos."
+    )
+  )
+    return;
+
+  showLoadingOverlay("Gerando backup...");
+  try {
+    const backupData = await fetchAllDataForBackup();
+    showLoadingOverlay("Finalizando e gerando arquivo...");
+    const jsonString = JSON.stringify(
+      backupData,
+      (k, v) => {
+        if (v && v.toDate) {
+          return {
+            _fsTimestamp: { seconds: v.seconds, nanoseconds: v.nanoseconds },
+          };
+        }
+        return v;
+      },
+      2
+    );
+
+    downloadBackupFile(jsonString);
+    showToast("Backup gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar backup:", error);
+    showToast(`Erro ao gerar backup: ${error.message}`, "error", null);
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function fetchAllDataForBackup() {
+  const backupData = {};
+  for (const collectionName in COLLECTIONS_SCHEMA) {
+    showLoadingOverlay(`Processando backup de '${collectionName}'...`);
+    const collectionRef = db.collection(collectionName);
+    const schema = COLLECTIONS_SCHEMA[collectionName];
+    backupData[collectionName] = await fetchCollectionDataRecursive(
+      collectionRef,
+      schema
+    );
+  }
+  return backupData;
+}
+
+async function fetchCollectionDataRecursive(collectionRef, schema) {
+  const snapshot = await collectionRef.get();
+  const data = [];
+  for (const doc of snapshot.docs) {
+    const docData = { id: doc.id, ...doc.data() };
+    for (const subCollName in schema) {
+      const subCollSchema = schema[subCollName];
+      const subCollRef = doc.ref.collection(subCollName);
+      docData[subCollName] = await fetchCollectionDataRecursive(
+        subCollRef,
+        subCollSchema
+      );
+    }
+    data.push(docData);
+  }
+  return data;
+}
+
+function downloadBackupFile(jsonString) {
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const timestamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `backup-sasif-${timestamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---- Funções de Restauração (LÓGICA CORRIGIDA E FINAL) ----
+
+function startRestoreProcess() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const isTestMode = confirm(
+      "Deseja executar a restauração em 'Modo de Teste'?\n\nNeste modo, os dados serão restaurados em coleções temporárias (com sufixo '_TESTE') e seus dados reais NÃO serão afetados."
+    );
+
+    let proceed = false;
+    if (isTestMode) {
+      proceed = confirm(
+        "Você confirma que deseja iniciar a restauração em MODO DE TESTE?"
+      );
+    } else {
+      if (
+        confirm(
+          "ATENÇÃO: A restauração real APAGARÁ TODOS os dados atuais do sistema. Esta ação é IRREVERSÍVEL. Deseja continuar?"
+        )
+      ) {
+        const confirmationText = "RESTAURAR";
+        const userInput = prompt(
+          `Para confirmar, digite "${confirmationText}" no campo abaixo:`
+        );
+        if (userInput === confirmationText) {
+          proceed = true;
+        } else {
+          showToast(
+            "Restauração cancelada. Texto de confirmação incorreto.",
+            "warning"
+          );
+        }
+      }
+    }
+
+    if (!proceed) {
+      showToast("Restauração cancelada pelo usuário.", "info");
+      return;
+    }
+
+    showLoadingOverlay("Iniciando restauração...");
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const backupData = JSON.parse(e.target.result);
+          await deleteAllData(isTestMode);
+          await restoreDataFromBackup(backupData, isTestMode);
+          showToast(
+            "Restauração concluída com sucesso! A página será recarregada.",
+            "success",
+            5000
+          );
+          setTimeout(() => window.location.reload(), 5000);
+        } catch (error) {
+          console.error("ERRO FATAL NA RESTAURAÇÃO:", error);
+          showToast(
+            `Erro fatal na restauração: ${error.message}. Verifique o console.`,
+            "error",
+            null
+          );
+        } finally {
+          hideLoadingOverlay();
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error("ERRO AO LER ARQUIVO:", error);
+      showToast(`Erro ao ler o arquivo: ${error.message}`, "error", null);
+      hideLoadingOverlay();
+    }
+  };
+
+  input.click();
+}
+
+async function _deleteCollectionInBatches(collectionRef) {
+  const snapshot = await collectionRef.limit(500).get();
+  if (snapshot.size === 0) return;
+
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+
+  await _deleteCollectionInBatches(collectionRef);
+}
+
+async function deleteAllData(testMode = false) {
+  const suffix = testMode ? "_TESTE" : "";
+  showLoadingOverlay("Limpando dados de teste...");
+
+  for (const collectionName in COLLECTIONS_SCHEMA) {
+    const schema = COLLECTIONS_SCHEMA[collectionName];
+    const collectionRef = db.collection(collectionName + suffix);
+    await deleteCollectionRecursive(collectionRef, schema);
+  }
+}
+
+async function deleteCollectionRecursive(collectionRef, schema) {
+  showLoadingOverlay(`Limpando ${collectionRef.path}...`);
+  const snapshot = await collectionRef.get();
+  for (const doc of snapshot.docs) {
+    for (const subCollName in schema) {
+      const subCollSchema = schema[subCollName];
+      const subCollRef = doc.ref.collection(subCollName);
+      await deleteCollectionRecursive(subCollRef, subCollSchema);
+    }
+  }
+  await _deleteCollectionInBatches(collectionRef);
+}
+
+async function restoreDataFromBackup(data, testMode = false) {
+  const suffix = testMode ? "_TESTE" : "";
+
+  for (const collectionName in data) {
+    if (COLLECTIONS_SCHEMA[collectionName]) {
+      const collectionRef = db.collection(collectionName + suffix);
+      const schema = COLLECTIONS_SCHEMA[collectionName];
+      await restoreCollectionRecursive(
+        collectionRef,
+        data[collectionName],
+        schema
+      );
+    }
+  }
+}
+
+async function restoreCollectionRecursive(
+  collectionRef,
+  collectionData,
+  schema
+) {
+  showLoadingOverlay(`Restaurando ${collectionRef.path}...`);
+  for (const docData of collectionData) {
+    try {
+      const { id, ...rest } = docData;
+      const docRef = collectionRef.doc(id);
+      const payload = {};
+      const subcollectionsToRestore = {};
+
+      const _restoreValue = (value) => {
+        if (value && value._fsTimestamp) {
+          return new firebase.firestore.Timestamp(
+            value._fsTimestamp.seconds,
+            value._fsTimestamp.nanoseconds
+          );
+        }
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          const sanitized = {};
+          for (const key in value) {
+            if (value[key] !== undefined) sanitized[key] = value[key];
+          }
+          return sanitized;
+        }
+        return value;
+      };
+
+      for (const key in rest) {
+        if (schema[key] !== undefined && Array.isArray(rest[key])) {
+          subcollectionsToRestore[key] = rest[key];
+        } else {
+          payload[key] = _restoreValue(rest[key]);
+        }
+      }
+
+      await docRef.set(payload);
+
+      for (const subCollName in subcollectionsToRestore) {
+        const subCollSchema = schema[subCollName];
+        const subCollRef = docRef.collection(subCollName);
+        await restoreCollectionRecursive(
+          subCollRef,
+          subcollectionsToRestore[subCollName],
+          subCollSchema
+        );
+      }
+    } catch (error) {
+      console.error(
+        `FALHA CRÍTICA ao restaurar o documento ${docData.id} na coleção ${collectionRef.path}.`
+      );
+      console.error("DADOS DO DOCUMENTO:", docData);
+      console.error("ERRO ESPECÍFICO:", error);
+      throw new Error(
+        `Falha no documento '${docData.id}' da coleção '${collectionRef.path}'`
+      );
+    }
+  }
+}
+
+async function cleanupTestData() {
+  if (
+    !confirm(
+      "ATENÇÃO: Esta ação removerá TODAS as coleções com o sufixo '_TESTE'. Deseja continuar?"
+    )
+  )
+    return;
+
+  showLoadingOverlay("Limpando dados de teste...");
+  try {
+    await deleteAllData(true);
+    showToast("Dados de teste removidos com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao limpar dados de teste:", error);
+    showToast(`Erro ao limpar dados de teste: ${error.message}`, "error", null);
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+// ==================================================================
+// SEÇÕES DE GERENCIAMENTO (CÓDIGO INALTERADO)
+// ==================================================================
+// ... (O resto do código permanece o mesmo)
 export function renderExequentesPage() {
   pageTitle.textContent = "Exequentes";
   document.title = "SASIF | Exequentes";
@@ -176,10 +521,6 @@ function handleDeleteExequente(exequenteId) {
       .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
   }
 }
-
-// ==================================================================
-// SEÇÃO: GERENCIAMENTO DE MOTIVOS DE SUSPENSÃO
-// ==================================================================
 export function renderMotivosPage() {
   pageTitle.textContent = "Motivos de Suspensão";
   document.title = "SASIF | Motivos de Suspensão";
@@ -280,10 +621,6 @@ function handleDeleteMotivo(motivoId) {
       .catch(() => showToast("Ocorreu um erro ao excluir.", "error"));
   }
 }
-
-// ==================================================================
-// SEÇÃO: GERENCIAMENTO GERAL DE INCIDENTES
-// ==================================================================
 export function renderIncidentesPage() {
   pageTitle.textContent = "Incidentes Processuais";
   document.title = "SASIF | Incidentes Processuais";
@@ -450,7 +787,9 @@ function renderTodosIncidentesList(incidentes) {
       .toLowerCase()
       .replace(" ", "-")}">${
       item.status
-    }</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+    }</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-id="${
+      item.id
+    }"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
   });
   tableHTML += `</tbody></table>`;
   container.innerHTML = tableHTML;

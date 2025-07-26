@@ -1,4 +1,4 @@
-// ==================================================================
+// = a================================================================
 // Módulo: ui.js
 // Responsabilidade: Funções que manipulam a interface do usuário de forma genérica.
 // ==================================================================
@@ -6,7 +6,6 @@
 import { navigateTo } from "./navigation.js";
 
 // --- Referências aos Elementos DOM Principais ---
-// Exporta referências diretas para os elementos mais usados do index.html.
 export const appContainer = document.getElementById("app-container");
 export const loginContainer = document.getElementById("login-container");
 export const userEmailSpan = document.getElementById("user-email");
@@ -18,20 +17,35 @@ export const mainNav = document.getElementById("main-nav");
 /**
  * Exibe uma notificação "toast" na tela.
  * @param {string} message A mensagem a ser exibida.
- * @param {'success' | 'error'} type O tipo de notificação (para estilização).
+ * @param {'success' | 'error' | 'info' | 'warning'} type O tipo de notificação.
+ * @param {number|null} duration Duração em ms. Se for null, o toast fica fixo.
  */
-export function showToast(message, type = "success") {
+export function showToast(message, type = "success", duration = 4000) {
   const container = document.getElementById("toast-container");
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
   toast.textContent = message;
+
+  // Adiciona um botão de fechar para toasts persistentes
+  if (duration === null) {
+    const closeButton = document.createElement("button");
+    closeButton.innerHTML = "×";
+    closeButton.className = "toast-close-btn";
+    closeButton.onclick = () => toast.remove();
+    toast.appendChild(closeButton);
+  }
+
   container.appendChild(toast);
   setTimeout(() => {
     toast.classList.add("show");
   }, 10);
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
+
+  if (duration !== null) {
+    setTimeout(() => {
+      toast.classList.remove("show");
+      toast.addEventListener("transitionend", () => toast.remove());
+    }, duration);
+  }
 }
 
 /**
@@ -98,43 +112,45 @@ export function renderReadOnlyTextModal(title, content) {
 }
 
 /**
- * Exibe uma sobreposição de carregamento na tela inteira.
- * @param {string} message - A mensagem a ser exibida (ex: "Excluindo...").
+ * Exibe ou ATUALIZA uma sobreposição de carregamento na tela inteira.
+ * @param {string} message - A mensagem a ser exibida (ex: "Processando...").
  */
 export function showLoadingOverlay(message = "Processando...") {
-  const overlay = document.createElement("div");
-  overlay.id = "loading-overlay";
-  overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-size: 24px;
-        z-index: 2000;
-        flex-direction: column;
-        gap: 20px;
-    `;
+  let overlay = document.getElementById("loading-overlay");
 
-  overlay.innerHTML = `
+  // Se o overlay não existe, cria.
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "loading-overlay";
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex; justify-content: center; align-items: center;
+        color: white; font-size: 24px; z-index: 2000;
+        flex-direction: column; gap: 20px;
+        opacity: 0; transition: opacity 0.3s;
+    `;
+    overlay.innerHTML = `
         <div class="spinner" style="
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid var(--cor-secundaria);
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
+            border: 8px solid #f3f3f3; border-top: 8px solid var(--cor-secundaria);
+            border-radius: 50%; width: 60px; height: 60px;
             animation: spin 1s linear infinite;
         "></div>
-        <span>${message}</span>
+        <span id="loading-message">${message}</span>
         <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
     `;
-
-  document.body.appendChild(overlay);
+    document.body.appendChild(overlay);
+    // Força o navegador a aplicar o estilo inicial antes de mudar a opacidade
+    setTimeout(() => {
+      overlay.style.opacity = "1";
+    }, 10);
+  } else {
+    // Se já existe, apenas atualiza a mensagem.
+    const messageSpan = document.getElementById("loading-message");
+    if (messageSpan) {
+      messageSpan.textContent = message;
+    }
+  }
 }
 
 /**
@@ -143,6 +159,8 @@ export function showLoadingOverlay(message = "Processando...") {
 export function hideLoadingOverlay() {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) {
-    overlay.remove();
+    overlay.style.opacity = "0";
+    // Remove o elemento do DOM após a transição
+    overlay.addEventListener("transitionend", () => overlay.remove());
   }
 }
