@@ -10,7 +10,52 @@ import {
   formatProcessoForDisplay,
   maskProcesso,
   getSafeDate,
-} from "./utils.js"; // <-- 1. IMPORTAÇÃO DA FUNÇÃO SEGURA
+} from "./utils.js";
+
+/**
+ * Função central para lidar com cliques na página de tarefas.
+ * Usa delegação de eventos para ser mais robusto.
+ * @param {Event} event - O objeto do evento de clique.
+ */
+function handleTarefasPageClick(event) {
+  const target = event.target.closest("button, [data-action]");
+  if (!target) return;
+
+  // Ações de navegação de mês
+  if (target.id === "prev-month-btn") {
+    const currentDate = state.currentTasksPageDate;
+    const mesAnterior = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() - 1,
+      1
+    );
+    renderDiligenciasPage(mesAnterior);
+    return;
+  }
+
+  if (target.id === "next-month-btn") {
+    const currentDate = state.currentTasksPageDate;
+    const mesSeguinte = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      1
+    );
+    renderDiligenciasPage(mesSeguinte);
+    return;
+  }
+
+  if (target.id === "add-diligencia-btn") {
+    renderDiligenciaFormModal();
+    return;
+  }
+
+  // Ações da tabela de tarefas (que já usava delegação)
+  const action = target.dataset.action;
+  if (action && target.closest("#diligencias-list-container")) {
+    event.preventDefault();
+    handleDiligenciaAction(target);
+  }
+}
 
 /**
  * Renderiza a estrutura principal da página de Tarefas do Mês.
@@ -26,9 +71,7 @@ export function renderDiligenciasPage(date = new Date()) {
   pageTitle.textContent = "Controle de Tarefas";
   document.title = `SASIF | Tarefas do Mês - ${mesAtual}`;
 
-  const mesAnterior = new Date(date.getFullYear(), date.getMonth() - 1, 1);
   const mesSeguinte = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const dataLimite = new Date(hoje.getFullYear() + 2, hoje.getMonth(), 1);
@@ -38,9 +81,9 @@ export function renderDiligenciasPage(date = new Date()) {
         <div class="dashboard-actions"> <button id="add-diligencia-btn" class="btn-primary">Adicionar Tarefa</button> </div>
         <div class="tasks-month-header">
             <button id="prev-month-btn" title="Mês Anterior">◀</button>
-<div class="month-title">${
-    mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)
-  }</div>
+            <div class="month-title">${
+              mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1)
+            }</div>
             <button id="next-month-btn" title="Mês Seguinte" ${
               desabilitarProximo ? "disabled" : ""
             }>▶</button>
@@ -50,24 +93,17 @@ export function renderDiligenciasPage(date = new Date()) {
         </div>
     `;
 
-  document
-    .getElementById("add-diligencia-btn")
-    .addEventListener("click", () => renderDiligenciaFormModal());
-  document
-    .getElementById("prev-month-btn")
-    .addEventListener("click", () => renderDiligenciasPage(mesAnterior));
-  if (!desabilitarProximo) {
-    document
-      .getElementById("next-month-btn")
-      .addEventListener("click", () => renderDiligenciasPage(mesSeguinte));
-  }
+  // REMOVEMOS os addEventListeners individuais daqui
 
-  // Garante que o listener seja anexado apenas uma vez
-  contentArea.removeEventListener("click", handleDiligenciaAction);
-  contentArea.addEventListener("click", handleDiligenciaAction);
+  // Anexa o listener principal e centralizado APENAS UMA VEZ
+  contentArea.removeEventListener("click", handleTarefasPageClick);
+  contentArea.addEventListener("click", handleTarefasPageClick);
 
   setupDiligenciasListener(date);
 }
+
+// ... (O restante do arquivo permanece exatamente o mesmo)
+// ... (Copie e cole o resto do seu arquivo original a partir daqui)
 
 /**
  * Renderiza o modal para adicionar ou editar uma tarefa.
@@ -80,7 +116,6 @@ function renderDiligenciaFormModal(diligencia = null) {
 
   let dataAlvoFormatada = "";
   if (isEditing && diligencia.dataAlvo) {
-    // <-- 2. CORREÇÃO NA LEITURA
     const dataAlvoObj = getSafeDate(diligencia.dataAlvo);
     if (dataAlvoObj) {
       dataAlvoFormatada = dataAlvoObj.toISOString().split("T")[0];
@@ -306,7 +341,6 @@ function renderDiligenciasList(diligencias, date) {
   const inicioDoMesVisivel = new Date(date.getFullYear(), date.getMonth(), 1);
 
   const tarefasDoMes = diligencias.filter((item) => {
-    // <-- 3. CORREÇÃO NA LEITURA (PONTO PRINCIPAL DO ERRO)
     const dataAlvoObj = getSafeDate(item.dataAlvo);
     const criadoEmObj = getSafeDate(item.criadoEm);
     const recorrenciaTerminaEmObj = getSafeDate(item.recorrenciaTerminaEm);
@@ -331,7 +365,6 @@ function renderDiligenciasList(diligencias, date) {
   });
 
   tarefasDoMes.sort((a, b) => {
-    // <-- 4. CORREÇÃO NA LEITURA
     const dataAObj = getSafeDate(a.dataAlvo);
     const dataBObj = getSafeDate(b.dataAlvo);
     if (!dataAObj || !dataBObj) return 0;
@@ -362,9 +395,8 @@ function renderDiligenciasList(diligencias, date) {
       item.historicoCumprimentos[anoMesSelecionado];
     const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
 
-    // <-- 5. CORREÇÃO NA LEITURA
     const dataAlvoObj = getSafeDate(item.dataAlvo);
-    if (!dataAlvoObj) return; // Segurança extra
+    if (!dataAlvoObj) return;
 
     const dataAlvoFormatada = item.isRecorrente
       ? `${String(dataAlvoObj.getUTCDate()).padStart(2, "0")}/${String(
@@ -384,7 +416,6 @@ function renderDiligenciasList(diligencias, date) {
         ? Object.values(item.historicoCumprimentos)[0]
         : item.historicoCumprimentos[anoMesSelecionado];
 
-      // <-- 6. CORREÇÃO NA LEITURA
       const dataCumprimentoObj = getSafeDate(dataCumprimentoTimestamp);
       const dataFormatada = dataCumprimentoObj
         ? dataCumprimentoObj.toLocaleDateString("pt-BR", { timeZone: "UTC" })
@@ -407,11 +438,8 @@ function renderDiligenciasList(diligencias, date) {
 /**
  * Lida com todas as ações na lista de tarefas (cumprir, desfazer, editar, etc.).
  */
-function handleDiligenciaAction(event) {
-  const target = event.target.closest("[data-action]");
-  if (!target || !target.closest("#diligencias-list-container")) return;
-  event.preventDefault();
-
+function handleDiligenciaAction(target) {
+  // Alterado para receber o target diretamente
   const action = target.dataset.action;
   const diligenciaId = target.dataset.id;
   const mesChave = target.dataset.mesChave;
