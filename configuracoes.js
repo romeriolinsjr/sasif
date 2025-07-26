@@ -1,5 +1,5 @@
 // ==================================================================
-// Módulo: configuracoes.js (VERSÃO FINAL E CORRIGIDA)
+// Módulo: configuracoes.js
 // Responsabilidade: Gerenciamento de Configurações, Backup e Restauração.
 // ==================================================================
 
@@ -85,23 +85,33 @@ export function renderConfiguracoesPage() {
 // SEÇÃO: BACKUP E RESTAURAÇÃO
 // ==================================================================
 
+// ==================================================================
+//  !!! MUDANÇA PRINCIPAL ABAIXO !!!
+//  Este schema agora reflete a estrutura REAL do banco de dados:
+//  - Quase todas as coleções são de primeiro nível.
+//  - 'historicoValores' é a ÚNICA sub-coleção, localizada dentro de 'processos'.
+// ==================================================================
 const COLLECTIONS_SCHEMA = {
+  // --- Coleções de Primeiro Nível ---
+  grandes_devedores: {},
   exequentes: {},
   motivos_suspensao: {},
   diligenciasMensais: {},
   incidentesProcessuais: {},
-  grandes_devedores: {},
   demandasEstruturais: {},
+  corresponsaveis: {},
+  penhoras: {},
+  audiencias: {},
+  anexos: {},
+  // --- Coleção com Sub-coleção ---
   processos: {
-    corresponsaveis: {},
-    penhoras: {},
-    audiencias: {},
-    anexos: {},
-    historico_valores: {},
+    // A chave aqui ('historicoValores') deve corresponder EXATAMENTE
+    // ao nome da sub-coleção no Firestore.
+    historicoValores: {},
   },
 };
 
-// ---- Funções de Backup (LÓGICA CORRETA E FINAL) ----
+// ---- Funções de Backup (Lógica inalterada, agora funciona com o Schema correto) ----
 
 async function startBackupProcess() {
   if (
@@ -118,7 +128,8 @@ async function startBackupProcess() {
     const jsonString = JSON.stringify(
       backupData,
       (k, v) => {
-        if (v && v.toDate) {
+        // Serializador para Timestamps do Firestore
+        if (v && typeof v.toDate === "function") {
           return {
             _fsTimestamp: { seconds: v.seconds, nanoseconds: v.nanoseconds },
           };
@@ -140,6 +151,7 @@ async function startBackupProcess() {
 
 async function fetchAllDataForBackup() {
   const backupData = {};
+  // Itera sobre as chaves de primeiro nível do nosso schema (nomes das coleções)
   for (const collectionName in COLLECTIONS_SCHEMA) {
     showLoadingOverlay(`Processando backup de '${collectionName}'...`);
     const collectionRef = db.collection(collectionName);
@@ -157,9 +169,12 @@ async function fetchCollectionDataRecursive(collectionRef, schema) {
   const data = [];
   for (const doc of snapshot.docs) {
     const docData = { id: doc.id, ...doc.data() };
+
+    // Para cada documento, verifica se o schema define sub-coleções
     for (const subCollName in schema) {
       const subCollSchema = schema[subCollName];
       const subCollRef = doc.ref.collection(subCollName);
+      // Chama a si mesma para buscar os dados da sub-coleção
       docData[subCollName] = await fetchCollectionDataRecursive(
         subCollRef,
         subCollSchema
@@ -183,7 +198,7 @@ function downloadBackupFile(jsonString) {
   URL.revokeObjectURL(url);
 }
 
-// ---- Funções de Restauração (LÓGICA CORRIGIDA E FINAL) ----
+// ---- Funções de Restauração (Lógica inalterada, agora funciona com o Schema correto) ----
 
 function startRestoreProcess() {
   const input = document.createElement("input");
@@ -235,7 +250,17 @@ function startRestoreProcess() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const backupData = JSON.parse(e.target.result);
+          // Deserializador para Timestamps do Firestore
+          const backupData = JSON.parse(e.target.result, (key, value) => {
+            if (value && value._fsTimestamp) {
+              return new firebase.firestore.Timestamp(
+                value._fsTimestamp.seconds,
+                value._fsTimestamp.nanoseconds
+              );
+            }
+            return value;
+          });
+
           await deleteAllData(isTestMode);
           await restoreDataFromBackup(backupData, isTestMode);
           showToast(
@@ -279,7 +304,6 @@ async function _deleteCollectionInBatches(collectionRef) {
 
 async function deleteAllData(testMode = false) {
   const suffix = testMode ? "_TESTE" : "";
-  showLoadingOverlay("Limpando dados de teste...");
 
   for (const collectionName in COLLECTIONS_SCHEMA) {
     const schema = COLLECTIONS_SCHEMA[collectionName];
@@ -305,6 +329,7 @@ async function restoreDataFromBackup(data, testMode = false) {
   const suffix = testMode ? "_TESTE" : "";
 
   for (const collectionName in data) {
+    // Verifica se a coleção do arquivo de backup existe no nosso schema atual
     if (COLLECTIONS_SCHEMA[collectionName]) {
       const collectionRef = db.collection(collectionName + suffix);
       const schema = COLLECTIONS_SCHEMA[collectionName];
@@ -327,36 +352,23 @@ async function restoreCollectionRecursive(
     try {
       const { id, ...rest } = docData;
       const docRef = collectionRef.doc(id);
-      const payload = {};
-      const subcollectionsToRestore = {};
+      const payload = {}; // Dados do documento principal
+      const subcollectionsToRestore = {}; // Dados das sub-coleções
 
-      const _restoreValue = (value) => {
-        if (value && value._fsTimestamp) {
-          return new firebase.firestore.Timestamp(
-            value._fsTimestamp.seconds,
-            value._fsTimestamp.nanoseconds
-          );
-        }
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-          const sanitized = {};
-          for (const key in value) {
-            if (value[key] !== undefined) sanitized[key] = value[key];
-          }
-          return sanitized;
-        }
-        return value;
-      };
-
+      // Separa os dados do documento principal dos dados das sub-coleções
       for (const key in rest) {
+        // Se a chave existe no schema, é uma sub-coleção
         if (schema[key] !== undefined && Array.isArray(rest[key])) {
           subcollectionsToRestore[key] = rest[key];
         } else {
-          payload[key] = _restoreValue(rest[key]);
+          // Senão, é um campo do documento principal
+          payload[key] = rest[key];
         }
       }
 
       await docRef.set(payload);
 
+      // Restaura as sub-coleções
       for (const subCollName in subcollectionsToRestore) {
         const subCollSchema = schema[subCollName];
         const subCollRef = docRef.collection(subCollName);
