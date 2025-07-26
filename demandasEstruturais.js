@@ -7,7 +7,7 @@ import { db, storage } from "./firebase.js";
 import { contentArea, pageTitle, showToast } from "./ui.js";
 import { devedoresCache } from "./state.js";
 import { navigateTo } from "./navigation.js";
-import { formatCNPJForDisplay, maskProcesso } from "./utils.js";
+import { formatCNPJForDisplay, maskProcesso, getSafeDate } from "./utils.js"; // <-- 1. IMPORTAÇÃO CORRETA
 
 let demandasCache = [];
 let activeDemandaState = {
@@ -85,7 +85,6 @@ function renderDemandasList() {
       '[data-action="toggle-edit-demandas"] svg'
     );
 
-    // A linha que escondia o botão "+" foi removida.
     if (editIconSvg)
       editIconSvg.style.fill = isEditing ? "var(--cor-primaria)" : "#555";
   }
@@ -292,21 +291,17 @@ function renderGerenciarEixosTab(demanda) {
     : "#555";
 
   let contentInsideSection;
-  // Define o conteúdo que virá DEPOIS do cabeçalho da seção
   if (eixos.length > 0) {
-    // Se houver eixos, prepara os placeholders para os botões e a descrição
     contentInsideSection = `
         <div id="eixos-buttons-list" class="eixos-list"></div>
       </div> 
       <div id="eixo-content-area"></div>`;
   } else {
-    // Se não houver eixos, prepara a mensagem informativa
     contentInsideSection = `
         <p class="empty-list-message" style="margin-top: 16px;">Esta demanda estrutural não possui divisão em eixos.</p>
       </div>`;
   }
 
-  // Renderiza a estrutura principal, que SEMPRE inclui o cabeçalho com os botões de ação
   c.innerHTML = `
     <div class="eixos-section ${
       activeDemandaState.isEditingEixos ? "edit-mode" : ""
@@ -321,7 +316,6 @@ function renderGerenciarEixosTab(demanda) {
       ${contentInsideSection}
   `;
 
-  // Se houver eixos, chama a função para renderizá-los dentro dos placeholders
   if (eixos.length > 0) {
     renderEixosUI(demanda);
   }
@@ -357,7 +351,7 @@ function renderAtoresList(atores) {
         ator.id
       }" data-direction="down" ${
         isLast ? "disabled" : ""
-      }><svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button></div></td><td>${
+      }><svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6 6z"/></svg></button></div></td><td>${
         ator.nome
       }</td><td>${
         ator.representante || "-"
@@ -591,12 +585,15 @@ async function handleDeleteEixo(eixoId, eixoNome) {
     showToast("Erro.", "error");
   }
 }
+
 function renderTimeline(eventos) {
   const container = document.getElementById("timeline-container");
   if (!container) return;
-  const sortedEventos = (eventos || []).sort(
-    (a, b) => b.data.toDate() - a.data.toDate()
-  );
+  // <-- 2. CORREÇÃO NA ORDENAÇÃO
+  const sortedEventos = (eventos || [])
+    .map((evento) => ({ ...evento, dataObj: getSafeDate(evento.data) }))
+    .sort((a, b) => (b.dataObj || 0) - (a.dataObj || 0));
+
   if (sortedEventos.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhum evento no histórico.</p>`;
     return;
@@ -604,11 +601,14 @@ function renderTimeline(eventos) {
   container.innerHTML = sortedEventos
     .map((evento, index) => {
       const position = index % 2 === 0 ? "left" : "right";
-      const dataFormatada = evento.data.toDate().toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+      // <-- 3. CORREÇÃO NA FORMATAÇÃO
+      const dataFormatada = evento.dataObj
+        ? evento.dataObj.toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+        : "Data inválida";
 
       const vinculoHTML = evento.atoVinculadoId
         ? `<button class="action-icon icon-link" title="Ir para o Ato Processual vinculado" data-action="navigate-to-ato" data-ato-id="${evento.atoVinculadoId}"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></button>`
@@ -618,7 +618,6 @@ function renderTimeline(eventos) {
         ? `<div class="timeline-event-footer"><a href="${evento.anexoURL}" target="_blank" class="anexo-link" title="Abrir anexo: ${evento.anexoNome}"><svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v11.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg><span>${evento.anexoNome}</span></a></div>`
         : "";
 
-      // <-- ALTERAÇÃO PRINCIPAL AQUI: O 'vinculoHTML' foi movido para o cabeçalho.
       return `<div class="timeline-event timeline-${position}"><div class="timeline-event-content">
                 <div class="timeline-event-header">
                   <div class="timeline-title-container">
@@ -647,7 +646,11 @@ function renderEventoModal(evento = null) {
 
   const atosOptions = atos
     .map((ato) => {
-      const dataFormatada = ato.data.toDate().toLocaleDateString("pt-BR");
+      // <-- 4. CORREÇÃO NA LEITURA
+      const dataAtoObj = getSafeDate(ato.data);
+      const dataFormatada = dataAtoObj
+        ? dataAtoObj.toLocaleDateString("pt-BR")
+        : "Data inválida";
       const textoOpcao = `${ato.tipo || "Ato"} - ${dataFormatada} - ${
         ato.processoNumero
       }`;
@@ -658,9 +661,12 @@ function renderEventoModal(evento = null) {
     })
     .join("");
 
-  const dataFormatada = evento
-    ? new Date(evento.data.seconds * 1000).toISOString().split("T")[0]
+  // <-- 5. CORREÇÃO NA LEITURA
+  const dataEventoObj = isEditing ? getSafeDate(evento.data) : null;
+  const dataFormatada = dataEventoObj
+    ? dataEventoObj.toISOString().split("T")[0]
     : "";
+
   const anexoDisplayHTML = evento?.anexoURL
     ? `<div class="current-anexo-display" id="current-anexo-display"><span>${evento.anexoNome}</span><button class="action-icon icon-delete" data-action="remove-anexo" title="Remover anexo"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>`
     : "";
@@ -697,13 +703,12 @@ async function handleSaveEvento(eventoId = null) {
     ? eventos.find((e) => e.id === eventoId)
     : null;
 
-  // Lê os dados do formulário, incluindo o novo campo de vínculo
   let eventoData = {
     titulo: document.getElementById("evento-titulo").value.trim(),
     dataInput: document.getElementById("evento-data").value,
     tipo: document.getElementById("evento-tipo").value.trim(),
     descricao: document.getElementById("evento-descricao").value.trim(),
-    atoVinculadoId: document.getElementById("evento-vinculo-ato").value, // <-- ALTERAÇÃO AQUI
+    atoVinculadoId: document.getElementById("evento-vinculo-ato").value,
     anexoURL: eventoExistente?.anexoURL || null,
     anexoNome: eventoExistente?.anexoNome || null,
   };
@@ -738,7 +743,6 @@ async function handleSaveEvento(eventoId = null) {
       eventoData.anexoNome = null;
     }
 
-    // Constrói o objeto final para salvar, incluindo o novo campo
     const dataFinal = {
       id: eventoId || `_${Math.random().toString(36).substr(2, 9)}`,
       titulo: eventoData.titulo,
@@ -747,7 +751,7 @@ async function handleSaveEvento(eventoId = null) {
       ),
       tipo: eventoData.tipo,
       descricao: eventoData.descricao,
-      atoVinculadoId: eventoData.atoVinculadoId || null, // <-- ALTERAÇÃO AQUI
+      atoVinculadoId: eventoData.atoVinculadoId || null,
       anexoURL: eventoData.anexoURL,
       anexoNome: eventoData.anexoNome,
     };
@@ -794,12 +798,15 @@ async function handleDeleteEvento(eventoId) {
     .then(() => showToast("Evento excluído."))
     .catch(() => showToast("Erro.", "error"));
 }
+
 function renderAtosTimeline(atos) {
   const container = document.getElementById("atos-timeline-container");
   if (!container) return;
-  const sortedAtos = (atos || []).sort(
-    (a, b) => b.data.toDate() - a.data.toDate()
-  );
+  // <-- 6. CORREÇÃO NA ORDENAÇÃO
+  const sortedAtos = (atos || [])
+    .map((ato) => ({ ...ato, dataObj: getSafeDate(ato.data) }))
+    .sort((a, b) => (b.dataObj || 0) - (a.dataObj || 0));
+
   if (sortedAtos.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhum ato processual cadastrado.</p>`;
     return;
@@ -808,7 +815,11 @@ function renderAtosTimeline(atos) {
   container.innerHTML = sortedAtos
     .map((ato, index) => {
       const position = index % 2 === 0 ? "left" : "right";
-      const dataFormatada = ato.data.toDate().toLocaleDateString("pt-BR");
+      // <-- 7. CORREÇÃO NA FORMATAÇÃO
+      const dataFormatada = ato.dataObj
+        ? ato.dataObj.toLocaleDateString("pt-BR")
+        : "Data inválida";
+
       return `<div class="timeline-event timeline-${position}"><div id="${
         ato.id
       }" class="timeline-event-content ${
@@ -847,18 +858,15 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
   const isEditing = activeDemandaState.isEditingEncaminhamentos;
   const tableRows = encaminhamentos
     .map((enc) => {
-      // Lógica para encontrar os nomes dos responsáveis
       let responsaveisNomes = [];
       if (Array.isArray(enc.entidadeIds)) {
-        // Formato novo
         responsaveisNomes = enc.entidadeIds
           .map((id) => {
             const ator = (demanda.atores || []).find((a) => a.id === id);
             return ator ? ator.nome : "ID não encontrado";
           })
-          .filter((nome) => nome); // Filtra nomes não encontrados
+          .filter((nome) => nome);
       } else if (enc.entidadeId) {
-        // Fallback para formato antigo
         const ator = (demanda.atores || []).find(
           (a) => a.id === enc.entidadeId
         );
@@ -893,9 +901,12 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
 }
 function renderAtoModal(ato = null) {
   const isEditing = ato !== null;
-  const dataFormatada = ato
-    ? new Date(ato.data.seconds * 1000).toISOString().split("T")[0]
+  // <-- 8. CORREÇÃO NA LEITURA
+  const dataAtoObj = isEditing ? getSafeDate(ato.data) : null;
+  const dataFormatada = dataAtoObj
+    ? dataAtoObj.toISOString().split("T")[0]
     : "";
+
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
   modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${

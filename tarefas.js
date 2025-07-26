@@ -6,7 +6,11 @@
 import { db, auth } from "./firebase.js";
 import { contentArea, pageTitle, showToast } from "./ui.js";
 import * as state from "./state.js";
-import { formatProcessoForDisplay, maskProcesso } from "./utils.js";
+import {
+  formatProcessoForDisplay,
+  maskProcesso,
+  getSafeDate,
+} from "./utils.js"; // <-- 1. IMPORTAÇÃO DA FUNÇÃO SEGURA
 
 /**
  * Renderiza a estrutura principal da página de Tarefas do Mês.
@@ -76,9 +80,11 @@ function renderDiligenciaFormModal(diligencia = null) {
 
   let dataAlvoFormatada = "";
   if (isEditing && diligencia.dataAlvo) {
-    dataAlvoFormatada = new Date(diligencia.dataAlvo.seconds * 1000)
-      .toISOString()
-      .split("T")[0];
+    // <-- 2. CORREÇÃO NA LEITURA
+    const dataAlvoObj = getSafeDate(diligencia.dataAlvo);
+    if (dataAlvoObj) {
+      dataAlvoFormatada = dataAlvoObj.toISOString().split("T")[0];
+    }
   }
 
   modalOverlay.innerHTML = `
@@ -275,7 +281,7 @@ function setupDiligenciasListener(date) {
           ...doc.data(),
         }));
         state.setDiligenciasCache(diligencias);
-        renderDiligenciasList(diligencias, date); // Passa a data para a função de renderização
+        renderDiligenciasList(diligencias, date);
       },
       (error) => {
         console.error("Erro detalhado do Firebase:", error);
@@ -300,43 +306,42 @@ function renderDiligenciasList(diligencias, date) {
   const inicioDoMesVisivel = new Date(date.getFullYear(), date.getMonth(), 1);
 
   const tarefasDoMes = diligencias.filter((item) => {
-    if (!item.dataAlvo) return false;
-    const inicioDaVigencia = item.criadoEm
-      ? new Date(
-          item.criadoEm.toDate().getFullYear(),
-          item.criadoEm.toDate().getMonth(),
-          1
-        )
+    // <-- 3. CORREÇÃO NA LEITURA (PONTO PRINCIPAL DO ERRO)
+    const dataAlvoObj = getSafeDate(item.dataAlvo);
+    const criadoEmObj = getSafeDate(item.criadoEm);
+    const recorrenciaTerminaEmObj = getSafeDate(item.recorrenciaTerminaEm);
+
+    if (!dataAlvoObj) return false;
+
+    const inicioDaVigencia = criadoEmObj
+      ? new Date(criadoEmObj.getFullYear(), criadoEmObj.getMonth(), 1)
       : new Date(1970, 0, 1);
+
     if (inicioDoMesVisivel < inicioDaVigencia) return false;
-    if (
-      item.recorrenciaTerminaEm &&
-      inicioDoMesVisivel > item.recorrenciaTerminaEm.toDate()
-    )
+
+    if (recorrenciaTerminaEmObj && inicioDoMesVisivel > recorrenciaTerminaEmObj)
       return false;
+
     if (item.isRecorrente) return true;
-    const dataAlvoTarefa = new Date(item.dataAlvo.seconds * 1000);
+
     return (
-      dataAlvoTarefa.getFullYear() === date.getFullYear() &&
-      dataAlvoTarefa.getMonth() === date.getMonth()
+      dataAlvoObj.getFullYear() === date.getFullYear() &&
+      dataAlvoObj.getMonth() === date.getMonth()
     );
   });
 
   tarefasDoMes.sort((a, b) => {
+    // <-- 4. CORREÇÃO NA LEITURA
+    const dataAObj = getSafeDate(a.dataAlvo);
+    const dataBObj = getSafeDate(b.dataAlvo);
+    if (!dataAObj || !dataBObj) return 0;
+
     const dataA = a.isRecorrente
-      ? new Date(
-          date.getFullYear(),
-          date.getMonth(),
-          new Date(a.dataAlvo.seconds * 1000).getUTCDate()
-        )
-      : new Date(a.dataAlvo.seconds * 1000);
+      ? new Date(date.getFullYear(), date.getMonth(), dataAObj.getUTCDate())
+      : dataAObj;
     const dataB = b.isRecorrente
-      ? new Date(
-          date.getFullYear(),
-          date.getMonth(),
-          new Date(b.dataAlvo.seconds * 1000).getUTCDate()
-        )
-      : new Date(b.dataAlvo.seconds * 1000);
+      ? new Date(date.getFullYear(), date.getMonth(), dataBObj.getUTCDate())
+      : dataBObj;
     return dataA - dataB;
   });
 
@@ -356,12 +361,16 @@ function renderDiligenciasList(diligencias, date) {
       item.historicoCumprimentos &&
       item.historicoCumprimentos[anoMesSelecionado];
     const isCumprida = isCumpridaUnica || isCumpridaRecorrente;
-    const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
+
+    // <-- 5. CORREÇÃO NA LEITURA
+    const dataAlvoObj = getSafeDate(item.dataAlvo);
+    if (!dataAlvoObj) return; // Segurança extra
+
     const dataAlvoFormatada = item.isRecorrente
-      ? `${String(dataAlvo.getUTCDate()).padStart(2, "0")}/${String(
+      ? `${String(dataAlvoObj.getUTCDate()).padStart(2, "0")}/${String(
           date.getMonth() + 1
         ).padStart(2, "0")}/${date.getFullYear()}`
-      : dataAlvo.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+      : dataAlvoObj.toLocaleDateString("pt-BR", { timeZone: "UTC" });
     const tipoTarefa = item.isRecorrente
       ? '<span class="status-badge status-suspenso" style="background-color: #6a1b9a;">Recorrente</span>'
       : '<span class="status-badge status-ativo" style="background-color: #1565c0;">Única</span>';
@@ -374,9 +383,13 @@ function renderDiligenciasList(diligencias, date) {
       const dataCumprimentoTimestamp = isCumpridaUnica
         ? Object.values(item.historicoCumprimentos)[0]
         : item.historicoCumprimentos[anoMesSelecionado];
-      const dataFormatada = new Date(
-        dataCumprimentoTimestamp.seconds * 1000
-      ).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+      // <-- 6. CORREÇÃO NA LEITURA
+      const dataCumprimentoObj = getSafeDate(dataCumprimentoTimestamp);
+      const dataFormatada = dataCumprimentoObj
+        ? dataCumprimentoObj.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+        : "Data Inválida";
+
       statusBadge = `<span class="status-badge status-ativo">Cumprido em ${dataFormatada}</span>`;
       acoesBtnDesfazer = `<button class="action-icon" title="Desfazer cumprimento" data-action="desfazer" data-id="${item.id}" data-mes-chave="${anoMesSelecionado}"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#5a6268"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>`;
       linhaStyle = 'style="background-color: #e8f5e9;"';

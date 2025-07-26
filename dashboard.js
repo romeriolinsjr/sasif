@@ -6,7 +6,11 @@
 import { auth, db } from "./firebase.js";
 import { contentArea, pageTitle } from "./ui.js";
 import * as state from "./state.js";
-import { getAnaliseStatus, formatProcessoForDisplay } from "./utils.js";
+import {
+  getAnaliseStatus,
+  formatProcessoForDisplay,
+  getSafeDate,
+} from "./utils.js"; // <-- 1. IMPORTAÇÃO DA FUNÇÃO SEGURA
 import { navigateTo } from "./navigation.js";
 
 /**
@@ -27,9 +31,7 @@ export function renderDashboard() {
   setupDashboardWidgets();
 }
 
-/**
- * Inicia a busca de dados para todos os widgets do dashboard.
- */
+// Substitua esta função
 export function setupDashboardWidgets() {
   const hoje = new Date();
   const userId = auth.currentUser.uid;
@@ -52,17 +54,22 @@ export function setupDashboardWidgets() {
         container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
     });
 
-  // Busca as próximas 10 audiências futuras
+  // Busca TODAS as audiências para filtrar no lado do cliente
   db.collection("audiencias")
-    .where("dataHora", ">=", hoje)
-    .orderBy("dataHora", "asc")
-    .limit(10)
     .get()
     .then((snapshot) => {
-      const audienciasFuturas = snapshot.docs.map((doc) => ({
+      const todasAudiencias = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
+
+      // Filtra e ordena no lado do cliente usando getSafeDate
+      const audienciasFuturas = todasAudiencias
+        .map((item) => ({ ...item, dataHoraObj: getSafeDate(item.dataHora) })) // Converte a data primeiro
+        .filter((item) => item.dataHoraObj && item.dataHoraObj >= hoje) // Filtra as futuras
+        .sort((a, b) => a.dataHoraObj - b.dataHoraObj) // Ordena pela data
+        .slice(0, 10); // Pega as próximas 10
+
       renderProximasAudienciasWidget(audienciasFuturas);
     })
     .catch((error) => {
@@ -95,24 +102,26 @@ function renderProximasDiligenciasWidget(diligencias) {
   ).padStart(2, "0")}`;
 
   const diligenciasParaExibir = diligencias.filter((item) => {
-    if (!item.dataAlvo) return false;
+    // <-- 2. CORREÇÃO NA LEITURA
+    const dataAlvoObj = getSafeDate(item.dataAlvo);
+    const criadoEmObj = getSafeDate(item.criadoEm);
+    const recorrenciaTerminaEmObj = getSafeDate(item.recorrenciaTerminaEm);
 
-    const inicioDaVigencia = item.criadoEm
-      ? new Date(
-          item.criadoEm.toDate().getFullYear(),
-          item.criadoEm.toDate().getMonth(),
-          1
-        )
+    if (!dataAlvoObj) return false;
+
+    const inicioDaVigencia = criadoEmObj
+      ? new Date(criadoEmObj.getFullYear(), criadoEmObj.getMonth(), 1)
       : new Date(1970, 0, 1);
+
     if (new Date(hoje.getFullYear(), hoje.getMonth(), 1) < inicioDaVigencia) {
       return false;
     }
 
-    if (item.recorrenciaTerminaEm) {
-      const dataTermino = item.recorrenciaTerminaEm.toDate();
-      if (new Date(hoje.getFullYear(), hoje.getMonth(), 1) > dataTermino) {
-        return false;
-      }
+    if (
+      recorrenciaTerminaEmObj &&
+      new Date(hoje.getFullYear(), hoje.getMonth(), 1) > recorrenciaTerminaEmObj
+    ) {
+      return false;
     }
 
     if (item.isRecorrente) {
@@ -131,34 +140,26 @@ function renderProximasDiligenciasWidget(diligencias) {
       }
     }
 
-    const dataAlvoOriginal = new Date(item.dataAlvo.seconds * 1000);
     let dataRelevante = item.isRecorrente
-      ? new Date(
-          hoje.getFullYear(),
-          hoje.getMonth(),
-          dataAlvoOriginal.getUTCDate()
-        )
-      : dataAlvoOriginal;
+      ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvoObj.getUTCDate())
+      : dataAlvoObj;
     dataRelevante.setHours(0, 0, 0, 0);
 
     return dataRelevante <= cincoDiasFrente;
   });
 
   diligenciasParaExibir.sort((a, b) => {
+    // <-- 3. CORREÇÃO NA LEITURA
+    const dataAObj = getSafeDate(a.dataAlvo);
+    const dataBObj = getSafeDate(b.dataAlvo);
+    if (!dataAObj || !dataBObj) return 0;
+
     const dataA = a.isRecorrente
-      ? new Date(
-          hoje.getFullYear(),
-          hoje.getMonth(),
-          new Date(a.dataAlvo.seconds * 1000).getUTCDate()
-        )
-      : new Date(a.dataAlvo.seconds * 1000);
+      ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAObj.getUTCDate())
+      : dataAObj;
     const dataB = b.isRecorrente
-      ? new Date(
-          hoje.getFullYear(),
-          hoje.getMonth(),
-          new Date(b.dataAlvo.seconds * 1000).getUTCDate()
-        )
-      : new Date(b.dataAlvo.seconds * 1000);
+      ? new Date(hoje.getFullYear(), hoje.getMonth(), dataBObj.getUTCDate())
+      : dataBObj;
     return dataA - dataB;
   });
 
@@ -168,10 +169,17 @@ function renderProximasDiligenciasWidget(diligencias) {
       '<p class="empty-list-message">Nenhuma tarefa próxima ou em atraso.</p>';
   } else {
     diligenciasParaExibir.forEach((item) => {
-      const dataAlvo = new Date(item.dataAlvo.seconds * 1000);
+      // <-- 4. CORREÇÃO NA LEITURA
+      const dataAlvoObj = getSafeDate(item.dataAlvo);
+      if (!dataAlvoObj) return;
+
       const dataRelevante = item.isRecorrente
-        ? new Date(hoje.getFullYear(), hoje.getMonth(), dataAlvo.getUTCDate())
-        : dataAlvo;
+        ? new Date(
+            hoje.getFullYear(),
+            hoje.getMonth(),
+            dataAlvoObj.getUTCDate()
+          )
+        : dataAlvoObj;
       dataRelevante.setHours(0, 0, 0, 0);
 
       const isAtrasada = dataRelevante < hoje;
@@ -221,12 +229,15 @@ function renderProximasAudienciasWidget(audiencias) {
     umaSemana.setDate(hoje.getDate() + 8);
 
     audiencias.forEach((item) => {
-      const data = new Date(item.dataHora.seconds * 1000);
-      const dataFormatada = data.toLocaleString("pt-BR", {
+      // <-- 5. CORREÇÃO NA LEITURA
+      const dataObj = getSafeDate(item.dataHora);
+      if (!dataObj) return;
+
+      const dataFormatada = dataObj.toLocaleString("pt-BR", {
         dateStyle: "full",
         timeStyle: "short",
       });
-      const isDestaque = data < umaSemana;
+      const isDestaque = dataObj < umaSemana;
 
       contentHTML += `
                 <div class="audiencia-item ${isDestaque ? "destaque" : ""}">

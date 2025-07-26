@@ -4,6 +4,25 @@
 // ==================================================================
 
 /**
+ * Converte de forma segura um campo de data do Firestore para um objeto Date do JavaScript.
+ * Lida tanto com o tipo Timestamp (correto) quanto com o objeto Map (restaurado incorretamente).
+ * @param {object} firestoreDate - O campo de data do Firestore (pode ser Timestamp ou Map).
+ * @returns {Date|null} Um objeto Date ou null se a entrada for inválida.
+ */
+export function getSafeDate(firestoreDate) {
+  // Se for um Timestamp válido (tem a função toDate), usa-a.
+  if (firestoreDate && typeof firestoreDate.toDate === "function") {
+    return firestoreDate.toDate();
+  }
+  // Se for um objeto Map (vindo de um backup restaurado) com a estrutura que conhecemos
+  if (firestoreDate && typeof firestoreDate.seconds === "number") {
+    return new Date(firestoreDate.seconds * 1000);
+  }
+  // Se não for nenhum dos dois, retorna null para evitar erros.
+  return null;
+}
+
+/**
  * Aplica a máscara de CNPJ a um campo de input.
  * @param {HTMLInputElement} input O elemento do formulário.
  */
@@ -88,15 +107,22 @@ export function formatCurrency(value) {
  */
 export function getAnaliseStatus(devedor) {
   const zerarHora = (data) => {
+    if (!data) return null; // Adiciona verificação para data nula
     data.setHours(0, 0, 0, 0);
     return data;
   };
 
   const hoje = zerarHora(new Date());
 
-  if (!devedor.dataUltimaAnalise) {
-    if (devedor.criadoEm) {
-      const dataCriacao = zerarHora(devedor.criadoEm.toDate());
+  // Tenta obter a data de criação de forma segura
+  const dataCriacaoObj = getSafeDate(devedor.criadoEm);
+
+  // Tenta obter a data da última análise de forma segura
+  const dataUltimaAnaliseObj = getSafeDate(devedor.dataUltimaAnalise);
+
+  if (!dataUltimaAnaliseObj) {
+    if (dataCriacaoObj) {
+      const dataCriacao = zerarHora(dataCriacaoObj);
       const diffTime = hoje - dataCriacao;
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       const plural = diffDays === 1 ? "dia" : "dias";
@@ -115,7 +141,7 @@ export function getAnaliseStatus(devedor) {
   const prazos = { 1: 30, 2: 45, 3: 60 };
   const prazoDias = prazos[devedor.nivelPrioridade];
 
-  const dataUltima = zerarHora(devedor.dataUltimaAnalise.toDate());
+  const dataUltima = zerarHora(dataUltimaAnaliseObj);
   const dataVencimento = new Date(dataUltima);
   dataVencimento.setDate(dataVencimento.getDate() + prazoDias);
 

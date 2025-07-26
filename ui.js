@@ -112,55 +112,64 @@ export function renderReadOnlyTextModal(title, content) {
 }
 
 /**
- * Exibe ou ATUALIZA uma sobreposição de carregamento na tela inteira.
- * @param {string} message - A mensagem a ser exibida (ex: "Processando...").
+ * Exibe a sobreposição de carregamento com uma mensagem inicial e uma barra de progresso.
+ * @param {string} initialMessage - A mensagem a ser exibida inicialmente.
  */
-export function showLoadingOverlay(message = "Processando...") {
+export function showLoadingOverlay(initialMessage = "Carregando...") {
+  // Se já existir, apenas atualiza a mensagem
   let overlay = document.getElementById("loading-overlay");
+  if (overlay) {
+    const messageSpan = overlay.querySelector(".loading-message");
+    if (messageSpan) messageSpan.textContent = initialMessage;
+    return;
+  }
 
-  // Se o overlay não existe, cria.
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "loading-overlay";
-    overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: flex; justify-content: center; align-items: center;
-        color: white; font-size: 24px; z-index: 2000;
-        flex-direction: column; gap: 20px;
-        opacity: 0; transition: opacity 0.3s;
+  overlay = document.createElement("div");
+  overlay.id = "loading-overlay";
+  overlay.innerHTML = `
+        <div class="loading-box">
+            <div class="spinner"></div>
+            <span class="loading-message">${initialMessage}</span>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill"></div>
+            </div>
+        </div>
     `;
-    overlay.innerHTML = `
-        <div class="spinner" style="
-            border: 8px solid #f3f3f3; border-top: 8px solid var(--cor-secundaria);
-            border-radius: 50%; width: 60px; height: 60px;
-            animation: spin 1s linear infinite;
-        "></div>
-        <span id="loading-message">${message}</span>
-        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
-    `;
-    document.body.appendChild(overlay);
-    // Força o navegador a aplicar o estilo inicial antes de mudar a opacidade
-    setTimeout(() => {
-      overlay.style.opacity = "1";
-    }, 10);
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Atualiza a mensagem e a barra de progresso na sobreposição de carregamento.
+ * @param {number} progress - O progresso atual (0 a 100).
+ * @param {string} message - A mensagem a ser exibida.
+ */
+export function updateLoadingOverlay(progress, message) {
+  const overlay = document.getElementById("loading-overlay");
+  if (!overlay) return;
+
+  const messageSpan = overlay.querySelector(".loading-message");
+  const progressBarFill = overlay.querySelector(".progress-bar-fill");
+  const progressBarContainer = overlay.querySelector(".progress-bar-container");
+
+  if (message) {
+    messageSpan.textContent = message;
+  }
+
+  // Mostra a barra de progresso apenas se um progresso válido for fornecido
+  if (progress >= 0 && progress <= 100) {
+    progressBarContainer.style.display = "block";
+    progressBarFill.style.width = `${progress}%`;
   } else {
-    // Se já existe, apenas atualiza a mensagem.
-    const messageSpan = document.getElementById("loading-message");
-    if (messageSpan) {
-      messageSpan.textContent = message;
-    }
+    progressBarContainer.style.display = "none";
   }
 }
 
 /**
- * Remove a sobreposição de carregamento da tela.
+ * Oculta a sobreposição de carregamento.
  */
 export function hideLoadingOverlay() {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) {
-    overlay.style.opacity = "0";
-    // Remove o elemento do DOM após a transição
-    overlay.addEventListener("transitionend", () => overlay.remove());
+    overlay.remove();
   }
 }

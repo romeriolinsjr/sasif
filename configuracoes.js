@@ -11,6 +11,7 @@ import {
   renderReadOnlyTextModal,
   showLoadingOverlay,
   hideLoadingOverlay,
+  updateLoadingOverlay,
 } from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import * as state from "./state.js";
@@ -85,14 +86,7 @@ export function renderConfiguracoesPage() {
 // SEÇÃO: BACKUP E RESTAURAÇÃO
 // ==================================================================
 
-// ==================================================================
-//  !!! MUDANÇA PRINCIPAL ABAIXO !!!
-//  Este schema agora reflete a estrutura REAL do banco de dados:
-//  - Quase todas as coleções são de primeiro nível.
-//  - 'historicoValores' é a ÚNICA sub-coleção, localizada dentro de 'processos'.
-// ==================================================================
 const COLLECTIONS_SCHEMA = {
-  // --- Coleções de Primeiro Nível ---
   grandes_devedores: {},
   exequentes: {},
   motivos_suspensao: {},
@@ -103,15 +97,47 @@ const COLLECTIONS_SCHEMA = {
   penhoras: {},
   audiencias: {},
   anexos: {},
-  // --- Coleção com Sub-coleção ---
   processos: {
-    // A chave aqui ('historicoValores') deve corresponder EXATAMENTE
-    // ao nome da sub-coleção no Firestore.
     historicoValores: {},
   },
 };
 
-// ---- Funções de Backup (Lógica inalterada, agora funciona com o Schema correto) ----
+/**
+ * Função Auxiliar Definitiva: Converte recursivamente todos os objetos _fsTimestamp
+ * em um objeto de dados, não importa quão aninhados estejam.
+ * @param {*} data - O dado a ser processado (objeto, array, etc.).
+ * @returns {*} O dado com todos os Timestamps convertidos.
+ */
+function deepConvertTimestamps(data) {
+  if (!data) return data;
+
+  // Caso base: é um objeto de timestamp, converte e retorna.
+  if (data._fsTimestamp && typeof data._fsTimestamp.seconds === "number") {
+    return new firebase.firestore.Timestamp(
+      data._fsTimestamp.seconds,
+      data._fsTimestamp.nanoseconds
+    );
+  }
+
+  // Caso recursivo: é um array, processa cada item.
+  if (Array.isArray(data)) {
+    return data.map((item) => deepConvertTimestamps(item));
+  }
+
+  // Caso recursivo: é um objeto, processa cada valor.
+  if (typeof data === "object") {
+    const newObj = {};
+    for (const key in data) {
+      newObj[key] = deepConvertTimestamps(data[key]);
+    }
+    return newObj;
+  }
+
+  // Caso base: é um primitivo (string, número, etc.), retorna como está.
+  return data;
+}
+
+// ---- Funções de Backup (Versão correta para USO FUTURO) ----
 
 async function startBackupProcess() {
   if (
@@ -121,20 +147,37 @@ async function startBackupProcess() {
   )
     return;
 
-  showLoadingOverlay("Gerando backup...");
+  showLoadingOverlay("Calculando o total de itens para o backup...");
   try {
-    const backupData = await fetchAllDataForBackup();
-    showLoadingOverlay("Finalizando e gerando arquivo...");
+    let totalDocs = 0;
+    const countPromises = Object.keys(COLLECTIONS_SCHEMA).map(
+      (collectionName) =>
+        db
+          .collection(collectionName)
+          .get()
+          .then((snap) => snap.size)
+    );
+    const counts = await Promise.all(countPromises);
+    totalDocs = counts.reduce((sum, count) => sum + count, 0);
+
+    const progressTracker = { current: 0, total: totalDocs };
+
+    const backupData = await fetchAllDataForBackup(progressTracker);
+
+    updateLoadingOverlay(100, "Finalizando e gerando arquivo...");
+
     const jsonString = JSON.stringify(
       backupData,
-      (k, v) => {
-        // Serializador para Timestamps do Firestore
-        if (v && typeof v.toDate === "function") {
+      (key, value) => {
+        if (value && typeof value.toDate === "function") {
           return {
-            _fsTimestamp: { seconds: v.seconds, nanoseconds: v.nanoseconds },
+            _fsTimestamp: {
+              seconds: value.seconds,
+              nanoseconds: value.nanoseconds,
+            },
           };
         }
-        return v;
+        return value;
       },
       2
     );
@@ -149,35 +192,49 @@ async function startBackupProcess() {
   }
 }
 
-async function fetchAllDataForBackup() {
+async function fetchAllDataForBackup(progressTracker) {
   const backupData = {};
-  // Itera sobre as chaves de primeiro nível do nosso schema (nomes das coleções)
   for (const collectionName in COLLECTIONS_SCHEMA) {
-    showLoadingOverlay(`Processando backup de '${collectionName}'...`);
     const collectionRef = db.collection(collectionName);
     const schema = COLLECTIONS_SCHEMA[collectionName];
+
     backupData[collectionName] = await fetchCollectionDataRecursive(
       collectionRef,
-      schema
+      schema,
+      progressTracker
     );
   }
   return backupData;
 }
 
-async function fetchCollectionDataRecursive(collectionRef, schema) {
+async function fetchCollectionDataRecursive(
+  collectionRef,
+  schema,
+  progressTracker
+) {
   const snapshot = await collectionRef.get();
   const data = [];
-  for (const doc of snapshot.docs) {
-    const docData = { id: doc.id, ...doc.data() };
 
-    // Para cada documento, verifica se o schema define sub-coleções
+  for (const doc of snapshot.docs) {
+    if (progressTracker.total > 0) {
+      progressTracker.current++;
+      const percentage = Math.round(
+        (progressTracker.current / progressTracker.total) * 100
+      );
+      updateLoadingOverlay(
+        percentage,
+        `Fazendo backup: ${progressTracker.current} / ${progressTracker.total} itens...`
+      );
+    }
+
+    const docData = { id: doc.id, ...doc.data() };
     for (const subCollName in schema) {
       const subCollSchema = schema[subCollName];
       const subCollRef = doc.ref.collection(subCollName);
-      // Chama a si mesma para buscar os dados da sub-coleção
       docData[subCollName] = await fetchCollectionDataRecursive(
         subCollRef,
-        subCollSchema
+        subCollSchema,
+        { current: 0, total: 0 }
       );
     }
     data.push(docData);
@@ -198,7 +255,7 @@ function downloadBackupFile(jsonString) {
   URL.revokeObjectURL(url);
 }
 
-// ---- Funções de Restauração (Lógica inalterada, agora funciona com o Schema correto) ----
+// ---- Funções de Restauração (Versão correta e final) ----
 
 function startRestoreProcess() {
   const input = document.createElement("input");
@@ -250,19 +307,24 @@ function startRestoreProcess() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          // Deserializador para Timestamps do Firestore
-          const backupData = JSON.parse(e.target.result, (key, value) => {
-            if (value && value._fsTimestamp) {
-              return new firebase.firestore.Timestamp(
-                value._fsTimestamp.seconds,
-                value._fsTimestamp.nanoseconds
-              );
+          const backupData = JSON.parse(e.target.result);
+
+          let totalDocs = 0;
+          for (const collectionName in backupData) {
+            if (Array.isArray(backupData[collectionName])) {
+              totalDocs += backupData[collectionName].length;
             }
-            return value;
-          });
+          }
+          const progressTracker = { current: 0, total: totalDocs };
 
           await deleteAllData(isTestMode);
-          await restoreDataFromBackup(backupData, isTestMode);
+
+          await restoreDataFromBackup(backupData, isTestMode, progressTracker);
+
+          updateLoadingOverlay(
+            100,
+            "Restauração concluída! A página será recarregada."
+          );
           showToast(
             "Restauração concluída com sucesso! A página será recarregada.",
             "success",
@@ -276,8 +338,6 @@ function startRestoreProcess() {
             "error",
             null
           );
-        } finally {
-          hideLoadingOverlay();
         }
       };
       reader.readAsText(file);
@@ -291,52 +351,136 @@ function startRestoreProcess() {
   input.click();
 }
 
-async function _deleteCollectionInBatches(collectionRef) {
+async function deleteAllData(testMode = false) {
+  const suffix = testMode ? "_TESTE" : "";
+  showLoadingOverlay("Calculando itens para limpar...");
+
+  let totalDocs = 0;
+  const collectionNames = Object.keys(COLLECTIONS_SCHEMA);
+
+  const countPromises = collectionNames.map(async (collectionName) => {
+    const collectionRef = db.collection(collectionName + suffix);
+    try {
+      const snapshot = await collectionRef.get();
+      return snapshot.size;
+    } catch (e) {
+      if (
+        e.code.includes("permission-denied") ||
+        e.code.includes("resource-exhausted")
+      ) {
+        console.error(`Erro crítico ao contar ${collectionName + suffix}:`, e);
+        throw e;
+      }
+      console.warn(
+        `Aviso: Não foi possível contar a coleção ${
+          collectionName + suffix
+        }. Pode não existir.`,
+        e
+      );
+      return 0;
+    }
+  });
+
+  try {
+    const counts = await Promise.all(countPromises);
+    totalDocs = counts.reduce((sum, count) => sum + count, 0);
+  } catch (error) {
+    showToast(
+      "Erro crítico ao calcular itens para limpeza. Verifique o console.",
+      "error",
+      null
+    );
+    hideLoadingOverlay();
+    return;
+  }
+
+  const progressTracker = { current: 0, total: totalDocs };
+  updateLoadingOverlay(0, `Iniciando limpeza de ${totalDocs} itens...`);
+
+  for (const collectionName in COLLECTIONS_SCHEMA) {
+    const schema = COLLECTIONS_SCHEMA[collectionName];
+    const collectionRef = db.collection(collectionName + suffix);
+    await deleteCollectionRecursive(collectionRef, schema, progressTracker);
+  }
+}
+
+async function deleteCollectionRecursive(
+  collectionRef,
+  schema,
+  progressTracker
+) {
+  const snapshot = await collectionRef.get();
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  const docs = snapshot.docs;
+  const totalDocsInCollection = docs.length;
+  let subItemCounter = 0;
+  const hasSubCollections = Object.keys(schema).length > 0;
+
+  if (hasSubCollections) {
+    for (const doc of docs) {
+      subItemCounter++;
+      const currentPercentage =
+        progressTracker.total > 0
+          ? Math.round((progressTracker.current / progressTracker.total) * 100)
+          : 0;
+      updateLoadingOverlay(
+        currentPercentage,
+        `Limpando dados internos de '${collectionRef.id}' (${subItemCounter}/${totalDocsInCollection})`
+      );
+
+      for (const subCollName in schema) {
+        const subCollRef = doc.ref.collection(subCollName);
+        await _deleteCollectionInBatches(subCollRef, { current: 0, total: 0 });
+      }
+    }
+  }
+
+  await _deleteCollectionInBatches(collectionRef, progressTracker);
+}
+
+async function _deleteCollectionInBatches(collectionRef, progressTracker) {
   const snapshot = await collectionRef.limit(500).get();
-  if (snapshot.size === 0) return;
+  if (snapshot.size === 0) {
+    return;
+  }
 
   const batch = db.batch();
   snapshot.docs.forEach((doc) => batch.delete(doc.ref));
   await batch.commit();
 
-  await _deleteCollectionInBatches(collectionRef);
-}
-
-async function deleteAllData(testMode = false) {
-  const suffix = testMode ? "_TESTE" : "";
-
-  for (const collectionName in COLLECTIONS_SCHEMA) {
-    const schema = COLLECTIONS_SCHEMA[collectionName];
-    const collectionRef = db.collection(collectionName + suffix);
-    await deleteCollectionRecursive(collectionRef, schema);
-  }
-}
-
-async function deleteCollectionRecursive(collectionRef, schema) {
-  showLoadingOverlay(`Limpando ${collectionRef.path}...`);
-  const snapshot = await collectionRef.get();
-  for (const doc of snapshot.docs) {
-    for (const subCollName in schema) {
-      const subCollSchema = schema[subCollName];
-      const subCollRef = doc.ref.collection(subCollName);
-      await deleteCollectionRecursive(subCollRef, subCollSchema);
+  if (progressTracker && progressTracker.total > 0) {
+    progressTracker.current += snapshot.size;
+    if (progressTracker.current > progressTracker.total) {
+      progressTracker.current = progressTracker.total;
     }
+    const percentage = Math.round(
+      (progressTracker.current / progressTracker.total) * 100
+    );
+    updateLoadingOverlay(
+      percentage,
+      `Limpando: ${progressTracker.current} / ${progressTracker.total} itens...`
+    );
   }
-  await _deleteCollectionInBatches(collectionRef);
+
+  await _deleteCollectionInBatches(collectionRef, progressTracker);
 }
 
-async function restoreDataFromBackup(data, testMode = false) {
+async function restoreDataFromBackup(data, testMode = false, progressTracker) {
   const suffix = testMode ? "_TESTE" : "";
 
   for (const collectionName in data) {
-    // Verifica se a coleção do arquivo de backup existe no nosso schema atual
     if (COLLECTIONS_SCHEMA[collectionName]) {
       const collectionRef = db.collection(collectionName + suffix);
       const schema = COLLECTIONS_SCHEMA[collectionName];
       await restoreCollectionRecursive(
         collectionRef,
         data[collectionName],
-        schema
+        schema,
+        progressTracker
       );
     }
   }
@@ -345,37 +489,49 @@ async function restoreDataFromBackup(data, testMode = false) {
 async function restoreCollectionRecursive(
   collectionRef,
   collectionData,
-  schema
+  schema,
+  progressTracker
 ) {
-  showLoadingOverlay(`Restaurando ${collectionRef.path}...`);
   for (const docData of collectionData) {
     try {
+      if (progressTracker.total > 0) {
+        progressTracker.current++;
+        const percentage = Math.round(
+          (progressTracker.current / progressTracker.total) * 100
+        );
+        updateLoadingOverlay(
+          percentage,
+          `Restaurando: ${progressTracker.current} / ${progressTracker.total} itens...`
+        );
+      }
+
       const { id, ...rest } = docData;
       const docRef = collectionRef.doc(id);
-      const payload = {}; // Dados do documento principal
-      const subcollectionsToRestore = {}; // Dados das sub-coleções
 
-      // Separa os dados do documento principal dos dados das sub-coleções
-      for (const key in rest) {
-        // Se a chave existe no schema, é uma sub-coleção
-        if (schema[key] !== undefined && Array.isArray(rest[key])) {
-          subcollectionsToRestore[key] = rest[key];
+      // AQUI ESTÁ A CORREÇÃO FINAL: Usa a função recursiva para sanitizar os dados
+      const sanitizedData = deepConvertTimestamps(rest);
+
+      const payload = {};
+      const subcollectionsToRestore = {};
+
+      for (const key in sanitizedData) {
+        if (schema[key] !== undefined && Array.isArray(sanitizedData[key])) {
+          subcollectionsToRestore[key] = sanitizedData[key];
         } else {
-          // Senão, é um campo do documento principal
-          payload[key] = rest[key];
+          payload[key] = sanitizedData[key];
         }
       }
 
       await docRef.set(payload);
 
-      // Restaura as sub-coleções
       for (const subCollName in subcollectionsToRestore) {
         const subCollSchema = schema[subCollName];
         const subCollRef = docRef.collection(subCollName);
         await restoreCollectionRecursive(
           subCollRef,
           subcollectionsToRestore[subCollName],
-          subCollSchema
+          subCollSchema,
+          { current: 0, total: 0 }
         );
       }
     } catch (error) {
@@ -414,7 +570,7 @@ async function cleanupTestData() {
 // ==================================================================
 // SEÇÕES DE GERENCIAMENTO (CÓDIGO INALTERADO)
 // ==================================================================
-// ... (O resto do código permanece o mesmo)
+
 export function renderExequentesPage() {
   pageTitle.textContent = "Exequentes";
   document.title = "SASIF | Exequentes";
