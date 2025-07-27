@@ -207,7 +207,7 @@ export function renderDemandaEstruturalDetailPage(demandaId, devedorId) {
     { id: "atores", name: "Atores Envolvidos" },
     { id: "historico", name: "Histórico" },
     { id: "encaminhamentos", name: "Encaminhamentos" },
-    { id: "gerenciarEixos", name: "Gerenciar Eixos" },
+    { id: "eixos", name: "Eixos" }, // ALTERAÇÃO: Nome da aba atualizado
   ];
   contentArea.innerHTML = `<div class="detail-page-header"><h2>${
     devedor?.razaoSocial || "Carregando..."
@@ -247,14 +247,13 @@ function renderActiveTabContent() {
     case "encaminhamentos":
       renderEncaminhamentosTab(demanda);
       break;
-    case "gerenciarEixos":
-      renderGerenciarEixosTab(demanda);
+    case "eixos": // ALTERAÇÃO: Case atualizado
+      renderEixosTab(demanda); // ALTERAÇÃO: Nome da função que será chamada
       break;
     default:
       container.innerHTML = "Aba não encontrada.";
   }
 }
-
 // --- RENDERIZADORES DE CONTEÚDO DAS ABAS ---
 function renderVisaoGeralTab(demanda) {
   const c = document.getElementById("tab-content");
@@ -283,7 +282,8 @@ function renderHistoricoTab(demanda) {
   } ${hasEvents ? "" : "no-events"}"></div></div>`;
   renderTimeline(demanda.eventos || []);
 }
-function renderGerenciarEixosTab(demanda) {
+// Renomeie a função renderGerenciarEixosTab para renderEixosTab
+function renderEixosTab(demanda) {
   const c = document.getElementById("tab-content");
   const eixos = demanda.eixos || [];
   const fill = activeDemandaState.isEditingEixos
@@ -294,11 +294,11 @@ function renderGerenciarEixosTab(demanda) {
   if (eixos.length > 0) {
     contentInsideSection = `
         <div id="eixos-buttons-list" class="eixos-list"></div>
-      </div> 
-      <div id="eixo-content-area"></div>`;
+      </div> <!-- Fechamento do .eixos-header-container -->
+      <div id="eixo-content-area"></div>`; // Área para descrição ou lista de encaminhamentos
   } else {
     contentInsideSection = `
-        <p class="empty-list-message" style="margin-top: 16px;">Esta demanda estrutural não possui divisão em eixos.</p>
+        <p class="empty-list-message" style="margin-top: 16px;">Esta demanda estrutural não possui divisão em eixos. Adicione um para começar a organizar os encaminhamentos.</p>
       </div>`;
   }
 
@@ -306,18 +306,20 @@ function renderGerenciarEixosTab(demanda) {
     <div class="eixos-section ${
       activeDemandaState.isEditingEixos ? "edit-mode" : ""
     }">
-      <div class="eixos-header">
-        <h3>Eixos da Demanda</h3>
-        <div class="eixos-actions">
-          <button class="action-icon" data-action="add-eixo" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
-          <button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button>
+      <div class="eixos-header-container"> <!-- Adicionado um container -->
+        <div class="eixos-header">
+          <h3>Eixos da Demanda</h3>
+          <div class="eixos-actions">
+            <button class="action-icon" data-action="add-eixo" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+            <button class="action-icon" data-action="toggle-edit-eixos" title="Gerenciar Nomes/Descrições dos Eixos"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button>
+          </div>
         </div>
+        ${contentInsideSection}
       </div>
-      ${contentInsideSection}
   `;
 
   if (eixos.length > 0) {
-    renderEixosUI(demanda);
+    renderEixosUI(demanda); // Função existente que renderiza os botões e o conteúdo do eixo
   }
 }
 function renderEncaminhamentosTab(demanda) {
@@ -457,6 +459,7 @@ function renderEixosUI(demanda) {
   const eixos = demanda.eixos || [];
   const container = document.getElementById("eixos-buttons-list");
   if (!container) return;
+
   if (
     eixos.length > 0 &&
     !eixos.find((e) => e.id === activeDemandaState.activeEixoId)
@@ -465,6 +468,7 @@ function renderEixosUI(demanda) {
   } else if (eixos.length === 0) {
     activeDemandaState.activeEixoId = null;
   }
+
   container.innerHTML = eixos
     .map(
       (eixo) =>
@@ -477,17 +481,89 @@ function renderEixosUI(demanda) {
         }" data-eixo-nome="${eixo.nome}">×</span></button>`
     )
     .join("");
+
   const contentContainer = document.getElementById("eixo-content-area");
   if (!contentContainer) return;
   const activeEixo = eixos.find(
     (e) => e.id === activeDemandaState.activeEixoId
   );
+
   if (activeEixo) {
-    contentContainer.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição do Eixo</h3><button class="action-icon" data-action="edit-descricao-eixo" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
-      activeEixo.descricao ? "" : "empty"
-    }">${
-      activeEixo.descricao || "Nenhuma descrição para este eixo."
-    }</div></div>`;
+    if (activeDemandaState.isEditingEixos) {
+      // MODO EDIÇÃO: Mostra a descrição para editar
+      contentContainer.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição do Eixo "${
+        activeEixo.nome
+      }"</h3><button class="action-icon" data-action="edit-descricao-eixo" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
+        activeEixo.descricao ? "" : "empty"
+      }">${
+        activeEixo.descricao || "Nenhuma descrição para este eixo."
+      }</div></div>`;
+    } else {
+      // MODO VISUALIZAÇÃO: Mostra a lista de encaminhamentos vinculados
+      const todosEncaminhamentos = (demanda.atosDeAudiencia || []).flatMap(
+        (ato) =>
+          (ato.encaminhamentos || []).map((enc) => ({ ...enc, atoOrigem: ato }))
+      );
+
+      const encaminhamentosDoEixo = todosEncaminhamentos.filter(
+        (enc) => enc.eixoId === activeEixo.id
+      );
+
+      if (encaminhamentosDoEixo.length === 0) {
+        contentContainer.innerHTML = `<div class="empty-list-message">Nenhum encaminhamento vinculado a este eixo.</div>`;
+        return;
+      }
+
+      const tableRows = encaminhamentosDoEixo
+        .map((enc) => {
+          const dataAtoObj = getSafeDate(enc.atoOrigem.data);
+          const dataFormatada = dataAtoObj
+            ? dataAtoObj.toLocaleDateString("pt-BR")
+            : "Data inválida";
+          const origemTexto = `${
+            enc.atoOrigem.tipo || "Ato"
+          } de ${dataFormatada}`;
+          const responsaveisNomes = (enc.entidadeIds || [])
+            .map(
+              (id) =>
+                (demanda.atores || []).find((a) => a.id === id)?.nome ||
+                "Ator não encontrado"
+            )
+            .join(", ");
+
+          return `<tr class="${
+            enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
+          }">
+                    <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${
+                      enc.atoOrigem.id
+                    }" data-enc-id="${enc.id}" ${
+            enc.status === "cumprido" ? "checked" : ""
+          }></td>
+                    <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
+            enc.descricao
+          }</span></td>
+                    <td>${enc.prazo}</td>
+                    <td>${origemTexto}</td>
+                  </tr>`;
+        })
+        .join("");
+
+      contentContainer.innerHTML = `
+        <div class="description-card">
+          <div class="description-header"><h3>Encaminhamentos do Eixo "${activeEixo.nome}"</h3></div>
+          <table class="encaminhamentos-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">Status</th>
+                <th>Descrição</th>
+                <th>Prazo</th>
+                <th>Ato de Origem</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>`;
+    }
   } else {
     contentContainer.innerHTML = `<div class="empty-list-message">Selecione ou adicione um eixo.</div>`;
   }
@@ -585,11 +661,10 @@ async function handleDeleteEixo(eixoId, eixoNome) {
     showToast("Erro.", "error");
   }
 }
-
 function renderTimeline(eventos) {
   const container = document.getElementById("timeline-container");
   if (!container) return;
-  // <-- 2. CORREÇÃO NA ORDENAÇÃO
+
   const sortedEventos = (eventos || [])
     .map((evento) => ({ ...evento, dataObj: getSafeDate(evento.data) }))
     .sort((a, b) => (b.dataObj || 0) - (a.dataObj || 0));
@@ -601,7 +676,6 @@ function renderTimeline(eventos) {
   container.innerHTML = sortedEventos
     .map((evento, index) => {
       const position = index % 2 === 0 ? "left" : "right";
-      // <-- 3. CORREÇÃO NA FORMATAÇÃO
       const dataFormatada = evento.dataObj
         ? evento.dataObj.toLocaleDateString("pt-BR", {
             day: "2-digit",
@@ -610,8 +684,9 @@ function renderTimeline(eventos) {
           })
         : "Data inválida";
 
-      const vinculoHTML = evento.atoVinculadoId
-        ? `<button class="action-icon icon-link" title="Ir para o Ato Processual vinculado" data-action="navigate-to-ato" data-ato-id="${evento.atoVinculadoId}"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></button>`
+      // ALTERAÇÃO: Usa o novo campo `atoProcessualId`
+      const vinculoHTML = evento.atoProcessualId
+        ? `<button class="action-icon icon-link" title="Ir para o Ato Processual vinculado" data-action="navigate-to-ato" data-ato-id="${evento.atoProcessualId}"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></button>`
         : "";
 
       const anexoHTML = evento.anexoURL
@@ -642,26 +717,12 @@ function renderEventoModal(evento = null) {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
-  const atos = demanda.atosDeAudiencia || [];
+  // Não precisamos mais da lista de atos aqui
 
-  const atosOptions = atos
-    .map((ato) => {
-      // <-- 4. CORREÇÃO NA LEITURA
-      const dataAtoObj = getSafeDate(ato.data);
-      const dataFormatada = dataAtoObj
-        ? dataAtoObj.toLocaleDateString("pt-BR")
-        : "Data inválida";
-      const textoOpcao = `${ato.tipo || "Ato"} - ${dataFormatada} - ${
-        ato.processoNumero
-      }`;
-      const isSelected = isEditing && evento.atoVinculadoId === ato.id;
-      return `<option value="${ato.id}" ${
-        isSelected ? "selected" : ""
-      }>${textoOpcao}</option>`;
-    })
-    .join("");
+  // ALTERAÇÃO: Verifica se o evento gera encaminhamentos para marcar o checkbox
+  const geraEncaminhamentos =
+    isEditing && evento.atoProcessualId ? "checked" : "";
 
-  // <-- 5. CORREÇÃO NA LEITURA
   const dataEventoObj = isEditing ? getSafeDate(evento.data) : null;
   const dataFormatada = dataEventoObj
     ? dataEventoObj.toISOString().split("T")[0]
@@ -680,7 +741,15 @@ function renderEventoModal(evento = null) {
     evento?.tipo || ""
   }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" rows="5">${
     evento?.descricao || ""
-  }</textarea></div><div class="form-group"><label for="evento-vinculo-ato">Vincular ao Ato Processual (Opcional)</label><select id="evento-vinculo-ato"><option value="">-- Sem Vínculo --</option>${atosOptions}</select></div><div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
+  }</textarea></div>
+  
+  <!-- ALTERAÇÃO PRINCIPAL: Substituição do Select pelo Checkbox -->
+  <div class="form-group form-group-checkbox">
+    <input type="checkbox" id="evento-gera-encaminhamentos" ${geraEncaminhamentos}>
+    <label for="evento-gera-encaminhamentos">Este evento gera encaminhamentos</label>
+  </div>
+  
+  <div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
     evento?.id || ""
   }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
@@ -691,40 +760,51 @@ async function handleSaveEvento(eventoId = null) {
   const saveBtn = document.querySelector('[data-action="save-evento"]');
   saveBtn.disabled = true;
   saveBtn.textContent = "Salvando...";
-  const fileInput = document.getElementById("evento-anexo-input");
-  const file = fileInput.files[0];
-  const anexoDisplay = document.getElementById("current-anexo-display");
-  const anexoFoiRemovido = anexoDisplay === null;
-  const demanda = demandasCache.find(
-    (d) => d.id === activeDemandaState.demandaId
-  );
-  let eventos = demanda.eventos || [];
-  const eventoExistente = eventoId
-    ? eventos.find((e) => e.id === eventoId)
-    : null;
 
-  let eventoData = {
-    titulo: document.getElementById("evento-titulo").value.trim(),
-    dataInput: document.getElementById("evento-data").value,
-    tipo: document.getElementById("evento-tipo").value.trim(),
-    descricao: document.getElementById("evento-descricao").value.trim(),
-    atoVinculadoId: document.getElementById("evento-vinculo-ato").value,
-    anexoURL: eventoExistente?.anexoURL || null,
-    anexoNome: eventoExistente?.anexoNome || null,
-  };
+  // Obter dados do formulário
+  const titulo = document.getElementById("evento-titulo").value.trim();
+  const dataInput = document.getElementById("evento-data").value;
+  const tipo = document.getElementById("evento-tipo").value.trim();
+  const descricao = document.getElementById("evento-descricao").value.trim();
+  const geraEncaminhamentos = document.getElementById(
+    "evento-gera-encaminhamentos"
+  ).checked;
 
-  if (
-    !eventoData.titulo ||
-    !eventoData.dataInput ||
-    !eventoData.tipo ||
-    !eventoData.descricao
-  ) {
-    errorMsg.textContent = "Todos os campos de texto são obrigatórios.";
+  if (!titulo || !dataInput || !tipo || !descricao) {
+    errorMsg.textContent = "Título, Data, Tipo e Descrição são obrigatórios.";
     saveBtn.disabled = false;
     saveBtn.textContent = "Salvar";
     return;
   }
+
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  if (!demanda) {
+    // Caso de segurança
+    errorMsg.textContent = "Demanda não encontrada. Recarregue a página.";
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Salvar";
+    return;
+  }
+
+  let eventos = [...(demanda.eventos || [])];
+  let atos = [...(demanda.atosDeAudiencia || [])];
+  const eventoExistente = eventoId
+    ? eventos.find((e) => e.id === eventoId)
+    : null;
+  const tinhaAtoVinculado = eventoExistente?.atoProcessualId;
+
+  const fileInput = document.getElementById("evento-anexo-input");
+  const file = fileInput.files[0];
+  const anexoDisplay = document.getElementById("current-anexo-display");
+  const anexoFoiRemovido = eventoExistente?.anexoURL && !anexoDisplay;
+
   try {
+    let anexoURL = eventoExistente?.anexoURL || null;
+    let anexoNome = eventoExistente?.anexoNome || null;
+
+    // Lógica de Anexo (sem alterações)
     if (file) {
       if (eventoExistente?.anexoURL) {
         await storage.refFromURL(eventoExistente.anexoURL).delete();
@@ -735,70 +815,135 @@ async function handleSaveEvento(eventoId = null) {
         }/${file.name}`
       );
       await anexoRef.put(file);
-      eventoData.anexoURL = await anexoRef.getDownloadURL();
-      eventoData.anexoNome = file.name;
-    } else if (anexoFoiRemovido && eventoExistente?.anexoURL) {
+      anexoURL = await anexoRef.getDownloadURL();
+      anexoNome = file.name;
+    } else if (anexoFoiRemovido) {
       await storage.refFromURL(eventoExistente.anexoURL).delete();
-      eventoData.anexoURL = null;
-      eventoData.anexoNome = null;
+      anexoURL = null;
+      anexoNome = null;
     }
 
-    const dataFinal = {
+    const dataFinalEvento = {
       id: eventoId || `_${Math.random().toString(36).substr(2, 9)}`,
-      titulo: eventoData.titulo,
+      titulo: titulo,
       data: firebase.firestore.Timestamp.fromDate(
-        new Date(eventoData.dataInput + "T00:00:00")
+        new Date(dataInput + "T00:00:00")
       ),
-      tipo: eventoData.tipo,
-      descricao: eventoData.descricao,
-      atoVinculadoId: eventoData.atoVinculadoId || null,
-      anexoURL: eventoData.anexoURL,
-      anexoNome: eventoData.anexoNome,
+      tipo: tipo,
+      descricao: descricao,
+      anexoURL: anexoURL,
+      anexoNome: anexoNome,
+      atoProcessualId: eventoExistente?.atoProcessualId || null,
     };
 
-    if (eventoId) {
-      eventos = eventos.map((e) => (e.id === eventoId ? dataFinal : e));
-    } else {
-      eventos.push(dataFinal);
+    // --- LÓGICA DE VINCULAÇÃO DE ATOS ---
+    if (geraEncaminhamentos && !tinhaAtoVinculado) {
+      // CENÁRIO 1: Criar novo Ato Processual
+      const novoAto = {
+        id: `_${Math.random().toString(36).substr(2, 9)}`,
+        tipo: tipo, // Usa o mesmo tipo do evento
+        processoNumero: "", // Usuário preencherá depois
+        data: dataFinalEvento.data, // Usa a mesma data
+        hora: "", // Usuário preencherá depois
+        descricao: "",
+        encaminhamentos: [],
+        historicoEventId: dataFinalEvento.id, // Vínculo reverso
+      };
+      atos.push(novoAto);
+      dataFinalEvento.atoProcessualId = novoAto.id; // Vínculo no evento
+    } else if (!geraEncaminhamentos && tinhaAtoVinculado) {
+      // CENÁRIO 2: Remover Ato Processual existente
+      if (
+        confirm(
+          "Desmarcar esta opção excluirá o Ato Processual correspondente e todos os seus encaminhamentos na outra aba. Deseja continuar?"
+        )
+      ) {
+        atos = atos.filter((a) => a.id !== tinhaAtoVinculado);
+        dataFinalEvento.atoProcessualId = null;
+      } else {
+        // Usuário cancelou, então re-renderiza o modal sem salvar.
+        document.body.removeChild(document.querySelector(".modal-overlay"));
+        renderEventoModal(eventoExistente);
+        return;
+      }
     }
-    await db
-      .collection("demandasEstruturais")
-      .doc(demanda.id)
-      .update({ eventos });
+
+    // Atualiza a lista de eventos
+    if (eventoId) {
+      eventos = eventos.map((e) => (e.id === eventoId ? dataFinalEvento : e));
+    } else {
+      eventos.push(dataFinalEvento);
+    }
+
+    // Salva tudo no banco de dados de uma vez
+    await db.collection("demandasEstruturais").doc(demanda.id).update({
+      eventos: eventos,
+      atosDeAudiencia: atos,
+    });
+
     showToast(`Evento ${eventoId ? "atualizado" : "salvo"}!`);
     document.body.removeChild(document.querySelector(".modal-overlay"));
   } catch (error) {
-    console.error("Erro:", error);
-    errorMsg.textContent = "Erro ao salvar anexo.";
+    console.error("Erro ao salvar evento:", error);
+    errorMsg.textContent = "Ocorreu um erro ao salvar.";
     saveBtn.disabled = false;
     saveBtn.textContent = "Salvar";
   }
 }
 async function handleDeleteEvento(eventoId) {
-  if (!confirm("Excluir este evento?")) return;
+  if (
+    !confirm(
+      "Excluir este evento? Se ele tiver encaminhamentos vinculados, eles também serão excluídos."
+    )
+  )
+    return;
+
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
   const eventoParaExcluir = (demanda.eventos || []).find(
     (e) => e.id === eventoId
   );
-  if (eventoParaExcluir?.anexoURL) {
+
+  if (!eventoParaExcluir) {
+    showToast("Evento não encontrado.", "error");
+    return;
+  }
+
+  // Se o evento tem anexo, deleta do Storage
+  if (eventoParaExcluir.anexoURL) {
     try {
       await storage.refFromURL(eventoParaExcluir.anexoURL).delete();
     } catch (e) {
-      console.warn("Anexo não encontrado.");
+      console.warn(
+        "Anexo do evento não encontrado no Storage, continuando a exclusão."
+      );
     }
   }
+
+  // Filtra o evento da lista de eventos
   const eventosAtualizados = (demanda.eventos || []).filter(
     (e) => e.id !== eventoId
   );
+  let atosAtualizados = [...(demanda.atosDeAudiencia || [])];
+
+  // Se o evento tem um Ato vinculado, filtra-o da lista de atos
+  if (eventoParaExcluir.atoProcessualId) {
+    atosAtualizados = atosAtualizados.filter(
+      (a) => a.id !== eventoParaExcluir.atoProcessualId
+    );
+  }
+
+  // Atualiza o banco com as duas listas (eventos e atos)
   db.collection("demandasEstruturais")
     .doc(demanda.id)
-    .update({ eventos: eventosAtualizados })
-    .then(() => showToast("Evento excluído."))
-    .catch(() => showToast("Erro.", "error"));
+    .update({
+      eventos: eventosAtualizados,
+      atosDeAudiencia: atosAtualizados,
+    })
+    .then(() => showToast("Evento excluído com sucesso."))
+    .catch(() => showToast("Erro ao excluir o evento.", "error"));
 }
-
 function renderAtosTimeline(atos) {
   const container = document.getElementById("atos-timeline-container");
   if (!container) return;
@@ -1026,7 +1171,7 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
     (d) => d.id === activeDemandaState.demandaId
   );
 
-  // Normaliza os IDs selecionados
+  // Lógica de seleção de atores (sem alterações)
   let selectedIds = [];
   if (isEditing) {
     if (Array.isArray(encaminhamento.entidadeIds)) {
@@ -1035,15 +1180,11 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
       selectedIds = [encaminhamento.entidadeId];
     }
   }
-
   const todosAtores = demanda.atores || [];
-
-  // <-- ALTERAÇÃO PRINCIPAL AQUI: Filtra para obter apenas atores com nomes únicos
   const atoresUnicos = todosAtores.filter(
     (ator, index, self) => self.findIndex((a) => a.nome === ator.nome) === index
   );
-
-  const atoresOptions = atoresUnicos // Usa a lista filtrada
+  const atoresOptions = atoresUnicos
     .map((ator) => {
       const isSelected = selectedIds.includes(ator.id);
       return `<option value="${ator.id}" ${isSelected ? "selected" : ""}>${
@@ -1052,19 +1193,55 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
     })
     .join("");
 
+  // --- NOVA LÓGICA: Criar dropdown de Eixos ---
+  let eixosDropdownHTML = "";
+  const eixosDaDemanda = demanda.eixos || [];
+  if (eixosDaDemanda.length > 0) {
+    const eixosOptions = eixosDaDemanda
+      .map((eixo) => {
+        const isSelected = isEditing && encaminhamento.eixoId === eixo.id;
+        return `<option value="${eixo.id}" ${isSelected ? "selected" : ""}>${
+          eixo.nome
+        }</option>`;
+      })
+      .join("");
+
+    eixosDropdownHTML = `
+      <div class="form-group">
+        <label for="enc-eixo">Eixo (Opcional)</label>
+        <select id="enc-eixo">
+          <option value="">-- Nenhum --</option>
+          ${eixosOptions}
+        </select>
+      </div>`;
+  }
+
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
   modalOverlay.innerHTML = `<div class="modal-content"><h3>${
     isEditing ? "Editar" : "Adicionar"
-  } Encaminhamento</h3><div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple>${atoresOptions}</select></div><div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
+  } Encaminhamento</h3>
+  <div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple>${atoresOptions}</select></div>
+  <div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
     encaminhamento?.pessoa || ""
-  }"></div><div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" value="${
+  }"></div>
+  <div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" value="${
     encaminhamento?.prazo || ""
-  }"></div><div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" rows="4">${
+  }"></div>
+  <div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" rows="4">${
     encaminhamento?.descricao || ""
-  }</textarea></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
+  }</textarea></div>
+  
+  <!-- CAMPO DE EIXOS ADICIONADO -->
+  ${eixosDropdownHTML}
+
+  <div id="error-message"></div>
+  <div class="form-buttons">
+    <button data-action="save-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
     encaminhamento?.id || ""
-  }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  }" class="btn-primary">Salvar</button>
+    <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+  </div></div>`;
   document.body.appendChild(modalOverlay);
 }
 async function handleSaveEncaminhamento(atoId, encId = null) {
@@ -1074,6 +1251,10 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
   const pessoa = document.getElementById("enc-pessoa").value.trim();
   const prazo = document.getElementById("enc-prazo").value.trim();
   const descricao = document.getElementById("enc-descricao").value.trim();
+
+  // NOVA LÓGICA: Capturar o eixo selecionado
+  const eixoSelect = document.getElementById("enc-eixo");
+  const eixoId = eixoSelect ? eixoSelect.value : null;
 
   if (entidadeIds.length === 0 || !prazo || !descricao) {
     document.getElementById("error-message").textContent =
@@ -1092,7 +1273,14 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
   if (encId) {
     encaminhamentos = encaminhamentos.map((enc) => {
       if (enc.id === encId) {
-        const updatedEnc = { ...enc, entidadeIds, pessoa, prazo, descricao };
+        const updatedEnc = {
+          ...enc,
+          entidadeIds,
+          pessoa,
+          prazo,
+          descricao,
+          eixoId: eixoId || null,
+        };
         delete updatedEnc.entidadeId; // Remove a chave antiga se existir
         return updatedEnc;
       }
@@ -1106,6 +1294,7 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
       prazo,
       descricao,
       status: "pendente",
+      eixoId: eixoId || null, // Salva o ID do eixo
     };
     encaminhamentos.push(novoEnc);
   }
