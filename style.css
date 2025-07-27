@@ -1885,3 +1885,83 @@ body {
   color: #333;
   font-weight: 500;
 }
+
+/* ================================================================== */
+/* MELHORIAS DE ESTILO PARA FORMULÁRIOS (DEMANDAS ESTRUTURAIS)
+/* ================================================================== */
+
+/* Garante que todos os selects, incluindo os de múltipla seleção,
+   tenham o estilo moderno. */
+.form-input,
+select.form-input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #fff;
+  font-size: 1rem;
+  color: #333;
+  transition: border-color 0.2s;
+  box-sizing: border-box; /* Garante que padding não afete a largura total */
+}
+
+/* Estilo para o <select> de múltipla seleção quando está em foco */
+select.form-input[multiple]:focus {
+  border-color: var(--cor-primaria);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Deixa o select de múltipla seleção mais alto para mostrar as opções */
+select.form-input[multiple] {
+  height: 120px;
+  padding: 10px;
+}
+
+/* --- Estilização do Input de Arquivo Moderno --- */
+
+/* Esconde o input de arquivo padrão, mas o mantém acessível */
+.file-input-hidden {
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+/* Wrapper para alinhar o botão e o nome do arquivo */
+.file-upload-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Botão falso que aciona o input real */
+.btn-file-upload {
+  padding: 10px 15px;
+  cursor: pointer;
+  display: inline-block; /* Permite que se comporte como um botão */
+}
+
+/* Área para exibir o nome do arquivo selecionado */
+.file-name-display {
+  color: #555;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* Estilo para o display do anexo já salvo */
+.current-anexo-display {
+  margin-top: 10px;
+  padding: 8px;
+  background-color: #f0f0f0;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-anexo-display span {
+  font-weight: 500;
+}

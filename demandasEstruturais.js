@@ -726,9 +726,7 @@ function renderEventoModal(evento = null) {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
   );
-  // Não precisamos mais da lista de atos aqui
 
-  // ALTERAÇÃO: Verifica se o evento gera encaminhamentos para marcar o checkbox
   const geraEncaminhamentos =
     isEditing && evento.atoProcessualId ? "checked" : "";
 
@@ -740,28 +738,55 @@ function renderEventoModal(evento = null) {
   const anexoDisplayHTML = evento?.anexoURL
     ? `<div class="current-anexo-display" id="current-anexo-display"><span>${evento.anexoNome}</span><button class="action-icon icon-delete" data-action="remove-anexo" title="Remover anexo"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>`
     : "";
+
+  const fileUploadHTML = `
+    <div class="form-group anexo-upload-container">
+      <label>Anexar (Opcional)</label>
+      <div class="file-upload-wrapper">
+        <input type="file" id="evento-anexo-input" class="file-input-hidden">
+        <label for="evento-anexo-input" class="btn-secondary btn-file-upload">Escolher arquivo</label>
+        <span id="file-name-display" class="file-name-display">Nenhum arquivo selecionado</span>
+      </div>
+      ${anexoDisplayHTML}
+    </div>`;
+
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
+  // AQUI ESTÁ A CORREÇÃO: A antiga div de anexo foi removida do innerHTML
   modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${
     isEditing ? "Editar" : "Adicionar"
-  } Evento</h3><div class="form-group"><label for="evento-titulo">Título</label><input type="text" id="evento-titulo" value="${
+  } Evento</h3><div class="form-group"><label for="evento-titulo">Título</label><input type="text" id="evento-titulo" class="form-input" value="${
     evento?.titulo || ""
-  }"></div><div style="display:flex;gap:16px;"><div class="form-group" style="flex-grow:1;"><label for="evento-data">Data</label><input type="date" id="evento-data" value="${dataFormatada}"></div><div class="form-group" style="flex-grow:1;"><label for="evento-tipo">Tipo</label><input type="text" id="evento-tipo" value="${
+  }"></div><div style="display:flex;gap:16px;"><div class="form-group" style="flex-grow:1;"><label for="evento-data">Data</label><input type="date" id="evento-data" class="form-input" value="${dataFormatada}"></div><div class="form-group" style="flex-grow:1;"><label for="evento-tipo">Tipo</label><input type="text" class="form-input" id="evento-tipo" value="${
     evento?.tipo || ""
-  }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" rows="5">${
+  }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" class="form-input" rows="5">${
     evento?.descricao || ""
   }</textarea></div>
   
-  <!-- ALTERAÇÃO PRINCIPAL: Substituição do Select pelo Checkbox -->
   <div class="form-group form-group-checkbox">
     <input type="checkbox" id="evento-gera-encaminhamentos" ${geraEncaminhamentos}>
     <label for="evento-gera-encaminhamentos">Este evento gera encaminhamentos</label>
   </div>
   
-  <div class="form-group anexo-upload-container"><label for="evento-anexo-input">Anexar (Opcional)</label><input type="file" id="evento-anexo-input" style="width:100%; margin-top: 8px;">${anexoDisplayHTML}</div><div id="error-message"></div><div class="form-buttons"><button data-action="save-evento" data-evento-id="${
+  ${fileUploadHTML}
+  
+  <div id="error-message"></div>
+  <div class="form-buttons"><button data-action="save-evento" data-evento-id="${
     evento?.id || ""
   }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
+
+  const fileInput = document.getElementById("evento-anexo-input");
+  const fileNameDisplay = document.getElementById("file-name-display");
+  if (fileInput && fileNameDisplay) {
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length > 0) {
+        fileNameDisplay.textContent = fileInput.files[0].name;
+      } else {
+        fileNameDisplay.textContent = "Nenhum arquivo selecionado";
+      }
+    });
+  }
 }
 async function handleSaveEvento(eventoId = null) {
   const errorMsg = document.getElementById("error-message");
@@ -1180,7 +1205,6 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
     (d) => d.id === activeDemandaState.demandaId
   );
 
-  // Lógica de seleção de atores (sem alterações)
   let selectedIds = [];
   if (isEditing) {
     if (Array.isArray(encaminhamento.entidadeIds)) {
@@ -1202,7 +1226,6 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
     })
     .join("");
 
-  // --- NOVA LÓGICA: Criar dropdown de Eixos ---
   let eixosDropdownHTML = "";
   const eixosDaDemanda = demanda.eixos || [];
   if (eixosDaDemanda.length > 0) {
@@ -1218,7 +1241,7 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
     eixosDropdownHTML = `
       <div class="form-group">
         <label for="enc-eixo">Eixo (Opcional)</label>
-        <select id="enc-eixo">
+        <select id="enc-eixo" class="form-input"> <!-- CLASSE ADICIONADA -->
           <option value="">-- Nenhum --</option>
           ${eixosOptions}
         </select>
@@ -1230,18 +1253,19 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
   modalOverlay.innerHTML = `<div class="modal-content"><h3>${
     isEditing ? "Editar" : "Adicionar"
   } Encaminhamento</h3>
-  <div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple>${atoresOptions}</select></div>
-  <div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" value="${
+  <div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple class="form-input">
+  ${atoresOptions}
+  </select></div> <!-- CLASSE ADICIONADA -->
+  <div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" class="form-input" value="${
     encaminhamento?.pessoa || ""
-  }"></div>
-  <div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" value="${
+  }"></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
+  <div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" class="form-input" value="${
     encaminhamento?.prazo || ""
-  }"></div>
-  <div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" rows="4">${
+  }"></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
+  <div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" class="form-input" rows="4">${
     encaminhamento?.descricao || ""
-  }</textarea></div>
+  }</textarea></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
   
-  <!-- CAMPO DE EIXOS ADICIONADO -->
   ${eixosDropdownHTML}
 
   <div id="error-message"></div>
