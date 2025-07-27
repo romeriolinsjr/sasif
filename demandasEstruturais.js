@@ -28,6 +28,8 @@ let activeDemandaState = {
 export function renderDemandasEstruturaisPage() {
   pageTitle.textContent = "Demandas Estruturais";
   document.title = "SASIF | Demandas Estruturais";
+
+  // Reseta o estado para a página de listagem
   activeDemandaState = {
     demandaId: null,
     devedorId: null,
@@ -39,9 +41,16 @@ export function renderDemandasEstruturaisPage() {
     isEditingEncaminhamentos: false,
     isEditingDemandas: false,
   };
-  document.body.removeEventListener("click", handlePageActions);
+
+  // PONTO-CHAVE: Não vamos mais gerenciar o listener aqui.
+  // Ele será gerenciado em um ponto mais alto ou garantido no main.js.
+  // Por enquanto, vamos garantir que ele está lá.
+  // A remoção da linha abaixo previne a duplicação se já existir.
+  // document.body.removeEventListener("click", handlePageActions);
   document.body.addEventListener("click", handlePageActions);
+
   setupDemandasListener();
+
   contentArea.innerHTML = `
     <div class="section-header">
       <div id="demandas-page-actions" class="eixos-actions">
@@ -1366,16 +1375,50 @@ async function handleToggleEncaminhamentoStatus(atoId, encId) {
 function handlePageActions(event) {
   const target = event.target.closest("[data-action]");
   if (!target) return;
+
   const action = target.dataset.action;
-  if (action !== "view-details") event.preventDefault();
+
+  // Ações que não devem recarregar a página
   if (
-    ["delete-eixo", "delete-demanda", "delete-ator", "move-ator"].includes(
-      action
-    )
-  )
+    action !== "view-details" &&
+    action !== "navigate-to-ato" &&
+    action !== "close-modal"
+  ) {
+    event.preventDefault();
+  }
+
+  // PONTO-CHAVE: Ações que ocorrem dentro de listas dinâmicas.
+  // Parar a propagação aqui evita que o clique seja interpretado
+  // por outro elemento se houver aninhamento.
+  const stopPropagationActions = [
+    "delete-demanda",
+    "delete-eixo",
+    "delete-ator",
+    "move-ator",
+    "edit-ator",
+    "save-ator",
+    "delete-ator",
+    "edit-evento",
+    "save-evento",
+    "delete-evento",
+    "remove-anexo",
+    "edit-ato",
+    "save-ato",
+    "delete-ato",
+    "add-encaminhamento",
+    "edit-encaminhamento",
+    "save-encaminhamento",
+    "delete-encaminhamento",
+    "toggle-encaminhamento-status",
+  ];
+
+  if (stopPropagationActions.includes(action)) {
     event.stopPropagation();
+  }
+
   switch (action) {
     case "close-modal":
+      // Não precisa de preventDefault, apenas executa
       document.body.removeChild(document.querySelector(".modal-overlay"));
       break;
     case "select-tab":
@@ -1394,9 +1437,7 @@ function handlePageActions(event) {
     case "delete-demanda":
       handleDeleteDemanda(target.dataset.id);
       break;
-    case "delete-demanda":
-      handleDeleteDemanda(target.dataset.id);
-      break;
+    // Removido o case duplicado de "delete-demanda"
     case "toggle-edit-demandas":
       activeDemandaState.isEditingDemandas =
         !activeDemandaState.isEditingDemandas;
@@ -1513,13 +1554,12 @@ function handlePageActions(event) {
         activeDemandaState.devedorId
       );
 
-      // Aguarda um instante para o DOM ser atualizado
       setTimeout(() => {
         const card = document.getElementById(atoId);
         if (card) {
           card.scrollIntoView({ behavior: "smooth", block: "center" });
           card.classList.add("highlight");
-          setTimeout(() => card.classList.remove("highlight"), 2000); // Remove o destaque após 2s
+          setTimeout(() => card.classList.remove("highlight"), 2000);
         }
       }, 100);
       break;
