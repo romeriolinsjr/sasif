@@ -28,9 +28,11 @@ export function initApp(user) {
 
   setupGlobalSearch();
   setupListeners();
-  setupSidebarListener(); // <-- Adicionar esta chamada
+  setupSidebarListener();
 
-  updateLastBackupTime();
+  // A chamada 'updateLastBackupTime()' foi REMOVIDA daqui.
+
+  // Este listener continua aqui, pois ele é para atualizações em tempo real.
   window.addEventListener("backupCompleted", updateLastBackupTime);
 
   navigateTo("dashboard");
