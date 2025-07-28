@@ -1965,3 +1965,39 @@ select.form-input[multiple] {
 .current-anexo-display span {
   font-weight: 500;
 }
+
+/* ================================================================== */
+/* INFORMAÇÕES ADICIONAIS NA BARRA LATERAL (BACKUP) - CORRIGIDO
+/* ================================================================== */
+
+#main-nav {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Garante que o container ocupe toda a altura */
+}
+
+.sidebar-info-container {
+  margin-top: auto; /* Empurra para o final da sidebar */
+  padding: 20px 15px;
+  /* Usando uma borda mais sutil para fundos escuros */
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+/* CORRIGIDO: Cor do rótulo para fundo escuro */
+.sidebar-info-label {
+  color: rgba(255, 255, 255, 0.7); /* Branco com transparência */
+  font-weight: 500;
+}
+
+/* CORRIGIDO: Cor padrão do status para fundo escuro */
+#last-backup-status {
+  color: #fff; /* Branco sólido */
+  font-weight: 500;
+}

@@ -183,6 +183,15 @@ async function startBackupProcess() {
     );
 
     downloadBackupFile(jsonString);
+
+    // ALTERAÇÃO: Salva o timestamp do backup bem-sucedido no localStorage
+    localStorage.setItem(
+      "sasif_last_backup_timestamp",
+      new Date().toISOString()
+    );
+    // Dispara um evento customizado para que a UI possa ser atualizada em tempo real
+    window.dispatchEvent(new CustomEvent("backupCompleted"));
+
     showToast("Backup gerado com sucesso!", "success");
   } catch (error) {
     console.error("Erro ao gerar backup:", error);

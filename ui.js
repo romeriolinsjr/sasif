@@ -53,22 +53,40 @@ export function showToast(message, type = "success", duration = 4000) {
  * @param {string} activePage O ID da página atualmente ativa.
  */
 export function renderSidebar(activePage) {
+  // ATENÇÃO: Os ícones SVG não foram fornecidos no seu código,
+  // então vou usar a estrutura que você já tem.
   const pages = [
     { id: "dashboard", name: "Dashboard" },
     { id: "grandesDevedores", name: "Grandes Devedores" },
     { id: "demandasEstruturais", name: "Demandas Estruturais" },
-    { id: "diligencias", name: "Tarefas do Mês" },
+    { id: "diligencias", name: "Tarefas do Mês" }, // O ID era "diligencias", mantive para consistência
     { id: "relatorios", name: "Relatórios" },
     { id: "configuracoes", name: "Configurações" },
   ];
-  mainNav.innerHTML = `<ul>${pages
+
+  const menuHTML = pages
     .map(
       (page) =>
         `<li><a href="#" class="nav-link ${
           page.id === activePage ? "active" : ""
         }" data-page="${page.id}">${page.name}</a></li>`
     )
-    .join("")}</ul>`;
+    .join("");
+
+  // ALTERAÇÃO: Adiciona o container para a informação do backup no final da sidebar
+  const backupInfoHTML = `
+    <div class="sidebar-info-container">
+        <div class="sidebar-info-item">
+            <span class="sidebar-info-label">Último Backup:</span>
+            <span id="last-backup-status"></span>
+        </div>
+    </div>
+  `;
+
+  // Reconstrói o innerHTML da main-nav, adicionando a nova seção de info
+  mainNav.innerHTML = `<ul>${menuHTML}</ul>${backupInfoHTML}`;
+
+  // Re-anexa os event listeners aos links
   mainNav.querySelectorAll(".nav-link").forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
@@ -171,5 +189,34 @@ export function hideLoadingOverlay() {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) {
     overlay.remove();
+  }
+}
+
+/**
+ * Lê o timestamp do último backup do localStorage e atualiza a UI na barra lateral.
+ */
+/**
+ * Lê o timestamp do último backup do localStorage e atualiza a UI na barra lateral.
+ */
+export function updateLastBackupTime() {
+  const statusElement = document.getElementById("last-backup-status");
+  if (!statusElement) return;
+
+  const timestamp = localStorage.getItem("sasif_last_backup_timestamp");
+
+  if (timestamp) {
+    const backupDate = new Date(timestamp);
+    const formattedDate = backupDate.toLocaleDateString("pt-BR");
+    const formattedTime = backupDate.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    statusElement.textContent = `${formattedDate}, ${formattedTime}`;
+    // CORREÇÃO: Usando uma cor verde clara e brilhante para bom contraste
+    statusElement.style.color = "#81C784";
+  } else {
+    statusElement.textContent = "Nunca realizado";
+    // CORREÇÃO: Usando uma cor amarela brilhante para bom contraste
+    statusElement.style.color = "#FFD54F";
   }
 }
