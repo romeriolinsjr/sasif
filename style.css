@@ -1987,7 +1987,7 @@ select.form-input[multiple] {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: 10px;
 }
 
 /* CORRIGIDO: Cor do rótulo para fundo escuro */
@@ -2000,4 +2000,49 @@ select.form-input[multiple] {
 #last-backup-status {
   color: #fff; /* Branco sólido */
   font-weight: 500;
+}
+
+/* ================================================================== */
+/* ESTILOS PARA ÍCONES DO MENU LATERAL (VERSÃO FINAL COM ANTI-QUEBRA)
+/* ================================================================== */
+
+.nav-link {
+  display: block;
+  width: 100%;
+  padding: 12px 20px;
+  box-sizing: border-box;
+
+  /* A MÁGICA ACONTECE AQUI */
+  white-space: nowrap; /* Impede que o conteúdo quebre para a próxima linha */
+  overflow: hidden; /* Esconde qualquer conteúdo que exceda a largura */
+}
+
+.sidebar-icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 22px;
+  height: 22px;
+  fill: rgba(255, 255, 255, 0.7);
+  transition: fill 0.2s ease-in-out;
+  margin-right: 15px;
+}
+
+.sidebar-text {
+  display: inline-block;
+  vertical-align: middle;
+
+  /* E AQUI */
+  text-overflow: ellipsis; /* Adiciona "..." se o texto for cortado */
+  /* Garante que o texto não quebre e ocupe o espaço restante */
+  max-width: calc(100% - 40px); /* (100% - largura do ícone - margem) */
+}
+
+/* Regras de cor para os estados ativo e hover (sem alterações) */
+.nav-link.active .sidebar-icon,
+.nav-link:hover .sidebar-icon {
+  fill: #ffffff;
+}
+
+.nav-link.active .sidebar-text {
+  color: #ffffff;
 }

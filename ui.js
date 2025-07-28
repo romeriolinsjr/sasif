@@ -53,27 +53,60 @@ export function showToast(message, type = "success", duration = 4000) {
  * @param {string} activePage O ID da página atualmente ativa.
  */
 export function renderSidebar(activePage) {
-  // ATENÇÃO: Os ícones SVG não foram fornecidos no seu código,
-  // então vou usar a estrutura que você já tem.
   const pages = [
-    { id: "dashboard", name: "Dashboard" },
-    { id: "grandesDevedores", name: "Grandes Devedores" },
-    { id: "demandasEstruturais", name: "Demandas Estruturais" },
-    { id: "diligencias", name: "Tarefas do Mês" }, // O ID era "diligencias", mantive para consistência
-    { id: "relatorios", name: "Relatórios" },
-    { id: "configuracoes", name: "Configurações" },
+    {
+      id: "dashboard",
+      name: "Dashboard",
+      icon: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
+    },
+    {
+      id: "grandesDevedores",
+      name: "Grandes Devedores",
+      icon: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+    },
+    {
+      id: "demandasEstruturais",
+      name: "Demandas Estruturais",
+      icon: "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+    },
+    {
+      id: "diligencias",
+      name: "Tarefas do Mês",
+      icon: "M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z",
+    },
+    {
+      id: "relatorios",
+      name: "Relatórios",
+      icon: "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z",
+    },
+    {
+      id: "importacao",
+      name: "Importação em Lote",
+      icon: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z",
+    },
+    {
+      id: "configuracoes",
+      name: "Configurações",
+      icon: "M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61.22l2 3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z",
+    },
   ];
 
   const menuHTML = pages
     .map(
       (page) =>
-        `<li><a href="#" class="nav-link ${
-          page.id === activePage ? "active" : ""
-        }" data-page="${page.id}">${page.name}</a></li>`
+        `<li>
+          <a href="#" class="nav-link ${
+            page.id === activePage ? "active" : ""
+          }" data-page="${page.id}">
+            <svg class="sidebar-icon" viewBox="0 0 24 24"><path d="${
+              page.icon
+            }"/></svg>
+            <span class="sidebar-text">${page.name}</span>
+          </a>
+        </li>`
     )
     .join("");
 
-  // ALTERAÇÃO: Adiciona o container para a informação do backup no final da sidebar
   const backupInfoHTML = `
     <div class="sidebar-info-container">
         <div class="sidebar-info-item">
@@ -83,16 +116,8 @@ export function renderSidebar(activePage) {
     </div>
   `;
 
-  // Reconstrói o innerHTML da main-nav, adicionando a nova seção de info
+  // Esta função agora SÓ atualiza o HTML.
   mainNav.innerHTML = `<ul>${menuHTML}</ul>${backupInfoHTML}`;
-
-  // Re-anexa os event listeners aos links
-  mainNav.querySelectorAll(".nav-link").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      navigateTo(e.target.dataset.page);
-    });
-  });
 }
 /**
  * Renderiza um modal genérico para exibir um texto somente leitura.
@@ -219,4 +244,18 @@ export function updateLastBackupTime() {
     // CORREÇÃO: Usando uma cor amarela brilhante para bom contraste
     statusElement.style.color = "#FFD54F";
   }
+}
+
+/**
+ * Configura o listener de navegação da sidebar usando delegação de eventos.
+ * Deve ser chamada APENAS UMA VEZ na inicialização do app.
+ */
+export function setupSidebarListener() {
+  mainNav.addEventListener("click", (e) => {
+    const link = e.target.closest(".nav-link");
+    if (link && link.dataset.page) {
+      e.preventDefault();
+      navigateTo(link.dataset.page);
+    }
+  });
 }

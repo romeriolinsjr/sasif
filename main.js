@@ -12,6 +12,7 @@ import {
   userEmailSpan,
   logoutButton,
   updateLastBackupTime,
+  setupSidebarListener,
 } from "./ui.js";
 import * as state from "./state.js";
 import { formatCNPJForDisplay, formatProcessoForDisplay } from "./utils.js";
@@ -27,16 +28,13 @@ export function initApp(user) {
 
   setupGlobalSearch();
   setupListeners();
+  setupSidebarListener(); // <-- Adicionar esta chamada
 
-  // ALTERAÇÃO: Chama a função para exibir a data do backup na inicialização
   updateLastBackupTime();
-
-  // ALTERAÇÃO: Adiciona um listener para atualizar a UI quando um backup for concluído
   window.addEventListener("backupCompleted", updateLastBackupTime);
 
   navigateTo("dashboard");
 }
-
 /**
  * Configura os listeners globais que alimentam os caches da aplicação.
  */
