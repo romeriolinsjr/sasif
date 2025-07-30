@@ -9,6 +9,8 @@ import { renderProcessoDetailPage } from "./processos.js";
 import { renderImportacaoPage } from "./importacao.js";
 import { renderDiligenciasPage } from "./tarefas.js";
 import { renderRelatoriosPage } from "./relatorios.js";
+// Adicione esta linha junto com os outros imports de páginas
+import { renderInvestigacaoFiscalPage } from "./investigacaoFiscal.js";
 import {
   renderConfiguracoesPage,
   renderExequentesPage,
@@ -64,6 +66,11 @@ function unsubscribeAllListeners() {
  * @param {string | null} page O ID da página para a qual navegar.
  * @param {object} params Parâmetros adicionais para a página (ex: { id: 'processo123' }).
  */
+/**
+ * Navega para uma página específica da aplicação, renderizando seu conteúdo.
+ * @param {string | null} page O ID da página para a qual navegar.
+ * @param {object} params Parâmetros adicionais para a página (ex: { id: 'processo123' }).
+ */
 export function navigateTo(page, params = {}) {
   // Passo 1: Limpa todos os listeners da página anterior.
   unsubscribeAllListeners();
@@ -78,6 +85,10 @@ export function navigateTo(page, params = {}) {
       break;
     case "grandesDevedores":
       renderGrandesDevedoresPage();
+      break;
+    // AQUI ESTÁ A ADIÇÃO
+    case "investigacaoFiscal":
+      renderInvestigacaoFiscalPage();
       break;
     case "demandasEstruturais":
       renderDemandasEstruturaisPage();

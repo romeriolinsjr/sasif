@@ -86,11 +86,16 @@ export function renderConfiguracoesPage() {
 // SEÇÃO: BACKUP E RESTAURAÇÃO
 // ==================================================================
 
+// Dentro de configuracoes.js
+
 const COLLECTIONS_SCHEMA = {
   grandes_devedores: {},
   exequentes: {},
   motivos_suspensao: {},
   diligenciasMensais: {},
+  // --- AQUI ESTÁ A ADIÇÃO ---
+  investigacoesFiscais: {},
+  // -------------------------
   incidentesProcessuais: {},
   demandasEstruturais: {},
   corresponsaveis: {},
