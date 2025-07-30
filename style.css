@@ -2046,3 +2046,13 @@ select.form-input[multiple] {
 .nav-link.active .sidebar-text {
   color: #ffffff;
 }
+
+/* AJUSTE PARA O LAYOUT DO DASHBOARD COM 4 WIDGETS */
+#dashboard-widgets-container {
+  display: grid;
+  /* Usa auto-fit para criar colunas responsivas.
+       Ele tentará criar colunas de no mínimo 350px, 
+       e as esticará para preencher o espaço. */
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+}
