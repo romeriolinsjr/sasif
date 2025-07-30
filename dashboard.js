@@ -324,6 +324,18 @@ function renderInvestigacoesWidget(investigacoes) {
     });
 }
 // ... (Funções renderProximasAudienciasWidget e renderAnalisePendenteWidget permanecem as mesmas)
+/**
+ * Renderiza o widget de próximas audiências.
+ * @param {Array} audiencias - A lista de audiências futuras.
+ */
+/**
+ * Renderiza o widget de próximas audiências.
+ * @param {Array} audiencias - A lista de audiências futuras.
+ */
+/**
+ * Renderiza o widget de próximas audiências.
+ * @param {Array} audiencias - A lista de audiências futuras.
+ */
 function renderProximasAudienciasWidget(audiencias) {
   const container = document.getElementById("audiencias-widget-container");
   if (!container) return;
@@ -343,14 +355,25 @@ function renderProximasAudienciasWidget(audiencias) {
         timeStyle: "short",
       });
       const isDestaque = dataObj < umaSemana;
+
+      // CORREÇÃO: Exibe "IF: [nome do suscitado]" para audiências de IF.
+      const devedorLabel =
+        item.tipo === "investigacaoFiscal"
+          ? `<span style="font-weight: normal;">IF: ${
+              item.razaoSocialDevedor || item.suscitado || ""
+            }</span>`
+          : item.razaoSocialDevedor;
+
       contentHTML += `
           <div class="audiencia-item ${isDestaque ? "destaque" : ""}">
-              <div class="audiencia-item-processo"><a href="#" class="view-processo-link" data-action="view-processo" data-id="${
-                item.processoId
-              }">${formatProcessoForDisplay(item.numeroProcesso)}</a></div>
-              <div class="audiencia-item-devedor">${
-                item.razaoSocialDevedor
-              }</div>
+              <div class="audiencia-item-processo">
+                  <a href="#" class="view-processo-link" data-action="view-processo" data-id="${
+                    item.processoId || ""
+                  }" data-investigacao-id="${item.investigacaoId || ""}">
+                      ${formatProcessoForDisplay(item.numeroProcesso)}
+                  </a>
+              </div>
+              <div class="audiencia-item-devedor">${devedorLabel}</div>
               <div class="audiencia-item-detalhes"><strong>Data:</strong> ${dataFormatada}<br><strong>Local:</strong> ${
         item.local || "A definir"
       }</div>
@@ -361,14 +384,17 @@ function renderProximasAudienciasWidget(audiencias) {
   container
     .querySelector(".widget-card")
     ?.addEventListener("click", (event) => {
-      const link = event.target.closest('[data-action="view-processo"]');
+      const link = event.target.closest(".view-processo-link");
       if (link) {
         event.preventDefault();
-        navigateTo("processoDetail", { id: link.dataset.id });
+        if (link.dataset.investigacaoId) {
+          navigateTo("investigacaoFiscal");
+        } else if (link.dataset.id) {
+          navigateTo("processoDetail", { id: link.dataset.id });
+        }
       }
     });
 }
-
 function renderAnalisePendenteWidget(devedores) {
   const container = document.getElementById("analises-widget-container");
   if (!container) return;

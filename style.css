@@ -80,8 +80,9 @@ body {
   background-color: var(--cor-texto-claro);
   border-bottom: 1px solid var(--cor-borda);
   box-shadow: var(--sombra);
-  position: relative; /* Adicionado */
-  z-index: 10; /* Adicionado */
+  position: relative;
+  /* ALTERAÇÃO: Aumentado para garantir que o cabeçalho e a busca fiquem por cima do conteúdo da página */
+  z-index: 20;
 }
 
 #user-info {
