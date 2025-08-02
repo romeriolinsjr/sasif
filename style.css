@@ -2100,3 +2100,22 @@ select.form-input[multiple] {
   overflow-y: auto; /* Apenas esta área do meio se torna rolável */
   padding: 16px 0; /* Espaçamento interno vertical */
 }
+
+/* --- ESTILOS PARA ÍCONES NOS WIDGETS DO DASHBOARD --- */
+.widget-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.widget-header .widget-icon {
+  width: 22px;
+  height: 22px;
+  fill: var(--cor-secundaria); /* Usa a cor azul média para destaque */
+}
+
+.widget-header h3 {
+  margin: 0;
+  border-bottom: none; /* Remove a borda inferior original */
+  padding-bottom: 0;
+}

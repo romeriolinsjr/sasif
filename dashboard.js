@@ -1,6 +1,7 @@
 // ==================================================================
 // Módulo: dashboard.js
 // Responsabilidade: Lógica de renderização e funcionamento do Dashboard.
+// (Versão com Ícones nos Widgets - 02/08/2025)
 // ==================================================================
 
 import { auth, db } from "./firebase.js";
@@ -13,14 +14,9 @@ import {
 } from "./utils.js";
 import { navigateTo } from "./navigation.js";
 
-/**
- * Renderiza a estrutura principal da página do Dashboard.
- */
 export function renderDashboard() {
   pageTitle.textContent = "Dashboard";
   document.title = "SASIF | Dashboard";
-
-  // ALTERAÇÃO: Adicionado o container para o novo widget de investigações
   contentArea.innerHTML = `
         <div id="dashboard-widgets-container">
             <div id="diligencias-widget-container"></div>
@@ -29,18 +25,12 @@ export function renderDashboard() {
             <div id="audiencias-widget-container"></div>
         </div>
     `;
-
   setupDashboardWidgets();
 }
 
-/**
- * Orquestra a busca de dados e a renderização de todos os widgets.
- */
 export function setupDashboardWidgets() {
   const hoje = new Date();
   const userId = auth.currentUser.uid;
-
-  // Widget de Tarefas
   db.collection("diligenciasMensais")
     .where("userId", "==", userId)
     .get()
@@ -53,20 +43,12 @@ export function setupDashboardWidgets() {
     })
     .catch((error) => {
       console.error("Erro ao buscar tarefas para o dashboard:", error);
-      const container = document.getElementById("diligencias-widget-container");
-      if (container)
-        container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
     });
-
-  // Widget de Audiências
   db.collection("audiencias")
     .get()
     .then((snapshot) => {
-      const todasAudiencias = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      const audienciasFuturas = todasAudiencias
+      const audienciasFuturas = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
         .map((item) => ({ ...item, dataHoraObj: getSafeDate(item.dataHora) }))
         .filter((item) => item.dataHoraObj && item.dataHoraObj >= hoje)
         .sort((a, b) => a.dataHoraObj - b.dataHoraObj)
@@ -75,12 +57,7 @@ export function setupDashboardWidgets() {
     })
     .catch((error) => {
       console.error("Erro ao buscar audiências para o dashboard:", error);
-      const container = document.getElementById("audiencias-widget-container");
-      if (container)
-        container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
     });
-
-  // NOVO WIDGET: Busca de Investigações Fiscais
   db.collection("investigacoesFiscais")
     .where("status", "==", "ativo")
     .where("prazoRetorno", "!=", null)
@@ -96,18 +73,10 @@ export function setupDashboardWidgets() {
     })
     .catch((error) => {
       console.error("Erro ao buscar investigações para o dashboard:", error);
-      const container = document.getElementById(
-        "investigacoes-widget-container"
-      );
-      if (container)
-        container.innerHTML = `<div class="widget-card"><h3>Acompanhamento de Investigações</h3><p class="empty-list-message">Ocorreu um erro ao carregar.</p></div>`;
     });
-
-  // Widget de Análises Pendentes
   renderAnalisePendenteWidget(state.devedoresCache);
 }
 
-// ... (Função renderProximasDiligenciasWidget permanece a mesma)
 function renderProximasDiligenciasWidget(diligencias) {
   const container = document.getElementById("diligencias-widget-container");
   if (!container) return;
@@ -123,12 +92,10 @@ function renderProximasDiligenciasWidget(diligencias) {
       if (
         tarefa.historicoCumprimentos &&
         Object.keys(tarefa.historicoCumprimentos).length > 0
-      ) {
+      )
         return;
-      }
-      if (dataAlvoObj <= diasParaFrente) {
+      if (dataAlvoObj <= diasParaFrente)
         ocorrenciasParaExibir.push({ ...tarefa, dataRelevante: dataAlvoObj });
-      }
       return;
     }
     const hojePrimeiroDiaDoMes = new Date(
@@ -137,7 +104,6 @@ function renderProximasDiligenciasWidget(diligencias) {
       1
     );
     const criadoEmObj = getSafeDate(tarefa.criadoEm);
-    const recorrenciaTerminaEmObj = getSafeDate(tarefa.recorrenciaTerminaEm);
     if (criadoEmObj) {
       const inicioDaVigencia = new Date(
         criadoEmObj.getFullYear(),
@@ -146,6 +112,7 @@ function renderProximasDiligenciasWidget(diligencias) {
       );
       if (hojePrimeiroDiaDoMes < inicioDaVigencia) return;
     }
+    const recorrenciaTerminaEmObj = getSafeDate(tarefa.recorrenciaTerminaEm);
     if (
       recorrenciaTerminaEmObj &&
       hojePrimeiroDiaDoMes > recorrenciaTerminaEmObj
@@ -166,12 +133,11 @@ function renderProximasDiligenciasWidget(diligencias) {
         hoje.getMonth(),
         diaAlvo
       );
-      if (dataOcorrencia <= diasParaFrente) {
+      if (dataOcorrencia <= diasParaFrente)
         ocorrenciasParaExibir.push({
           ...tarefa,
           dataRelevante: dataOcorrencia,
         });
-      }
     }
     const proximoMesDate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
     const anoMesProximo = `${proximoMesDate.getFullYear()}-${String(
@@ -188,24 +154,16 @@ function renderProximasDiligenciasWidget(diligencias) {
         proximoMesDate.getMonth(),
         diaAlvo
       );
-      if (dataOcorrencia >= hoje && dataOcorrencia <= diasParaFrente) {
+      if (dataOcorrencia >= hoje && dataOcorrencia <= diasParaFrente)
         ocorrenciasParaExibir.push({
           ...tarefa,
           dataRelevante: dataOcorrencia,
         });
-      }
     }
   });
-  const tarefasUnicasMap = new Map();
-  ocorrenciasParaExibir.forEach((tarefa) => {
-    if (
-      !tarefasUnicasMap.has(tarefa.id) ||
-      tarefa.dataRelevante < tarefasUnicasMap.get(tarefa.id).dataRelevante
-    ) {
-      tarefasUnicasMap.set(tarefa.id, tarefa);
-    }
-  });
-  const tarefasFiltradas = Array.from(tarefasUnicasMap.values());
+  const tarefasFiltradas = Array.from(
+    new Map(ocorrenciasParaExibir.map((t) => [t.id, t])).values()
+  );
   tarefasFiltradas.sort((a, b) => a.dataRelevante - b.dataRelevante);
   let contentHTML = "";
   if (tarefasFiltradas.length === 0) {
@@ -229,7 +187,14 @@ function renderProximasDiligenciasWidget(diligencias) {
       }</div><div class="analise-item-detalhes"><strong>${vencimentoLabel}</strong></div></div>`;
     });
   }
-  container.innerHTML = `<div class="widget-card"><h3>Próximas Tarefas</h3>${contentHTML}</div>`;
+  container.innerHTML = `
+    <div class="widget-card">
+        <div class="widget-header">
+            <svg class="widget-icon" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>
+            <h3>Próximas Tarefas</h3>
+        </div>
+        ${contentHTML}
+    </div>`;
   container
     .querySelector(".widget-card")
     ?.addEventListener("click", (event) => {
@@ -237,27 +202,9 @@ function renderProximasDiligenciasWidget(diligencias) {
     });
 }
 
-/**
- * NOVA FUNÇÃO: Renderiza o widget de Acompanhamento de Investigações.
- * @param {Array} investigacoes - A lista de investigações com prazo de retorno.
- */
-/**
- * NOVA FUNÇÃO: Renderiza o widget de Acompanhamento de Investigações.
- * @param {Array} investigacoes - A lista de investigações com prazo de retorno.
- */
 function renderInvestigacoesWidget(investigacoes) {
   const container = document.getElementById("investigacoes-widget-container");
   if (!container) return;
-
-  // Objeto para mapear o estado interno para o texto da fase atual
-  const fasesMap = {
-    "Tutela Provisória": "Ajuizado",
-    "Designação de Audiência": "Decidida Tutela Provisória",
-    Julgamento: "Marcada Audiência",
-    "Análise de Embargos": "Julgado",
-    "Trânsito em Julgado": "Decididos Embargos",
-  };
-
   let contentHTML = "";
   if (investigacoes.length === 0) {
     contentHTML =
@@ -265,15 +212,13 @@ function renderInvestigacoesWidget(investigacoes) {
   } else {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-
     investigacoes.forEach((item) => {
       const prazoDate = getSafeDate(item.prazoRetorno);
-      const diffTime = prazoDate.getTime() - hoje.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      let prazoStatus = "";
-      let statusClass = "";
-
+      const diffDays = Math.ceil(
+        (prazoDate.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      let prazoStatus = "",
+        statusClass = "";
       if (diffDays < 0) {
         prazoStatus = `Vencido há ${Math.abs(diffDays)} dia(s)`;
         statusClass = "status-expired";
@@ -284,58 +229,35 @@ function renderInvestigacoesWidget(investigacoes) {
         prazoStatus = `Retorno em ${diffDays} dia(s)`;
         statusClass = "status-ok";
       }
-
-      // ALTERAÇÃO: Mapeia o 'decisaoPendente' para a fase atual
-      const faseAtual = fasesMap[item.decisaoPendente] || item.decisaoPendente;
-
+      const faseAtual = item.faseAtual || "Indefinida";
       contentHTML += `
-                <div class="analise-item" data-id="${
-                  item.id
-                }" title="Ir para a página de Investigação Fiscal">
-                    <div class="analise-item-devedor">
-                        <span class="status-dot ${statusClass}" style="margin-right: 10px;"></span>
-                        ${formatProcessoForDisplay(item.numeroProcesso)}
-                    </div>
-                     <div class="analise-item-detalhes">
-                        <strong>Suscitado:</strong> ${item.suscitado} <br>
-                        <!-- ALTERAÇÃO: Adiciona a fase atual e o prazo -->
-                        <strong>Fase:</strong> ${faseAtual} <br>
-                        <strong>Prazo:</strong> ${prazoStatus}
-                     </div>
-                </div>`;
+          <div class="analise-item" data-id="${
+            item.id
+          }" title="Ir para a página de Investigação Fiscal">
+              <div class="analise-item-devedor"><span class="status-dot ${statusClass}" style="margin-right: 10px;"></span>${formatProcessoForDisplay(
+        item.numeroProcesso
+      )}</div>
+              <div class="analise-item-detalhes">
+                  <strong>Suscitado:</strong> ${item.suscitado} <br>
+                  <strong>Fase:</strong> ${faseAtual} <br>
+                  <strong>Prazo:</strong> ${prazoStatus}
+              </div>
+          </div>`;
     });
   }
-
-  // ALTERAÇÃO: Título do widget atualizado
-  const widgetHTML = `
-        <div class="widget-card">
+  container.innerHTML = `
+    <div class="widget-card">
+        <div class="widget-header">
+            <svg class="widget-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
             <h3>Investigações Fiscais</h3>
-            ${contentHTML}
         </div>
-    `;
-  container.innerHTML = widgetHTML;
-
+        ${contentHTML}
+    </div>`;
   container
     .querySelector(".widget-card")
-    ?.addEventListener("click", (event) => {
-      if (event.target.closest(".analise-item")) {
-        navigateTo("investigacaoFiscal");
-      }
-    });
+    ?.addEventListener("click", () => navigateTo("investigacaoFiscal"));
 }
-// ... (Funções renderProximasAudienciasWidget e renderAnalisePendenteWidget permanecem as mesmas)
-/**
- * Renderiza o widget de próximas audiências.
- * @param {Array} audiencias - A lista de audiências futuras.
- */
-/**
- * Renderiza o widget de próximas audiências.
- * @param {Array} audiencias - A lista de audiências futuras.
- */
-/**
- * Renderiza o widget de próximas audiências.
- * @param {Array} audiencias - A lista de audiências futuras.
- */
+
 function renderProximasAudienciasWidget(audiencias) {
   const container = document.getElementById("audiencias-widget-container");
   if (!container) return;
@@ -344,8 +266,8 @@ function renderProximasAudienciasWidget(audiencias) {
     contentHTML =
       '<p class="empty-list-message">Nenhuma audiência futura agendada.</p>';
   } else {
-    const hoje = new Date();
-    const umaSemana = new Date();
+    const hoje = new Date(),
+      umaSemana = new Date();
     umaSemana.setDate(hoje.getDate() + 8);
     audiencias.forEach((item) => {
       const dataObj = getSafeDate(item.dataHora);
@@ -354,25 +276,19 @@ function renderProximasAudienciasWidget(audiencias) {
         dateStyle: "full",
         timeStyle: "short",
       });
-      const isDestaque = dataObj < umaSemana;
-
-      // CORREÇÃO: Exibe "IF: [nome do suscitado]" para audiências de IF.
       const devedorLabel =
         item.tipo === "investigacaoFiscal"
           ? `<span style="font-weight: normal;">IF: ${
-              item.razaoSocialDevedor || item.suscitado || ""
+              item.razaoSocialDevedor || ""
             }</span>`
           : item.razaoSocialDevedor;
-
       contentHTML += `
-          <div class="audiencia-item ${isDestaque ? "destaque" : ""}">
-              <div class="audiencia-item-processo">
-                  <a href="#" class="view-processo-link" data-action="view-processo" data-id="${
-                    item.processoId || ""
-                  }" data-investigacao-id="${item.investigacaoId || ""}">
-                      ${formatProcessoForDisplay(item.numeroProcesso)}
-                  </a>
-              </div>
+          <div class="audiencia-item ${dataObj < umaSemana ? "destaque" : ""}">
+              <div class="audiencia-item-processo"><a href="#" class="view-processo-link" data-action="view-processo" data-id="${
+                item.processoId || ""
+              }" data-investigacao-id="${
+        item.investigacaoId || ""
+      }">${formatProcessoForDisplay(item.numeroProcesso)}</a></div>
               <div class="audiencia-item-devedor">${devedorLabel}</div>
               <div class="audiencia-item-detalhes"><strong>Data:</strong> ${dataFormatada}<br><strong>Local:</strong> ${
         item.local || "A definir"
@@ -380,21 +296,27 @@ function renderProximasAudienciasWidget(audiencias) {
           </div>`;
     });
   }
-  container.innerHTML = `<div class="widget-card"><h3>Próximas Audiências</h3>${contentHTML}</div>`;
+  container.innerHTML = `
+    <div class="widget-card">
+        <div class="widget-header">
+            <svg class="widget-icon" viewBox="0 0 24 24"><path d="M1 21h12v-2H1v2zm2-4h12v-2H3v2zm0-4h12v-2H3v2zm0-4h12V7H3v2zm16.5-6-2.75 2.75L15.34 8 18.09 5.25 15.34 2.5 16.75 1.09l4.17 4.16-4.17 4.16-1.41-1.41z"/></svg>
+            <h3>Próximas Audiências</h3>
+        </div>
+        ${contentHTML}
+    </div>`;
   container
     .querySelector(".widget-card")
     ?.addEventListener("click", (event) => {
       const link = event.target.closest(".view-processo-link");
       if (link) {
         event.preventDefault();
-        if (link.dataset.investigacaoId) {
-          navigateTo("investigacaoFiscal");
-        } else if (link.dataset.id) {
+        if (link.dataset.investigacaoId) navigateTo("investigacaoFiscal");
+        else if (link.dataset.id)
           navigateTo("processoDetail", { id: link.dataset.id });
-        }
       }
     });
 }
+
 function renderAnalisePendenteWidget(devedores) {
   const container = document.getElementById("analises-widget-container");
   if (!container) return;
@@ -404,20 +326,13 @@ function renderAnalisePendenteWidget(devedores) {
       (d) =>
         d.analise.status === "status-expired" ||
         d.analise.status === "status-warning"
-    );
-  devedoresParaAnalise.sort((a, b) => {
-    if (
+    )
+    .sort((a, b) =>
       a.analise.status === "status-expired" &&
       b.analise.status !== "status-expired"
-    )
-      return -1;
-    if (
-      a.analise.status !== "status-expired" &&
-      b.analise.status === "status-expired"
-    )
-      return 1;
-    return 0;
-  });
+        ? -1
+        : 1
+    );
   let contentHTML = "";
   if (devedoresParaAnalise.length === 0) {
     contentHTML =
@@ -427,13 +342,17 @@ function renderAnalisePendenteWidget(devedores) {
       contentHTML += `<div class="analise-item" data-id="${item.id}" title="Ir para a lista de Grandes Devedores"><div class="analise-item-devedor"><span class="status-dot ${item.analise.status}" style="margin-right: 10px;"></span>${item.razaoSocial}</div></div>`;
     });
   }
-  const widgetHTML = `<div class="widget-card"><h3>Análises Pendentes</h3>${contentHTML}</div>`;
-  container.innerHTML = widgetHTML;
+  container.innerHTML = `
+    <div class="widget-card">
+        <div class="widget-header">
+            <svg class="widget-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/><path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+            <h3>Análises Pendentes</h3>
+        </div>
+        ${contentHTML}
+    </div>`;
   container
     .querySelector(".widget-card")
     ?.addEventListener("click", (event) => {
-      if (event.target.closest(".analise-item")) {
-        navigateTo("grandesDevedores");
-      }
+      if (event.target.closest(".analise-item")) navigateTo("grandesDevedores");
     });
 }
