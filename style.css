@@ -2069,3 +2069,34 @@ select.form-input[multiple] {
 .link-like:hover {
   text-decoration: underline;
 }
+
+/* --- ESTILOS PARA O CABEÇALHO DO MODAL COM AÇÕES --- */
+.modal-header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--cor-borda);
+  padding-bottom: 16px;
+}
+
+.modal-header-actions h3 {
+  margin: 0;
+}
+
+.modal-actions-container {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- AJUSTES PARA MODAL COM CONTEÚDO ROLÁVEL --- */
+.modal-content.modal-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* O modal nunca poderá ter mais que 90% da altura da tela */
+}
+
+.modal-body {
+  overflow-y: auto; /* Apenas esta área do meio se torna rolável */
+  padding: 16px 0; /* Espaçamento interno vertical */
+}
