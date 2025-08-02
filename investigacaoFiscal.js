@@ -15,6 +15,7 @@ import {
 
 let investigacaoListenerUnsubscribe = null;
 let currentInvestigacao = null;
+let currentInvestigacoesList = []; // Cache para a lista exibida
 
 export function renderInvestigacaoFiscalPage() {
   pageTitle.textContent = "Investigação Fiscal";
@@ -40,6 +41,8 @@ function setupInvestigacaoListener() {
         id: doc.id,
         ...doc.data(),
       }));
+      currentInvestigacoesList = investigacoes; // <--- ADICIONE ESTA LINHA
+
       renderInvestigacaoList(investigacoes);
     },
     (error) => {
@@ -56,7 +59,6 @@ function setupPageEventListeners() {
   document.body.addEventListener("click", handlePageActions);
 }
 
-// Substitua sua função renderInvestigacaoList por esta versão final:
 function renderInvestigacaoList(investigacoes) {
   const container = document.getElementById("investigacao-list-container");
   if (!container) return;
@@ -76,19 +78,17 @@ function renderInvestigacaoList(investigacoes) {
 
   const tableRows = investigacoes
     .map((item) => {
-      // 1. Chama a função de utilidade que agora retorna o objeto no formato correto.
       const prazoInfo = getPrazoStatus(item.prazoRetorno);
-
       const numeroFormatado = item.numeroProcesso
         ? formatProcessoForDisplay(item.numeroProcesso)
         : "Não informado";
       const faseAtual = fasesMap[item.decisaoPendente] || item.decisaoPendente;
-
-      // 2. Constrói o HTML da célula replicando a estrutura de devedores.js
       const statusCellHTML = `<td><span class="status-dot ${prazoInfo.statusClass}"></span>${prazoInfo.text}</td>`;
 
       return `<tr>
-        <td>${numeroFormatado}</td>
+        <td><span class="link-like" data-action="view-investigacao-details" data-id="${
+          item.id
+        }">${numeroFormatado}</span></td>
         <td>${item.suscitado || "Não informado"}</td>
         <td>${faseAtual}</td>
         ${statusCellHTML}
@@ -122,8 +122,64 @@ function renderInvestigacaoList(investigacoes) {
     </table>`;
 }
 
-// REMOVA COMPLETAMENTE a função getPrazoRetornoStatus do seu arquivo.
-// Ela não é mais necessária.
+function renderInvestigacaoDetailsModal(investigacao) {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+
+  const dataAjuizamento = getSafeDate(investigacao.dataAjuizamento);
+  const dataFormatada = dataAjuizamento
+    ? dataAjuizamento.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+    : "Não informada";
+
+  modalOverlay.innerHTML = `
+    <div class="modal-content modal-large">
+        <h3>Detalhes da Investigação</h3>
+        <div class="task-details-container">
+            <div class="detail-item">
+                <span class="detail-label">Nº do Processo</span>
+                <span class="detail-value">${formatProcessoForDisplay(
+                  investigacao.numeroProcesso
+                )}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Suscitante</span>
+                <span class="detail-value">${
+                  investigacao.suscitante || "Não informado"
+                }</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Suscitado</span>
+                <span class="detail-value">${
+                  investigacao.suscitado || "Não informado"
+                }</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Data de Ajuizamento</span>
+                <span class="detail-value">${dataFormatada}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Motivo da Análise Atual</span>
+                <span class="detail-value">${
+                  investigacao.decisaoPendente || "Não informado"
+                }</span>
+            </div>
+            ${
+              investigacao.descricao
+                ? `
+            <div class="detail-item-full">
+                <span class="detail-label">Descrição</span>
+                <div class="detail-description-box">${investigacao.descricao}</div>
+            </div>`
+                : ""
+            }
+        </div>
+        <div class="form-buttons" style="justify-content: flex-end; margin-top: 24px;">
+            <button data-action="close-modal" class="btn-secondary">Fechar</button>
+        </div>
+    </div>`;
+
+  document.body.appendChild(modalOverlay);
+}
 
 function renderInvestigacaoFormModal(investigacao = null) {
   const isEditing = investigacao !== null;
@@ -278,12 +334,30 @@ async function handlePageActions(e) {
     !document.querySelector(".modal-overlay")
   )
     return;
-  const target = e.target.closest("button[data-action]");
+
+  // Alterado para capturar qualquer elemento com data-action, não apenas botões
+  const target = e.target.closest("[data-action]");
   if (!target) return;
+
   const action = target.dataset.action;
   const id = target.dataset.id;
-  const audienciaId = target.dataset.audienciaId; // Captura o novo ID
+
   switch (action) {
+    case "view-investigacao-details": {
+      // <-- NOVA AÇÃO
+      const investigacao = currentInvestigacoesList.find(
+        (inv) => inv.id === id
+      );
+      if (investigacao) {
+        renderInvestigacaoDetailsModal(investigacao);
+      } else {
+        showToast(
+          "Erro: Não foi possível encontrar os detalhes do processo.",
+          "error"
+        );
+      }
+      break;
+    }
     case "add-investigacao-btn":
       renderInvestigacaoFormModal();
       break;
@@ -307,9 +381,11 @@ async function handlePageActions(e) {
     case "save-audiencia":
       handleSaveAudiencia(id);
       break;
-    case "delete-audiencia":
+    case "delete-audiencia": {
+      const audienciaId = target.dataset.audienciaId;
       handleDeleteAudiencia(audienciaId);
-      break; // <-- NOVA AÇÃO
+      break;
+    }
     case "update-andamento": {
       const doc = await db.collection("investigacoesFiscais").doc(id).get();
       if (doc.exists) {

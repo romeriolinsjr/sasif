@@ -2057,3 +2057,15 @@ select.form-input[multiple] {
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 24px;
 }
+
+/* --- ESTILO PARA TEXTO CLICÁVEL EM TABELAS --- */
+.link-like {
+  color: var(--cor-primaria);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-like:hover {
+  text-decoration: underline;
+}
