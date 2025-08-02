@@ -10,6 +10,7 @@ import {
   getSafeDate,
   maskProcesso,
   formatProcessoForDisplay,
+  getPrazoStatus,
 } from "./utils.js";
 
 let investigacaoListenerUnsubscribe = null;
@@ -55,13 +56,16 @@ function setupPageEventListeners() {
   document.body.addEventListener("click", handlePageActions);
 }
 
+// Substitua sua função renderInvestigacaoList por esta versão final:
 function renderInvestigacaoList(investigacoes) {
   const container = document.getElementById("investigacao-list-container");
   if (!container) return;
+
   if (investigacoes.length === 0) {
     container.innerHTML = `<p class="empty-list-message">Nenhuma investigação em andamento.</p>`;
     return;
   }
+
   const fasesMap = {
     "Tutela Provisória": "Ajuizado",
     "Designação de Audiência": "Decidida Tutela Provisória",
@@ -69,28 +73,57 @@ function renderInvestigacaoList(investigacoes) {
     "Análise de Embargos": "Julgado",
     "Trânsito em Julgado": "Decididos Embargos",
   };
+
   const tableRows = investigacoes
     .map((item) => {
-      const { prazoStatus, statusClass } = getPrazoRetornoStatus(
-        item.prazoRetorno
-      );
+      // 1. Chama a função de utilidade que agora retorna o objeto no formato correto.
+      const prazoInfo = getPrazoStatus(item.prazoRetorno);
+
       const numeroFormatado = item.numeroProcesso
         ? formatProcessoForDisplay(item.numeroProcesso)
         : "Não informado";
       const faseAtual = fasesMap[item.decisaoPendente] || item.decisaoPendente;
-      return `<tr><td>${numeroFormatado}</td><td>${
-        item.suscitado || "Não informado"
-      }</td><td>${faseAtual}</td><td class="status-cell ${statusClass}">${prazoStatus}</td><td class="actions-cell"><button class="btn-primary btn-small" data-action="update-andamento" data-id="${
-        item.id
-      }">Atualizar Andamento</button><button class="action-icon icon-edit" title="Editar Dados Cadastrais" data-action="edit-investigacao" data-id="${
-        item.id
-      }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-investigacao" data-id="${
-        item.id
-      }"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
+
+      // 2. Constrói o HTML da célula replicando a estrutura de devedores.js
+      const statusCellHTML = `<td><span class="status-dot ${prazoInfo.statusClass}"></span>${prazoInfo.text}</td>`;
+
+      return `<tr>
+        <td>${numeroFormatado}</td>
+        <td>${item.suscitado || "Não informado"}</td>
+        <td>${faseAtual}</td>
+        ${statusCellHTML}
+        <td class="actions-cell">
+          <button class="btn-primary btn-small" data-action="update-andamento" data-id="${
+            item.id
+          }">Atualizar Andamento</button>
+          <button class="action-icon icon-edit" title="Editar Dados Cadastrais" data-action="edit-investigacao" data-id="${
+            item.id
+          }"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+          <button class="action-icon icon-delete" title="Excluir" data-action="delete-investigacao" data-id="${
+            item.id
+          }"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+        </td>
+      </tr>`;
     })
     .join("");
-  container.innerHTML = `<table class="data-table"><thead><tr><th>Nº do Processo</th><th>Suscitado</th><th>Fase Atual</th><th>Prazo para Retorno</th><th class="actions-cell">Ações</th></tr></thead><tbody>${tableRows}</tbody></table>`;
+
+  container.innerHTML = `
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Nº do Processo</th>
+                <th>Suscitado</th>
+                <th>Fase Atual</th>
+                <th>Prazo para Retorno</th>
+                <th class="actions-cell">Ações</th>
+            </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+    </table>`;
 }
+
+// REMOVA COMPLETAMENTE a função getPrazoRetornoStatus do seu arquivo.
+// Ela não é mais necessária.
 
 function renderInvestigacaoFormModal(investigacao = null) {
   const isEditing = investigacao !== null;
@@ -529,14 +562,11 @@ async function handleArquivarProcesso(id) {
   )
     return;
   try {
-    await db
-      .collection("investigacoesFiscais")
-      .doc(id)
-      .update({
-        status: "arquivado",
-        prazoRetorno: null,
-        decisaoPendente: "Arquivado",
-      });
+    await db.collection("investigacoesFiscais").doc(id).update({
+      status: "arquivado",
+      prazoRetorno: null,
+      decisaoPendente: "Arquivado",
+    });
     showToast("Processo arquivado com sucesso.", "success");
     const modal = document.querySelector(".modal-overlay");
     if (modal) modal.remove();
@@ -544,31 +574,4 @@ async function handleArquivarProcesso(id) {
     console.error("Erro ao arquivar processo: ", error);
     showToast("Ocorreu um erro ao arquivar.", "error");
   }
-}
-function getPrazoRetornoStatus(prazoTimestamp) {
-  if (!prazoTimestamp)
-    return { prazoStatus: "Sem prazo", statusClass: "status-none" };
-  const prazoDate = getSafeDate(prazoTimestamp);
-  if (!prazoDate)
-    return { prazoStatus: "Data inválida", statusClass: "status-overdue" };
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const diffTime = prazoDate.getTime() - hoje.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  if (diffDays < 0)
-    return {
-      prazoStatus: `Vencido há ${Math.abs(diffDays)} dia(s)`,
-      statusClass: "status-overdue",
-    };
-  if (diffDays === 0)
-    return { prazoStatus: "Vence hoje", statusClass: "status-due-soon" };
-  if (diffDays <= 7)
-    return {
-      prazoStatus: `Vence em ${diffDays} dia(s)`,
-      statusClass: "status-due-soon",
-    };
-  return {
-    prazoStatus: `Vence em ${diffDays} dia(s)`,
-    statusClass: "status-ok",
-  };
 }

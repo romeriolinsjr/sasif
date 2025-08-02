@@ -210,3 +210,45 @@ export function formatDocumentForDisplay(doc) {
   }
   return doc;
 }
+
+/**
+ * Calcula o status de um prazo e retorna o texto e a classe CSS para exibição no padrão "bolinha + texto".
+ * @param {object} firestoreDate - O campo de data do Firestore (pode ser Timestamp ou Map).
+ * @returns {{text: string, statusClass: string}} Objeto com o texto para exibição e a classe CSS de status para a bolinha.
+ */
+export function getPrazoStatus(firestoreDate) {
+  if (!firestoreDate) {
+    return { text: "Sem prazo", statusClass: "" };
+  }
+
+  const prazoDate = getSafeDate(firestoreDate);
+  if (!prazoDate) {
+    return { text: "Data inválida", statusClass: "status-expired" }; // Vermelho para erro
+  }
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  prazoDate.setHours(0, 0, 0, 0);
+
+  const diffTime = prazoDate.getTime() - hoje.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    const diasAbs = Math.abs(diffDays);
+    const plural = diasAbs === 1 ? "dia" : "dias";
+    return {
+      text: `Pendente há ${diasAbs} ${plural}`,
+      statusClass: "status-expired",
+    };
+  }
+
+  if (diffDays === 0) {
+    return { text: "Retorno hoje", statusClass: "status-warning" };
+  }
+
+  const plural = diffDays === 1 ? "dia" : "dias";
+  return {
+    text: `Faltam ${diffDays} ${plural}`,
+    statusClass: "status-ok",
+  };
+}
