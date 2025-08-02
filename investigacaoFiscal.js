@@ -1,11 +1,11 @@
 // ==================================================================
 // Módulo: investigacaoFiscal.js
 // Responsabilidade: Lógica da página "Investigação Fiscal".
+// (Versão Refatorada - 01/08/2025)
 // ==================================================================
 
 import { db } from "./firebase.js";
 import { contentArea, pageTitle, showToast } from "./ui.js";
-import { navigateTo } from "./navigation.js";
 import {
   getSafeDate,
   maskProcesso,
@@ -15,7 +15,8 @@ import {
 
 let investigacaoListenerUnsubscribe = null;
 let currentInvestigacao = null;
-let currentInvestigacoesList = []; // Cache para a lista exibida
+let currentInvestigacoesList = []; // Cache para a lista ativa
+let currentArchivedList = []; // Cache para a lista de arquivados
 
 export function renderInvestigacaoFiscalPage() {
   pageTitle.textContent = "Investigação Fiscal";
@@ -41,8 +42,7 @@ function setupInvestigacaoListener() {
         id: doc.id,
         ...doc.data(),
       }));
-      currentInvestigacoesList = investigacoes; // <--- ADICIONE ESTA LINHA
-
+      currentInvestigacoesList = investigacoes;
       renderInvestigacaoList(investigacoes);
     },
     (error) => {
@@ -68,21 +68,13 @@ function renderInvestigacaoList(investigacoes) {
     return;
   }
 
-  const fasesMap = {
-    "Tutela Provisória": "Ajuizado",
-    "Designação de Audiência": "Decidida Tutela Provisória",
-    Julgamento: "Marcada Audiência",
-    "Análise de Embargos": "Julgado",
-    "Trânsito em Julgado": "Decididos Embargos",
-  };
-
   const tableRows = investigacoes
     .map((item) => {
       const prazoInfo = getPrazoStatus(item.prazoRetorno);
       const numeroFormatado = item.numeroProcesso
         ? formatProcessoForDisplay(item.numeroProcesso)
         : "Não informado";
-      const faseAtual = fasesMap[item.decisaoPendente] || item.decisaoPendente;
+      const faseAtual = item.faseAtual || "Indefinida";
       const statusCellHTML = `<td><span class="status-dot ${prazoInfo.statusClass}"></span>${prazoInfo.text}</td>`;
 
       return `<tr>
@@ -158,9 +150,9 @@ function renderInvestigacaoDetailsModal(investigacao) {
                 <span class="detail-value">${dataFormatada}</span>
             </div>
             <div class="detail-item">
-                <span class="detail-label">Motivo da Análise Atual</span>
+                <span class="detail-label">Fase Atual</span>
                 <span class="detail-value">${
-                  investigacao.decisaoPendente || "Não informado"
+                  investigacao.faseAtual || "Não informado"
                 }</span>
             </div>
             ${
@@ -193,21 +185,11 @@ function renderInvestigacaoFormModal(investigacao = null) {
     isEditing ? investigacao.suscitante : ""
   }"></div><div class="form-group" style="flex: 1;"><label for="inv-suscitado">Suscitado</label><input type="text" id="inv-suscitado" class="form-input" value="${
     isEditing ? investigacao.suscitado : ""
-  }"></div></div><div style="display: flex; gap: 16px;"><div class="form-group" style="flex: 1;"><label for="inv-data-ajuizamento">Data de Ajuizamento</label><input type="date" id="inv-data-ajuizamento" class="form-input" value="${
+  }"></div></div><div class="form-group"><label for="inv-data-ajuizamento">Data de Ajuizamento</label><input type="date" id="inv-data-ajuizamento" class="form-input" value="${
     isEditing
       ? getSafeDate(investigacao.dataAjuizamento).toISOString().split("T")[0]
       : ""
-  }"></div><div class="form-group" style="flex: 1;"><label for="inv-decisao-pendente">Motivo da Análise</label><select id="inv-decisao-pendente" class="form-input"><option value="Tutela Provisória" ${
-    isEditing && investigacao.decisaoPendente === "Tutela Provisória"
-      ? "selected"
-      : ""
-  }>Tutela Provisória</option><option value="Designação de Audiência" ${
-    isEditing && investigacao.decisaoPendente === "Designação de Audiência"
-      ? "selected"
-      : ""
-  }>Designação de Audiência</option><option value="Julgamento" ${
-    isEditing && investigacao.decisaoPendente === "Julgamento" ? "selected" : ""
-  }>Julgamento</option></select></div></div><div class="form-group"><label for="inv-descricao">Descrição (Opcional)</label><textarea id="inv-descricao" class="form-input" rows="3">${
+  }"></div><div class="form-group"><label for="inv-descricao">Descrição (Opcional)</label><textarea id="inv-descricao" class="form-input" rows="3">${
     isEditing ? investigacao.descricao : ""
   }</textarea></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-investigacao" data-id="${
     isEditing ? investigacao.id : ""
@@ -220,71 +202,83 @@ function renderInvestigacaoFormModal(investigacao = null) {
 
 function renderAndamentoModal() {
   const investigacao = currentInvestigacao;
-  const fases = {
-    "Tutela Provisória": {
-      proxima: "Designação de Audiência",
-      statusAnterior: "Ajuizado",
-    },
-    "Designação de Audiência": {
-      proxima: "Julgamento",
-      statusAnterior: "Decidida Tutela Provisória",
-    },
-    Julgamento: {
-      proxima: "Análise de Embargos",
-      statusAnterior: "Marcada Audiência",
-    },
-    "Análise de Embargos": {
-      proxima: "Trânsito em Julgado",
-      statusAnterior: "Julgado",
-    },
+  const fases = investigacao.fasesStatus || {
+    tutela: "pendente",
+    audiencia: "pendente",
+    julgamento: "pendente",
   };
-  const proximaAcao = fases[investigacao.decisaoPendente]?.proxima || "Nenhuma";
-  const statusAtual =
-    fases[investigacao.decisaoPendente]?.statusAnterior || "Status inicial";
-  const historicoCorrigido = (investigacao.historicoFases || []).map((fase) => {
-    if (fase.id === "impugnacao") return { ...fase, nome: "Impugnação" };
-    if (fase.id === "audiencia") return { ...fase, nome: "Audiência" };
-    if (fase.id === "julgamento") return { ...fase, nome: "Julgamento" };
-    if (fase.id === "tutela") return { ...fase, nome: "Tutela" };
-    return fase;
-  });
-  const trackerHTML = historicoCorrigido
-    .map(
-      (fase) =>
-        `<div class="form-group-checkbox tracker-item"><input type="checkbox" id="fase-${
-          fase.id
-        }" data-fase-id="${fase.id}" ${
-          fase.concluido ? "checked" : ""
-        }><label for="fase-${fase.id}">${fase.nome}</label></div>`
-    )
-    .join("");
+  const createFaseSelector = (faseId, faseLabel, statusAtual) => {
+    return `
+      <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
+        <span class="detail-label" style="margin-bottom: 0;">${faseLabel}</span>
+        <select id="status-${faseId}" class="form-input" style="width: 150px;">
+          <option value="pendente" ${
+            statusAtual === "pendente" ? "selected" : ""
+          }>Pendente</option>
+          <option value="feito" ${
+            statusAtual === "feito" ? "selected" : ""
+          }>Feito</option>
+          <option value="nao_aplicavel" ${
+            statusAtual === "nao_aplicavel" ? "selected" : ""
+          }>Não Aplicável</option>
+        </select>
+      </div>
+    `;
+  };
   const prazoRetornoAtual = investigacao.prazoRetorno
     ? getSafeDate(investigacao.prazoRetorno).toISOString().split("T")[0]
     : "";
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
-  modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>Andamento: ${formatProcessoForDisplay(
-    investigacao.numeroProcesso
-  )}</h3><div class="andamento-secao"><h4>Status Atual do Processo</h4><p><strong>${statusAtual}</strong></p></div><div class="andamento-secao"><button id="btn-conclui-minuta" class="btn-primary">✓ Processo Minutado (para ${
-    investigacao.decisaoPendente
-  })</button></div><div id="proximo-passo-secao" class="andamento-secao"><h4>Próximo Passo e Prazos</h4><div class="form-group" style="display:none;" id="proxima-acao-container"><label for="andamento-proxima-acao">Próxima Decisão Pendente</label><input type="text" id="andamento-proxima-acao" class="form-input" value="${proximaAcao}" readonly></div><div class="form-group"><label for="andamento-prazo-retorno">Nova Previsão de Retorno</label><input type="date" id="andamento-prazo-retorno" class="form-input" value="${prazoRetornoAtual}"></div></div><div class="andamento-secao"><h4>Audiências Agendadas</h4><div id="if-audiencias-list"></div><button data-action="agendar-audiencia" class="btn-secondary btn-small" style="margin-top: 10px;">Agendar Nova Audiência</button></div><div class="andamento-secao"><h4>Tracker de Fases do Processo</h4><div class="tracker-container">${trackerHTML}</div></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-andamento" data-id="${
-    investigacao.id
-  }" class="btn-primary">Salvar Andamento</button><button data-action="archive-investigacao" data-id="${
-    investigacao.id
-  }" class="btn-secondary">Arquivar Processo</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  modalOverlay.innerHTML = `
+    <div class="modal-content modal-large">
+        <h3>Andamento: ${formatProcessoForDisplay(
+          investigacao.numeroProcesso
+        )}</h3>
+        <div class="andamento-secao">
+            <p><strong>Status Atual:</strong> ${
+              investigacao.faseAtual || "Não definido"
+            }</p>
+        </div>
+        <div class="andamento-secao">
+            <h4>Andamento das Fases</h4>
+            ${createFaseSelector("tutela", "Decisão de Tutela", fases.tutela)}
+            ${createFaseSelector(
+              "audiencia",
+              "Designação de Audiência",
+              fases.audiencia
+            )}
+            ${createFaseSelector(
+              "julgamento",
+              "Julgamento Final",
+              fases.julgamento
+            )}
+        </div>
+        <div class="andamento-secao">
+            <div class="form-group">
+                <label for="andamento-prazo-retorno">Previsão da próxima conclusão</label>
+                <input type="date" id="andamento-prazo-retorno" class="form-input" value="${prazoRetornoAtual}">
+            </div>
+        </div>
+        <div class="andamento-secao" style="margin-bottom: 24px;">
+            <h4>Audiências</h4>
+            <div id="if-audiencias-list"></div>
+            <button data-action="agendar-audiencia" class="btn-secondary btn-small" style="margin-top: 10px;">Agendar audiência</button>
+        </div>
+        <div id="error-message"></div>
+        <div class="form-buttons">
+            <button data-action="save-andamento" data-id="${
+              investigacao.id
+            }" class="btn-primary">Salvar Andamento</button>
+            <button data-action="archive-investigacao" data-id="${
+              investigacao.id
+            }" class="btn-secondary">Arquivar Processo</button>
+            <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>`;
   document.body.appendChild(modalOverlay);
   const audienciasContainer = modalOverlay.querySelector("#if-audiencias-list");
   populateAudienciasList(audienciasContainer, investigacao.id);
-  const btnConclui = document.getElementById("btn-conclui-minuta");
-  const containerProximaAcao = document.getElementById(
-    "proxima-acao-container"
-  );
-  btnConclui.addEventListener("click", () => {
-    btnConclui.style.backgroundColor = "#4CAF50";
-    btnConclui.textContent = "Minuta Concluída!";
-    btnConclui.disabled = true;
-    containerProximaAcao.style.display = "block";
-  });
 }
 
 async function populateAudienciasList(container, investigacaoId) {
@@ -309,21 +303,21 @@ async function populateAudienciasList(container, investigacaoId) {
             { dateStyle: "short", timeStyle: "short" }
           );
           return `
-                    <div class="anexo-item">
-                        <span><strong>${dataFormatada}h</strong> - ${
+            <div class="anexo-item">
+                <span><strong>${dataFormatada}h</strong> - ${
             aud.local || "Local a definir"
           }</span>
-                        <button class="action-icon icon-delete" data-action="delete-audiencia" data-audiencia-id="${
-                          aud.id
-                        }" title="Excluir Audiência">
-                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                        </button>
-                    </div>`;
+                <button class="action-icon icon-delete" data-action="delete-audiencia" data-audiencia-id="${
+                  aud.id
+                }" title="Excluir Audiência">
+                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            </div>`;
         })
         .join("");
     }
   } catch (e) {
-    console.error("ERRO DETALHADO (LINK PARA O ÍNDICE ABAIXO):", e);
+    console.error("Erro ao carregar audiências:", e);
     container.innerHTML = `<p class="empty-list-message error">Erro ao carregar audiências. Verifique o console.</p>`;
   }
 }
@@ -334,28 +328,31 @@ async function handlePageActions(e) {
     !document.querySelector(".modal-overlay")
   )
     return;
-
-  // Alterado para capturar qualquer elemento com data-action, não apenas botões
   const target = e.target.closest("[data-action]");
   if (!target) return;
-
   const action = target.dataset.action;
   const id = target.dataset.id;
-
   switch (action) {
     case "view-investigacao-details": {
-      // <-- NOVA AÇÃO
       const investigacao = currentInvestigacoesList.find(
         (inv) => inv.id === id
       );
-      if (investigacao) {
-        renderInvestigacaoDetailsModal(investigacao);
-      } else {
+      if (investigacao) renderInvestigacaoDetailsModal(investigacao);
+      else
         showToast(
           "Erro: Não foi possível encontrar os detalhes do processo.",
           "error"
         );
-      }
+      break;
+    }
+    case "view-archived-details": {
+      const investigacao = currentArchivedList.find((inv) => inv.id === id);
+      if (investigacao) renderInvestigacaoDetailsModal(investigacao);
+      else
+        showToast(
+          "Erro: Não foi possível encontrar os detalhes do processo arquivado.",
+          "error"
+        );
       break;
     }
     case "add-investigacao-btn":
@@ -365,7 +362,7 @@ async function handlePageActions(e) {
       handleSaveInvestigacao(id);
       break;
     case "close-modal":
-      const modal = document.querySelector(".modal-overlay");
+      const modal = e.target.closest(".modal-overlay");
       if (modal) modal.remove();
       break;
     case "view-arquivados-btn":
@@ -379,7 +376,7 @@ async function handlePageActions(e) {
       if (audModal) audModal.remove();
       break;
     case "save-audiencia":
-      handleSaveAudiencia(id);
+      handleSaveAudiencia();
       break;
     case "delete-audiencia": {
       const audienciaId = target.dataset.audienciaId;
@@ -415,24 +412,6 @@ async function handlePageActions(e) {
   }
 }
 
-async function handleDeleteAudiencia(audienciaId) {
-  if (!confirm("Tem certeza que deseja excluir esta audiência?")) return;
-  try {
-    await db.collection("audiencias").doc(audienciaId).delete();
-    showToast("Audiência excluída com sucesso.", "success");
-    // Atualiza a lista no modal de andamento
-    const audienciasContainer = document.querySelector("#if-audiencias-list");
-    if (audienciasContainer && currentInvestigacao) {
-      populateAudienciasList(audienciasContainer, currentInvestigacao.id);
-    }
-  } catch (error) {
-    console.error("Erro ao excluir audiência:", error);
-    showToast("Ocorreu um erro ao excluir a audiência.", "error");
-  }
-}
-
-// ... O resto do arquivo (outras funções) permanece o mesmo ...
-// ... (Copie e cole o resto do seu arquivo original a partir daqui)
 async function renderArquivadosModal() {
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
@@ -448,6 +427,7 @@ async function renderArquivadosModal() {
       id: doc.id,
       ...doc.data(),
     }));
+    currentArchivedList = arquivados;
     const container = document.getElementById("arquivados-list");
     if (arquivados.length === 0) {
       container.innerHTML = `<p class="empty-list-message">Nenhum processo arquivado encontrado.</p>`;
@@ -458,9 +438,15 @@ async function renderArquivadosModal() {
         const dataAjuizamento = item.dataAjuizamento
           ? getSafeDate(item.dataAjuizamento).toLocaleDateString("pt-BR")
           : "N/D";
-        return `<tr><td>${formatProcessoForDisplay(
+        return `<tr>
+                    <td><span class="link-like" data-action="view-archived-details" data-id="${
+                      item.id
+                    }">${formatProcessoForDisplay(
           item.numeroProcesso
-        )}</td><td>${item.suscitado}</td><td>${dataAjuizamento}</td></tr>`;
+        )}</span></td>
+                    <td>${item.suscitado}</td>
+                    <td>${dataAjuizamento}</td>
+                </tr>`;
       })
       .join("");
     container.innerHTML = `<table class="data-table"><thead><tr><th>Nº do Processo</th><th>Suscitado</th><th>Data de Ajuizamento</th></tr></thead><tbody>${tableRows}</tbody></table>`;
@@ -471,17 +457,17 @@ async function renderArquivadosModal() {
     ).innerHTML = `<p class="empty-list-message error">Não foi possível carregar os arquivados.</p>`;
   }
 }
+
 function renderAgendarAudienciaModal() {
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
   modalOverlay.style.zIndex = "1001";
   modalOverlay.innerHTML = `<div class="modal-content"><h3>Agendar Audiência</h3><p><strong>Processo:</strong> ${formatProcessoForDisplay(
     currentInvestigacao.numeroProcesso
-  )}</p><div class="form-group"><label for="aud-data">Data</label><input type="date" id="aud-data" class="form-input"></div><div class="form-group"><label for="aud-hora">Hora</label><input type="time" id="aud-hora" class="form-input"></div><div class="form-group"><label for="aud-local">Local</label><input type="text" id="aud-local" class="form-input"></div><div id="error-message-aud"></div><div class="form-buttons"><button data-action="save-audiencia" data-id="${
-    currentInvestigacao.id
-  }" class="btn-primary">Salvar</button><button data-action="close-audiencia-modal" class="btn-secondary">Cancelar</button></div></div>`;
+  )}</p><div class="form-group"><label for="aud-data">Data</label><input type="date" id="aud-data" class="form-input"></div><div class="form-group"><label for="aud-hora">Hora</label><input type="time" id="aud-hora" class="form-input"></div><div class="form-group"><label for="aud-local">Local</label><input type="text" id="aud-local" class="form-input"></div><div id="error-message-aud"></div><div class="form-buttons"><button data-action="save-audiencia" class="btn-primary">Salvar</button><button data-action="close-audiencia-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
 }
+
 async function handleSaveInvestigacao(id = null) {
   const numeroProcesso = document
     .getElementById("inv-numero-processo")
@@ -491,16 +477,9 @@ async function handleSaveInvestigacao(id = null) {
   const dataAjuizamentoInput = document.getElementById(
     "inv-data-ajuizamento"
   ).value;
-  const decisaoPendente = document.getElementById("inv-decisao-pendente").value;
   const descricao = document.getElementById("inv-descricao").value.trim();
   const errorMsg = document.getElementById("error-message");
-  if (
-    !numeroProcesso ||
-    !suscitante ||
-    !suscitado ||
-    !dataAjuizamentoInput ||
-    !decisaoPendente
-  ) {
+  if (!numeroProcesso || !suscitante || !suscitado || !dataAjuizamentoInput) {
     errorMsg.textContent = "Preencha todos os campos obrigatórios.";
     return;
   }
@@ -512,7 +491,6 @@ async function handleSaveInvestigacao(id = null) {
     dataAjuizamento: firebase.firestore.Timestamp.fromDate(
       new Date(dataAjuizamentoInput + "T00:00:00")
     ),
-    decisaoPendente: decisaoPendente,
   };
   try {
     if (id) {
@@ -521,14 +499,13 @@ async function handleSaveInvestigacao(id = null) {
     } else {
       dataToSave.status = "ativo";
       dataToSave.prazoRetorno = null;
-      dataToSave.dataUltimaMinuta = null;
-      dataToSave.historicoFases = [
-        { id: "tutela", concluido: false },
-        { id: "impugnacao", concluido: false },
-        { id: "audiencia", concluido: false },
-        { id: "julgamento", concluido: false },
-      ];
       dataToSave.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
+      dataToSave.faseAtual = "Ajuizado";
+      dataToSave.fasesStatus = {
+        tutela: "pendente",
+        audiencia: "pendente",
+        julgamento: "pendente",
+      };
       await db.collection("investigacoesFiscais").add(dataToSave);
       showToast("Investigação cadastrada com sucesso!", "success");
     }
@@ -539,6 +516,7 @@ async function handleSaveInvestigacao(id = null) {
     errorMsg.textContent = "Erro ao salvar. Verifique o console.";
   }
 }
+
 async function handleSaveAudiencia() {
   const investigacao = currentInvestigacao;
   const data = document.getElementById("aud-data").value;
@@ -574,37 +552,39 @@ async function handleSaveAudiencia() {
     errorMsg.textContent = "Erro ao salvar. Verifique o console.";
   }
 }
+
 async function handleUpdateAndamento(id) {
-  const prazoRetornoInput = document.getElementById("andamento-prazo-retorno");
   const errorMsg = document.getElementById("error-message");
-  const btnConclui = document.getElementById("btn-conclui-minuta");
-  const minutaFoiConcluida = btnConclui.disabled;
-  if (minutaFoiConcluida && !prazoRetornoInput.value) {
-    errorMsg.textContent =
-      "Se a minuta foi concluída, a previsão de retorno é obrigatória.";
-    return;
+  errorMsg.textContent = "";
+
+  const newFasesStatus = {
+    tutela: document.getElementById("status-tutela").value,
+    audiencia: document.getElementById("status-audiencia").value,
+    julgamento: document.getElementById("status-julgamento").value,
+  };
+
+  let newFaseAtual = "Ajuizado";
+  if (newFasesStatus.julgamento === "feito") {
+    newFaseAtual = "Julgado";
+  } else if (newFasesStatus.audiencia === "feito") {
+    newFaseAtual = "Aguardando audiência";
+  } else if (newFasesStatus.tutela === "feito") {
+    newFaseAtual = "Decisão de tutela";
   }
-  const historicoCheckboxes = document.querySelectorAll(
-    '.tracker-container input[type="checkbox"]'
-  );
-  const historicoFases = Array.from(historicoCheckboxes).map((cb) => ({
-    id: cb.dataset.faseId,
-    concluido: cb.checked,
-  }));
-  const dataToUpdate = { historicoFases: historicoFases };
+
+  const prazoRetornoInput = document.getElementById("andamento-prazo-retorno");
+  const dataToUpdate = {
+    fasesStatus: newFasesStatus,
+    faseAtual: newFaseAtual,
+    prazoRetorno: null,
+  };
+
   if (prazoRetornoInput.value) {
     dataToUpdate.prazoRetorno = firebase.firestore.Timestamp.fromDate(
       new Date(prazoRetornoInput.value + "T00:00:00")
     );
-  } else {
-    dataToUpdate.prazoRetorno = null;
   }
-  if (minutaFoiConcluida) {
-    const proximaAcaoInput = document.getElementById("andamento-proxima-acao");
-    dataToUpdate.decisaoPendente = proximaAcaoInput.value;
-    dataToUpdate.dataUltimaMinuta =
-      firebase.firestore.FieldValue.serverTimestamp();
-  }
+
   try {
     await db.collection("investigacoesFiscais").doc(id).update(dataToUpdate);
     showToast("Andamento atualizado com sucesso!", "success");
@@ -615,6 +595,22 @@ async function handleUpdateAndamento(id) {
     errorMsg.textContent = "Erro ao salvar. Verifique o console.";
   }
 }
+
+async function handleDeleteAudiencia(audienciaId) {
+  if (!confirm("Tem certeza que deseja excluir esta audiência?")) return;
+  try {
+    await db.collection("audiencias").doc(audienciaId).delete();
+    showToast("Audiência excluída com sucesso.", "success");
+    const audienciasContainer = document.querySelector("#if-audiencias-list");
+    if (audienciasContainer && currentInvestigacao) {
+      populateAudienciasList(audienciasContainer, currentInvestigacao.id);
+    }
+  } catch (error) {
+    console.error("Erro ao excluir audiência:", error);
+    showToast("Ocorreu um erro ao excluir a audiência.", "error");
+  }
+}
+
 async function handleDeleteInvestigacao(id) {
   if (
     !confirm(
@@ -630,6 +626,7 @@ async function handleDeleteInvestigacao(id) {
     showToast("Ocorreu um erro ao excluir.", "error");
   }
 }
+
 async function handleArquivarProcesso(id) {
   if (
     !confirm(
@@ -641,7 +638,6 @@ async function handleArquivarProcesso(id) {
     await db.collection("investigacoesFiscais").doc(id).update({
       status: "arquivado",
       prazoRetorno: null,
-      decisaoPendente: "Arquivado",
     });
     showToast("Processo arquivado com sucesso.", "success");
     const modal = document.querySelector(".modal-overlay");
