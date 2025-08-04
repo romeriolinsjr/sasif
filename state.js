@@ -77,3 +77,10 @@ export function setIncidentesListenerUnsubscribe(func) {
 export function setAnexosListenerUnsubscribe(func) {
   anexosListenerUnsubscribe = func;
 }
+// --- Estado do Usuário ---
+// Armazena o perfil do usuário logado (incluindo o nível de permissão).
+export let currentUserProfile = null;
+
+export function setCurrentUserProfile(profile) {
+  currentUserProfile = profile;
+}

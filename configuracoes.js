@@ -25,25 +25,68 @@ import {
 /**
  * Renderiza a página principal de "Configurações" com os cards de navegação.
  */
+// Apenas a função renderConfiguracoesPage precisa ser alterada.
+
 export function renderConfiguracoesPage() {
   pageTitle.textContent = "Configurações";
   document.title = "SASIF | Configurações";
 
+  const isAdmin =
+    state.currentUserProfile &&
+    state.currentUserProfile.perfil === "administrador";
+
+  const adminCardHTML = isAdmin
+    ? `
+    <div class="setting-card" data-action="goto-gerenciamento-dados">
+        <h3>Gerenciamento de Dados</h3>
+        <p>Backup, restauração e limpeza de dados do sistema.</p>
+    </div>`
+    : "";
+
+  // O bloco <style> foi REMOVIDO daqui.
   contentArea.innerHTML = `
-        <style>
-            .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
-            .setting-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; background-color: white; border-radius: 8px; box-shadow: var(--sombra); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-            .setting-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
-            .setting-card h3 { margin: 0 0 10px 0; font-size: 20px; color: var(--cor-primaria); }
-            .setting-card p { margin: 0; color: #555; }
-            .setting-card.restore-card h3 { color: var(--cor-perigo); }
-            .setting-card.cleanup-card h3 { color: var(--cor-aviso); }
-        </style>
+    <div class="settings-grid" id="settings-grid-container">
+        <div class="setting-card" data-action="goto-exequentes"><h3>Gerenciar Exequentes</h3><p>Adicione, edite ou remova os entes exequentes.</p></div>
+        <div class="setting-card" data-action="goto-motivos"><h3>Gerenciar Motivos de Suspensão</h3><p>Customize os motivos utilizados para suspender processos.</p></div>
+        <div class="setting-card" data-action="goto-incidentes"><h3>Gerenciar Incidentes Processuais</h3><p>Cadastre e acompanhe processos incidentais.</p></div>
+        <div class="setting-card" data-action="goto-importacao"><h3>Importação em Lote</h3><p>Importe múltiplos processos de uma só vez.</p></div>
+        ${adminCardHTML}
+    </div>`;
+
+  const gridContainer = document.getElementById("settings-grid-container");
+  if (gridContainer) {
+    gridContainer.addEventListener("click", (e) => {
+      const target = e.target.closest("[data-action]");
+      if (!target) return;
+      const action = target.dataset.action;
+      switch (action) {
+        case "goto-exequentes":
+          navigateTo("exequentes");
+          break;
+        case "goto-motivos":
+          navigateTo("motivos");
+          break;
+        case "goto-incidentes":
+          navigateTo("incidentes");
+          break;
+        case "goto-importacao":
+          navigateTo("importacao");
+          break;
+        case "goto-gerenciamento-dados":
+          renderGerenciamentoDadosPage();
+          break;
+      }
+    });
+  }
+}
+function renderGerenciamentoDadosPage() {
+  pageTitle.textContent = "Gerenciamento de Dados";
+  document.title = "SASIF | Gerenciamento de Dados";
+  contentArea.innerHTML = `
+        <div class="dashboard-actions">
+            <button id="back-to-config-btn" class="btn-secondary">← Voltar para Configurações</button>
+        </div>
         <div class="settings-grid">
-            <div class="setting-card" id="goto-exequentes"><h3>Gerenciar Exequentes</h3><p>Adicione, edite ou remova os entes exequentes.</p></div>
-            <div class="setting-card" id="goto-motivos"><h3>Gerenciar Motivos de Suspensão</h3><p>Customize os motivos utilizados para suspender processos.</p></div>
-            <div class="setting-card" id="goto-incidentes"><h3>Gerenciar Incidentes Processuais</h3><p>Cadastre e acompanhe processos incidentais.</p></div>
-            <div class="setting-card" id="goto-importacao"><h3>Importação em Lote</h3><p>Importe múltiplos processos de uma só vez.</p></div>
             <div class="setting-card" id="start-backup">
                 <h3>Backup de Dados</h3>
                 <p>Gere e baixe um arquivo com todos os dados do sistema.</p>
@@ -60,17 +103,8 @@ export function renderConfiguracoesPage() {
     `;
 
   document
-    .getElementById("goto-exequentes")
-    .addEventListener("click", () => navigateTo("exequentes"));
-  document
-    .getElementById("goto-motivos")
-    .addEventListener("click", () => navigateTo("motivos"));
-  document
-    .getElementById("goto-incidentes")
-    .addEventListener("click", () => navigateTo("incidentes"));
-  document
-    .getElementById("goto-importacao")
-    .addEventListener("click", () => navigateTo("importacao"));
+    .getElementById("back-to-config-btn")
+    .addEventListener("click", () => navigateTo("configuracoes"));
   document
     .getElementById("start-backup")
     .addEventListener("click", startBackupProcess);
@@ -105,6 +139,7 @@ const COLLECTIONS_SCHEMA = {
   processos: {
     historicoValores: {},
   },
+  usuarios: {}, // <-- ADICIONE ESTA LINHA
 };
 
 /**

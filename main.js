@@ -268,17 +268,50 @@ function renderSearchResults(devedores, processos, cdas, incidentes) {
 }
 
 // --- Ponto de Partida da Aplicação ---
+// --- Ponto de Partida da Aplicação ---
 // Este listener é acionado quando o HTML está totalmente carregado.
 document.addEventListener("DOMContentLoaded", () => {
   // O Firebase verifica se o usuário já está logado (sessão persistente).
-  auth.onAuthStateChanged((user) => {
+  auth.onAuthStateChanged(async (user) => {
+    // Tornando a função assíncrona
     if (user) {
-      // Se estiver logado, mostra o app.
+      // --- INÍCIO DA NOVA LÓGICA DE PERFIL ---
+      try {
+        const userDocRef = db.collection("usuarios").doc(user.uid);
+        const userDoc = await userDocRef.get();
+
+        if (userDoc.exists) {
+          // Se o perfil existe no Firestore, armazena no estado global.
+          state.setCurrentUserProfile({ uid: user.uid, ...userDoc.data() });
+        } else {
+          // Se não existe, cria um perfil padrão de 'usuario' para garantir que o app funcione.
+          console.warn(
+            `Perfil não encontrado para o usuário ${user.uid}. Atribuindo perfil padrão.`
+          );
+          state.setCurrentUserProfile({
+            uid: user.uid,
+            email: user.email,
+            perfil: "usuario",
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao buscar perfil do usuário:", error);
+        // Em caso de erro, atribui um perfil de usuário padrão para não quebrar a aplicação.
+        state.setCurrentUserProfile({
+          uid: user.uid,
+          email: user.email,
+          perfil: "usuario",
+        });
+      }
+      // --- FIM DA NOVA LÓGICA DE PERFIL ---
+
+      // Mostra o app e inicializa o restante.
       appContainer.classList.remove("hidden");
       loginContainer.classList.add("hidden");
       initApp(user);
     } else {
-      // Se não estiver logado, mostra a tela de login.
+      // Se não estiver logado, limpa o perfil e mostra a tela de login.
+      state.setCurrentUserProfile(null);
       appContainer.classList.add("hidden");
       loginContainer.classList.remove("hidden");
       renderLoginForm();
