@@ -25,24 +25,135 @@ import { renderProcessoForm, setupProcessosListener } from "./processos.js";
 /**
  * Renderiza a página principal de "Grandes Devedores".
  */
+
 export function renderGrandesDevedoresPage() {
   pageTitle.textContent = "Grandes Devedores";
   document.title = "SASIF | Grandes Devedores";
 
+  // Adicionado o botão de exportação ao lado do botão de cadastro
   contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
+            <button id="export-devedores-btn" class="action-icon" title="Exportar Lista de Devedores">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#FFFFFF"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            </button>
         </div>
         <h2>Lista de Grandes Devedores</h2>
         <div id="devedores-list-container"></div>
     `;
 
-  document
-    .getElementById("add-devedor-btn")
-    .addEventListener("click", () => renderDevedorForm());
+  document.getElementById("add-devedor-btn").addEventListener("click", () => renderDevedorForm());
+  // Novo listener para o botão de exportação
+  document.getElementById("export-devedores-btn").addEventListener("click", renderExportOptionsModal);
 
-  // Usa o cache de devedores para renderizar a lista
   renderDevedoresList(state.devedoresCache);
+}```
+
+**Ação 2:** Adicione as três novas funções abaixo ao final do seu arquivo `devedores.js`.
+
+**Objetivo:**
+- `renderExportOptionsModal`: Cria e exibe o modal para o usuário escolher entre CSV e PDF.
+- `exportDevedoresToCSV`: Gera e baixa o arquivo CSV.
+- `exportDevedoresToPDF`: Gera e baixa o arquivo PDF, reaproveitando a lógica de `relatorios.js`.
+
+```javascript
+/**
+ * Renderiza um modal para o usuário escolher o formato de exportação.
+ */
+function renderExportOptionsModal() {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+  modalOverlay.innerHTML = `
+    <div class="modal-content export-options-modal">
+        <h3>Exportar Lista de Devedores</h3>
+        <p>Selecione o formato desejado para o arquivo.</p>
+        <div class="form-buttons">
+            <button data-action="export-csv" class="btn-primary">Exportar para CSV</button>
+            <button data-action="export-pdf" class="btn-primary">Exportar para PDF</button>
+            <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>
+  `;
+  document.body.appendChild(modalOverlay);
+
+  modalOverlay.addEventListener('click', (e) => {
+      const action = e.target.dataset.action;
+      if (action === 'export-csv') {
+          exportDevedoresToCSV();
+          modalOverlay.remove();
+      } else if (action === 'export-pdf') {
+          exportDevedoresToPDF();
+          modalOverlay.remove();
+      } else if (action === 'close-modal' || e.target === modalOverlay) {
+          modalOverlay.remove();
+      }
+  });
+}
+
+/**
+ * Exporta a lista de devedores (razão social e CNPJ) para um arquivo CSV.
+ */
+function exportDevedoresToCSV() {
+    if (state.devedoresCache.length === 0) {
+        showToast("Não há devedores para exportar.", "warning");
+        return;
+    }
+
+    // Cabeçalho do CSV
+    let csvContent = "Razão Social,CNPJ\n";
+
+    // Adiciona cada devedor como uma nova linha
+    state.devedoresCache.forEach(devedor => {
+        const razaoSocial = `"${devedor.razaoSocial.replace(/"/g, '""')}"`; // Trata aspas dentro do nome
+        const cnpj = formatCNPJForDisplay(devedor.cnpj);
+        csvContent += `${razaoSocial},${cnpj}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `SASIF-Grandes_Devedores-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Arquivo CSV gerado com sucesso!", "success");
+}
+
+/**
+ * Exporta a lista de devedores (razão social e CNPJ) para um arquivo PDF.
+ */
+function exportDevedoresToPDF() {
+    if (state.devedoresCache.length === 0) {
+        showToast("Não há devedores para exportar.", "warning");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+
+    doc.setFontSize(18);
+    doc.text("Relatório de Grandes Devedores - SASIF", 14, 22);
+
+    const tableRows = state.devedoresCache.map((devedor, index) => {
+        return [
+            index + 1,
+            devedor.razaoSocial,
+            formatCNPJForDisplay(devedor.cnpj)
+        ];
+    });
+
+    doc.autoTable({
+        head: [['#', 'Razão Social', 'CNPJ']],
+        body: tableRows,
+        startY: 30,
+        theme: 'grid',
+        headStyles: { fillColor: [13, 71, 161] } // Azul escuro do SASIF
+    });
+
+    doc.save(`SASIF-Grandes_Devedores-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`);
+    showToast("Arquivo PDF gerado com sucesso!", "success");
 }
 
 /**

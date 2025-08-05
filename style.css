@@ -2164,3 +2164,24 @@ select.form-input[multiple] {
 .setting-card.cleanup-card h3 {
   color: #f57f17;
 }
+
+/* --- ESTILOS PARA EXPORTAÇÃO DE DADOS --- */
+.dashboard-actions {
+  align-items: center; /* Alinha o botão e o novo ícone verticalmente */
+}
+
+#export-devedores-btn {
+  margin-left: 16px;
+}
+
+.export-options-modal .form-buttons {
+  flex-direction: column; /* Empilha os botões verticalmente */
+  gap: 15px;
+}
+
+.export-options-modal .btn-primary,
+.export-options-modal .btn-secondary {
+  width: 100%;
+  padding: 15px; /* Botões maiores para fácil clique */
+  font-size: 16px;
+}
