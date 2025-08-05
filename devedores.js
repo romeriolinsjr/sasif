@@ -599,23 +599,33 @@ function renderExportOptionsModal() {
 /**
  * Exporta a lista de devedores (razão social e CNPJ) para um arquivo CSV.
  */
+/**
+ * Exporta a lista de devedores (razão social e CNPJ) para um arquivo CSV.
+ * CORRIGIDO: Usa ponto e vírgula (;) como separador para compatibilidade com o Excel.
+ */
 function exportDevedoresToCSV() {
     if (state.devedoresCache.length === 0) {
         showToast("Não há devedores para exportar.", "warning");
         return;
     }
 
-    // Cabeçalho do CSV
-    let csvContent = "Razão Social,CNPJ\n";
+    // Cabeçalho do CSV, separado por ponto e vírgula
+    let csvContent = "Razão Social;CNPJ\n";
 
     // Adiciona cada devedor como uma nova linha
     state.devedoresCache.forEach(devedor => {
-        const razaoSocial = `"${devedor.razaoSocial.replace(/"/g, '""')}"`; // Trata aspas dentro do nome
+        // Remove quebras de linha e trata aspas para evitar quebra do CSV
+        const razaoSocialLimpa = devedor.razaoSocial.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
+        const razaoSocial = `"${razaoSocialLimpa}"`;
         const cnpj = formatCNPJForDisplay(devedor.cnpj);
-        csvContent += `${razaoSocial},${cnpj}\n`;
+        
+        // Usa ponto e vírgula para separar as colunas
+        csvContent += `${razaoSocial};${cnpj}\n`;
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Adiciona o BOM (Byte Order Mark) para garantir a codificação UTF-8 correta no Excel
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

@@ -2185,3 +2185,25 @@ select.form-input[multiple] {
   padding: 15px; /* Botões maiores para fácil clique */
   font-size: 16px;
 }
+
+/* --- CORREÇÃO E MELHORIA PARA O ÍCONE DE EXPORTAÇÃO --- */
+#export-devedores-btn {
+  background-color: var(--cor-secundaria); /* Um fundo sutil para o ícone */
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 16px;
+}
+
+#export-devedores-btn svg {
+  fill: #FFFFFF; /* Cor Branca, garantindo a visibilidade */
+  width: 20px;
+  height: 20px;
+}
+
+#export-devedores-btn:hover {
+    background-color: var(--cor-primaria);
+}
