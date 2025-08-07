@@ -1,7 +1,7 @@
 // ==================================================================
 // Módulo: dashboard.js
 // Responsabilidade: Lógica de renderização e funcionamento do Dashboard.
-// (Versão com Ícones nos Widgets - 02/08/2025)
+// (Versão com container de rolagem nos widgets - 07/08/2025)
 // ==================================================================
 
 import { auth, db } from "./firebase.js";
@@ -193,7 +193,9 @@ function renderProximasDiligenciasWidget(diligencias) {
             <svg class="widget-icon" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>
             <h3>Próximas Tarefas</h3>
         </div>
-        ${contentHTML}
+        <div class="widget-content">
+            ${contentHTML}
+        </div>
     </div>`;
   container
     .querySelector(".widget-card")
@@ -251,7 +253,9 @@ function renderInvestigacoesWidget(investigacoes) {
             <svg class="widget-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
             <h3>Investigações Fiscais</h3>
         </div>
-        ${contentHTML}
+        <div class="widget-content">
+            ${contentHTML}
+        </div>
     </div>`;
   container
     .querySelector(".widget-card")
@@ -302,7 +306,9 @@ function renderProximasAudienciasWidget(audiencias) {
             <svg class="widget-icon" viewBox="0 0 24 24"><path d="M1 21h12v-2H1v2zm2-4h12v-2H3v2zm0-4h12v-2H3v2zm0-4h12V7H3v2zm16.5-6-2.75 2.75L15.34 8 18.09 5.25 15.34 2.5 16.75 1.09l4.17 4.16-4.17 4.16-1.41-1.41z"/></svg>
             <h3>Próximas Audiências</h3>
         </div>
-        ${contentHTML}
+        <div class="widget-content">
+            ${contentHTML}
+        </div>
     </div>`;
   container
     .querySelector(".widget-card")
@@ -348,7 +354,9 @@ function renderAnalisePendenteWidget(devedores) {
             <svg class="widget-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/><path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
             <h3>Análises Pendentes</h3>
         </div>
-        ${contentHTML}
+        <div class="widget-content">
+            ${contentHTML}
+        </div>
     </div>`;
   container
     .querySelector(".widget-card")

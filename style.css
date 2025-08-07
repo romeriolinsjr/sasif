@@ -1,4 +1,3 @@
-/* --- GERAL E VARIÁVEIS --- */
 /* --- CARREGAMENTO DAS FONTES LOCAIS --- */
 /* Regular (400) */
 @font-face {
@@ -36,6 +35,7 @@
   src: url("./fonts/KFOlCnqEu92Fr1MmWUlfBBc4.woff2") format("woff2");
 }
 
+/* --- GERAL E VARIÁVEIS --- */
 :root {
   --cor-primaria: #0d47a1; /* Azul escuro */
   --cor-secundaria: #1976d2; /* Azul médio */
@@ -81,21 +81,20 @@ body {
   color: var(--cor-texto-claro);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0; /* Adicione esta linha */
+  flex-shrink: 0;
 }
 
 .sidebar-header {
   padding: 15px;
   border-bottom: 1px solid var(--cor-secundaria);
-  display: flex; /* Adicionado para centralizar o conteúdo */
-  justify-content: center; /* Adicionado para centralizar o conteúdo */
-  align-items: center; /* Adicionado para centralizar o conteúdo */
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-/* NOVA REGRA PARA A IMAGEM DO LOGO */
 .sidebar-header img {
-  max-width: 200px; /* Define uma largura máxima para o logo */
-  height: auto; /* Mantém a proporção da imagem */
+  max-width: 200px;
+  height: auto;
 }
 
 .sidebar-header h1 {
@@ -118,7 +117,6 @@ body {
   border-bottom: 1px solid var(--cor-borda);
   box-shadow: var(--sombra);
   position: relative;
-  /* ALTERAÇÃO: Aumentado para garantir que o cabeçalho e a busca fiquem por cima do conteúdo da página */
   z-index: 20;
 }
 
@@ -274,11 +272,11 @@ body {
 }
 
 .action-btn {
-  padding: 6px 12px; /* Padronizado */
+  padding: 6px 12px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  margin-left: 8px; /* Unificado */
+  margin-left: 8px;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
@@ -301,8 +299,8 @@ body {
 .action-btn.btn-secondary {
   background-color: #6c757d;
   color: var(--cor-texto-claro);
-  padding: 6px 12px; /* Mantém consistência com outros action-btn */
-  font-size: 14px; /* Mantém consistência */
+  padding: 6px 12px;
+  font-size: 14px;
 }
 .action-btn.btn-secondary:hover {
   background-color: #5a6268;
@@ -351,7 +349,6 @@ body {
   resize: vertical;
 }
 
-/* Localize esta regra que já modificamos antes */
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -360,7 +357,7 @@ body {
   box-shadow: var(--sombra);
   border-radius: 8px;
   position: relative;
-  z-index: 11; /* ALTERE PARA 11 */
+  z-index: 11;
 }
 
 .data-table th,
@@ -547,15 +544,26 @@ body {
   margin-bottom: 0;
 }
 
+/* Estilo comum para cards de detalhe (padding mantido) */
 .detail-card,
-.detail-header-card,
-.widget-card {
+.detail-header-card {
   background-color: white;
   padding: 24px;
   border-radius: 8px;
   box-shadow: var(--sombra);
   margin-bottom: 24px;
 }
+
+/* Estilo base para widget-card (padding removido para controle granular) */
+.widget-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  margin-bottom: 24px;
+  display: flex; /* Chave para o layout interno */
+  flex-direction: column; /* Organiza header e content verticalmente */
+}
+
 .detail-card h3,
 .widget-card h3 {
   margin-top: 0;
@@ -630,8 +638,35 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 24px;
-  margin-bottom: 30px;
 }
+
+/* --- ESTILOS PARA WIDGETS COM ALTURA FIXA E SCROLL --- */
+.widget-header {
+  padding: 24px 24px 16px 24px; /* Adiciona o padding que foi removido do .widget-card */
+  flex-shrink: 0; /* Impede que o cabeçalho encolha */
+}
+
+.widget-content {
+  max-height: 280px; /* Esta é a altura máxima para a lista de itens. Ajuste se necessário. */
+  overflow-y: auto; /* Adiciona a barra de rolagem vertical APENAS se o conteúdo exceder a altura. */
+  padding: 0 14px 24px 24px; /* Padding: Top, Right, Bottom, Left. O padding direito é menor para compensar a barra de rolagem. */
+}
+
+/* Melhora a aparência da barra de rolagem (para navegadores Webkit como Chrome e Edge) */
+.widget-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.widget-content::-webkit-scrollbar-track {
+  background: transparent; /* Deixa o trilho da barra invisível */
+}
+
+.widget-content::-webkit-scrollbar-thumb {
+  background-color: #ddd; /* Cor da barra de rolagem */
+  border-radius: 20px;
+  border: 3px solid white; /* Cria um "espaçamento" ao redor da barra */
+}
+/* --- FIM DOS ESTILOS DE WIDGETS COM SCROLL --- */
 
 .audiencia-item,
 .analise-item {
