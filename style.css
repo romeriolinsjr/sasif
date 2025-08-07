@@ -1,4 +1,41 @@
 /* --- GERAL E VARIÁVEIS --- */
+/* --- CARREGAMENTO DAS FONTES LOCAIS --- */
+/* Regular (400) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/KFOmCnqEu92Fr1Mu4mxK.woff2") format("woff2");
+}
+
+/* Light (300) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./fonts/KFOlCnqEu92Fr1MmSU5fBBc4.woff2") format("woff2");
+}
+
+/* Medium (500) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/KFOlCnqEu92Fr1MmEU9fBBc4.woff2") format("woff2");
+}
+
+/* Bold (700) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/KFOlCnqEu92Fr1MmWUlfBBc4.woff2") format("woff2");
+}
+
 :root {
   --cor-primaria: #0d47a1; /* Azul escuro */
   --cor-secundaria: #1976d2; /* Azul médio */
@@ -2199,11 +2236,11 @@ select.form-input[multiple] {
 }
 
 #export-devedores-btn svg {
-  fill: #FFFFFF; /* Cor Branca, garantindo a visibilidade */
+  fill: #ffffff; /* Cor Branca, garantindo a visibilidade */
   width: 20px;
   height: 20px;
 }
 
 #export-devedores-btn:hover {
-    background-color: var(--cor-primaria);
+  background-color: var(--cor-primaria);
 }

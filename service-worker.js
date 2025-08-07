@@ -1,25 +1,32 @@
-const CACHE_NAME = "sasif-cache-v3"; // Versão incrementada para forçar a atualização
+const CACHE_NAME = "sasif-cache-v8"; // Versão final incrementada
 const URLS_TO_CACHE = [
   // --- Arquivos da Raiz ---
-  "./", // CORRIGIDO: Representa a raiz do seu projeto (a página inicial)
+  "./",
   "index.html",
   "style.css",
-  "manifest.json", // ADICIONADO: Essencial para o PWA
-  "favicon.ico", // ADICIONADO: Ícone da aplicação
+  "manifest.json",
+  "favicon.ico",
 
   // --- Imagens ---
   "images/logo.png",
   "images/logo-192x192.png",
   "images/logo-512x512.png",
 
-  // --- Módulos JavaScript (com o caminho correto) ---
+  // --- Fontes Locais ---
+  "fonts/KFOlCnqEu92Fr1MmSU5fBBc4.woff2", // Light 300
+  "fonts/KFOmCnqEu92Fr1Mu4mxK.woff2", // Regular 400
+  "fonts/KFOlCnqEu92Fr1MmEU9fBBc4.woff2", // Medium 500
+  "fonts/KFOlCnqEu92Fr1MmWUlfBBc4.woff2", // Bold 700
+
+  // --- Módulos JavaScript (com sua adição incluída) ---
   "modules/auth.js",
   "modules/configuracoes.js",
   "modules/dashboard.js",
-  "modules/demandasEstruturais.js", // ADICIONADO: Estava faltando na lista anterior
+  "modules/demandasEstruturais.js",
   "modules/devedores.js",
   "modules/firebase.js",
   "modules/importacao.js",
+  "modules/investigacaoFiscal.js", // SUA ADIÇÃO CORRETA
   "modules/main.js",
   "modules/navigation.js",
   "modules/processos.js",
@@ -46,10 +53,9 @@ self.addEventListener("install", (event) => {
         })
         .catch((error) => {
           console.error(
-            "Service Worker: Falha ao cachear um ou mais arquivos.",
+            "Service Worker: Falha ao cachear um ou mais arquivos. Verifique se todos os caminhos em URLS_TO_CACHE estão corretos.",
             error
           );
-          // Lança o erro para que a instalação do SW falhe, indicando que algo está errado.
           throw error;
         });
     })
@@ -61,11 +67,9 @@ self.addEventListener("install", (event) => {
 self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
-      // Se encontrou no cache, retorna do cache.
       if (response) {
         return response;
       }
-      // Se não, vai para a rede.
       return fetch(event.request);
     })
   );
