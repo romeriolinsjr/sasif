@@ -1,9 +1,10 @@
 // ==================================================================
 // Módulo: devedores.js
 // Responsabilidade: Gerenciamento completo da entidade "Grandes Devedores".
+// (Versão com exportação de processos por devedor - FINAL E CORRIGIDA)
 // ==================================================================
 
-import { db, auth } from "./firebase.js"; // <--- ADICIONE , auth
+import { db, auth } from "./firebase.js";
 import {
   contentArea,
   pageTitle,
@@ -17,10 +18,102 @@ import {
   formatCNPJForDisplay,
   getAnaliseStatus,
   formatProcessoForDisplay,
-  maskCNPJ, // <--- ADICIONE ESTA LINHA
+  maskCNPJ,
 } from "./utils.js";
 import * as state from "./state.js";
 import { renderProcessoForm, setupProcessosListener } from "./processos.js";
+
+// FUNÇÃO AUXILIAR ROBUSTA PARA BUSCAR E PREPARAR OS DADOS DOS PROCESSOS PARA EXPORTAÇÃO (COM ORDENAÇÃO E FILTRO CORRIGIDOS)
+async function getProcessosDoDevedorParaExportacao(devedorId) {
+  const processosSnapshot = await db
+    .collection("processos")
+    .where("devedorId", "==", devedorId)
+    .get();
+  let processosData = processosSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // Helper para extrair partes do número do processo para ordenação
+  const getNumeroProcessoParts = (numero) => {
+    if (!numero || numero.length !== 20) return { ano: "0", cabeca: "0" };
+    return { ano: numero.substring(9, 13), cabeca: numero.substring(0, 7) };
+  };
+
+  // Etapa de enriquecimento: Garante que todos os processos tenham o objeto exequente completo
+  for (const proc of processosData) {
+    if (proc.exequenteId) {
+      const exequente = state.exequentesCache.find(
+        (ex) => ex.id === proc.exequenteId
+      );
+      proc.exequente = exequente || { nome: "Exequente Desconhecido" };
+    } else {
+      proc.exequente = { nome: "Exequente não informado" };
+    }
+  }
+
+  // --- LÓGICA DE ORDENAÇÃO REPLICADA DO PROCESSOS.JS ---
+
+  // 1. Separa os processos por tipo
+  // CORREÇÃO CRÍTICA: Adicionado o acento em 'autônomo'
+  const mainItems = processosData.filter(
+    (p) => p.tipoProcesso === "autônomo" || p.tipoProcesso === "piloto"
+  );
+  const apensos = processosData.filter((p) => p.tipoProcesso === "apenso");
+
+  // 2. Ordena a lista principal (pilotos e autônomos)
+  mainItems.sort((a, b) => {
+    const exequenteA = a.exequente.nome || "";
+    const exequenteB = b.exequente.nome || "";
+    if (exequenteA.localeCompare(exequenteB) !== 0) {
+      return exequenteA.localeCompare(exequenteB);
+    }
+
+    const tipoValor = { piloto: 1, autônomo: 2 };
+    const valorA = tipoValor[a.tipoProcesso] || 3;
+    const valorB = tipoValor[b.tipoProcesso] || 3;
+    if (valorA !== valorB) {
+      return valorA - valorB;
+    }
+
+    const partsA = getNumeroProcessoParts(a.numeroProcesso);
+    const partsB = getNumeroProcessoParts(b.numeroProcesso);
+    if (partsB.ano !== partsA.ano) {
+      return partsB.ano.localeCompare(partsA.ano);
+    }
+    return partsB.cabeca.localeCompare(partsA.cabeca);
+  });
+
+  // 3. Cria um mapa de apensos e ordena cada lista de apensos
+  const apensosMap = apensos.reduce((map, apenso) => {
+    const pilotoId = apenso.processoPilotoId;
+    if (!map.has(pilotoId)) map.set(pilotoId, []);
+    map.get(pilotoId).push(apenso);
+    return map;
+  }, new Map());
+
+  apensosMap.forEach((apensosDoPiloto) => {
+    apensosDoPiloto.sort((a, b) => {
+      const partsA = getNumeroProcessoParts(a.numeroProcesso);
+      const partsB = getNumeroProcessoParts(b.numeroProcesso);
+      if (partsB.ano !== partsA.ano) {
+        return partsB.ano.localeCompare(partsA.ano);
+      }
+      return partsB.cabeca.localeCompare(partsA.cabeca);
+    });
+  });
+
+  // 4. Monta a lista final na ordem correta
+  const sortedForExport = [];
+  mainItems.forEach((item) => {
+    sortedForExport.push(item);
+    if (item.tipoProcesso === "piloto" && apensosMap.has(item.id)) {
+      sortedForExport.push(...apensosMap.get(item.id));
+    }
+  });
+
+  return sortedForExport;
+}
 
 /**
  * Renderiza a página principal de "Grandes Devedores".
@@ -29,32 +122,32 @@ export function renderGrandesDevedoresPage() {
   pageTitle.textContent = "Grandes Devedores";
   document.title = "SASIF | Grandes Devedores";
 
-  // Adicionado o botão de exportação ao lado do botão de cadastro
   contentArea.innerHTML = `
         <div class="dashboard-actions">
             <button id="add-devedor-btn" class="btn-primary">Cadastrar Novo Devedor</button>
             <button id="export-devedores-btn" class="action-icon" title="Exportar Lista de Devedores">
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#FFFFFF"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
             </button>
         </div>
         <h2>Lista de Grandes Devedores</h2>
         <div id="devedores-list-container"></div>
     `;
 
-  document.getElementById("add-devedor-btn").addEventListener("click", () => renderDevedorForm());
-  // Novo listener para o botão de exportação
-  document.getElementById("export-devedores-btn").addEventListener("click", renderExportOptionsModal);
+  document
+    .getElementById("add-devedor-btn")
+    .addEventListener("click", () => renderDevedorForm());
+  document
+    .getElementById("export-devedores-btn")
+    .addEventListener("click", renderExportOptionsModal);
 
   renderDevedoresList(state.devedoresCache);
 }
 
 /**
  * Exibe a página de detalhes de um devedor específico.
- * É um passo intermediário para chamar a função de renderização principal.
  * @param {string} devedorId O ID do devedor.
  */
 export function showDevedorPage(devedorId) {
-  // A lógica de unsubscribe já é tratada em navigateTo, então aqui só chamamos a renderização.
   renderDevedorDetailPage(devedorId);
 }
 
@@ -132,7 +225,7 @@ function renderDevedoresList(devedores) {
 }
 
 /**
- * Lida com todas as ações clicáveis na lista de devedores (clique na linha ou nos botões).
+ * Lida com todas as ações clicáveis na lista de devedores.
  * @param {Event} event O evento de clique.
  */
 function handleDevedorAction(event) {
@@ -140,7 +233,7 @@ function handleDevedorAction(event) {
   const actionTarget = target.closest("[data-action]");
 
   if (actionTarget) {
-    event.stopPropagation(); // Impede que o clique no botão também acione o clique na linha
+    event.stopPropagation();
     const action = actionTarget.dataset.action;
     const devedorId = actionTarget.dataset.id;
 
@@ -177,19 +270,12 @@ function handleEditDevedor(devedorId) {
 }
 
 /**
- * Deleta um devedor do banco de dados após confirmação.
- * @param {string} devedorId O ID do devedor a ser deletado.
- */
-
-/**
- * Deleta um devedor e todos os seus dados associados (processos, incidentes, etc.)
- * de forma atômica usando um batch write.
+ * Deleta um devedor e todos os seus dados associados de forma atômica.
  * @param {string} devedorId O ID do devedor a ser deletado.
  */
 async function handleDeleteDevedor(devedorId) {
   const devedorRef = db.collection("grandes_devedores").doc(devedorId);
 
-  // 1. Confirmação do usuário (MUITO IMPORTANTE)
   if (
     !confirm(
       "ATENÇÃO!\n\nVocê tem certeza que deseja excluir este Grande Devedor? Todos os processos, anexos e dados vinculados a ele serão excluídos PERMANENTEMENTE. Esta ação não pode ser desfeita."
@@ -203,7 +289,6 @@ async function handleDeleteDevedor(devedorId) {
   try {
     const batch = db.batch();
 
-    // 2. Encontrar e marcar para exclusão os processos e seus sub-itens
     const processosSnapshot = await db
       .collection("processos")
       .where("devedorId", "==", devedorId)
@@ -213,10 +298,8 @@ async function handleDeleteDevedor(devedorId) {
 
       processosSnapshot.forEach((processoDoc) => {
         const processoId = processoDoc.id;
-        // Adiciona o próprio processo ao lote de exclusão
         batch.delete(processoDoc.ref);
 
-        // Cria promessas para buscar todas as sub-coleções e itens relacionados
         const collectionsToDelete = [
           "corresponsaveis",
           "penhoras",
@@ -228,31 +311,25 @@ async function handleDeleteDevedor(devedorId) {
             db.collection(collName).where("processoId", "==", processoId).get()
           );
         });
-
-        // Busca a sub-coleção 'historicoValores' que está aninhada
         subCollectionsPromises.push(
           processoDoc.ref.collection("historicoValores").get()
         );
       });
 
-      // Executa todas as buscas em paralelo
       const allSubCollections = await Promise.all(subCollectionsPromises);
       allSubCollections.forEach((snapshot) => {
         snapshot.forEach((doc) => batch.delete(doc.ref));
       });
     }
 
-    // 3. Encontrar e marcar para exclusão os incidentes processuais
     const incidentesSnapshot = await db
       .collection("incidentesProcessuais")
       .where("devedorId", "==", devedorId)
       .get();
     incidentesSnapshot.forEach((doc) => batch.delete(doc.ref));
 
-    // 4. Marcar o próprio devedor para exclusão
     batch.delete(devedorRef);
 
-    // 5. Executar a operação em lote
     await batch.commit();
 
     showToast(
@@ -265,7 +342,6 @@ async function handleDeleteDevedor(devedorId) {
       "error"
     );
   } finally {
-    // 6. Garantir que o overlay de carregamento seja sempre removido
     hideLoadingOverlay();
   }
 }
@@ -298,7 +374,7 @@ function renderDevedorForm(devedor = null) {
   const formTitle = isEditing
     ? "Editar Grande Devedor"
     : "Cadastrar Novo Grande Devedor";
-  navigateTo(null); // Limpa a página, mas mantém a navegação lógica
+  navigateTo(null);
   pageTitle.textContent = formTitle;
   document.title = `SASIF | ${formTitle}`;
 
@@ -316,16 +392,16 @@ function renderDevedorForm(devedor = null) {
             <div class="form-group"><label for="nivel-prioridade">Nível de Prioridade</label><select id="nivel-prioridade"><option value="1">Nível 1 (30 dias)</option><option value="2">Nível 2 (45 dias)</option><option value="3">Nível 3 (60 dias)</option></select></div>
             <div class="form-group"><label for="observacoes">Observações</label><textarea id="observacoes">${observacoes}</textarea></div>
             <div id="error-message"></div>
-            <div class="form-buttons"><button id="save-devedor-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div>
+            <div class="form-buttons">
+                <button id="save-devedor-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-btn" class="btn-secondary">Cancelar</button>
+            </div>
         </div>`;
 
   document.getElementById("nivel-prioridade").value = nivelPrioridade;
-
-  // Adiciona o listener para a máscara de CNPJ diretamente
   document
     .getElementById("cnpj")
     .addEventListener("input", (e) => maskCNPJ(e.target));
-
   document.getElementById("save-devedor-btn").addEventListener("click", () => {
     isEditing ? handleUpdateDevedor(devedor.id) : handleSaveDevedor();
   });
@@ -406,7 +482,7 @@ function handleUpdateDevedor(devedorId) {
 export async function renderDevedorDetailPage(devedorId) {
   pageTitle.textContent = "Carregando...";
   document.title = "SASIF | Carregando...";
-  renderSidebar(null); // Reseta a sidebar para indicar uma página interna
+  renderSidebar(null);
 
   try {
     const devedorDoc = await db
@@ -435,6 +511,7 @@ export async function renderDevedorDetailPage(devedorId) {
 
     pageTitle.textContent = devedor.razaoSocial;
     document.title = `SASIF | ${devedor.razaoSocial}`;
+
     contentArea.innerHTML = `
             <div class="detail-header-card">
                 <p><strong>CNPJ:</strong> ${formatCNPJForDisplay(
@@ -459,6 +536,9 @@ export async function renderDevedorDetailPage(devedorId) {
             
             <div class="dashboard-actions">
                  <button id="add-processo-btn" class="btn-primary">Cadastrar Novo Processo</button>
+                 <button id="export-processos-btn" class="action-icon" title="Exportar Lista de Processos">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                 </button>
             </div>
             <h2>Lista de Processos</h2>
             <div id="processos-list-container">
@@ -478,7 +558,10 @@ export async function renderDevedorDetailPage(devedorId) {
       .getElementById("add-processo-btn")
       .addEventListener("click", () => renderProcessoForm(devedorId, null));
 
-    // Inicia o listener para buscar e exibir os processos deste devedor
+    document
+      .getElementById("export-processos-btn")
+      .addEventListener("click", () => renderProcessosExportModal(devedor));
+
     setupProcessosListener(devedorId);
   } catch (error) {
     console.error("Erro ao carregar página do devedor:", error);
@@ -564,7 +647,7 @@ async function renderDevedorIncidentesModal(devedorId) {
 }
 
 /**
- * Renderiza um modal para o usuário escolher o formato de exportação.
+ * Renderiza um modal para o usuário escolher o formato de exportação dos devedores.
  */
 function renderExportOptionsModal() {
   const modalOverlay = document.createElement("div");
@@ -582,92 +665,267 @@ function renderExportOptionsModal() {
   `;
   document.body.appendChild(modalOverlay);
 
-  modalOverlay.addEventListener('click', (e) => {
-      const action = e.target.dataset.action;
-      if (action === 'export-csv') {
-          exportDevedoresToCSV();
-          modalOverlay.remove();
-      } else if (action === 'export-pdf') {
-          exportDevedoresToPDF();
-          modalOverlay.remove();
-      } else if (action === 'close-modal' || e.target === modalOverlay) {
-          modalOverlay.remove();
-      }
+  modalOverlay.addEventListener("click", (e) => {
+    const action = e.target.dataset.action;
+    if (action === "export-csv") {
+      exportDevedoresToCSV();
+      modalOverlay.remove();
+    } else if (action === "export-pdf") {
+      exportDevedoresToPDF();
+      modalOverlay.remove();
+    } else if (action === "close-modal" || e.target === modalOverlay) {
+      modalOverlay.remove();
+    }
   });
 }
 
 /**
  * Exporta a lista de devedores (razão social e CNPJ) para um arquivo CSV.
  */
-/**
- * Exporta a lista de devedores (razão social e CNPJ) para um arquivo CSV.
- * CORRIGIDO: Usa ponto e vírgula (;) como separador para compatibilidade com o Excel.
- */
 function exportDevedoresToCSV() {
-    if (state.devedoresCache.length === 0) {
-        showToast("Não há devedores para exportar.", "warning");
-        return;
-    }
+  if (state.devedoresCache.length === 0) {
+    showToast("Não há devedores para exportar.", "warning");
+    return;
+  }
 
-    // Cabeçalho do CSV, separado por ponto e vírgula
-    let csvContent = "Razão Social;CNPJ\n";
+  let csvContent = "Razão Social;CNPJ\n";
 
-    // Adiciona cada devedor como uma nova linha
-    state.devedoresCache.forEach(devedor => {
-        // Remove quebras de linha e trata aspas para evitar quebra do CSV
-        const razaoSocialLimpa = devedor.razaoSocial.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
-        const razaoSocial = `"${razaoSocialLimpa}"`;
-        const cnpj = formatCNPJForDisplay(devedor.cnpj);
-        
-        // Usa ponto e vírgula para separar as colunas
-        csvContent += `${razaoSocial};${cnpj}\n`;
-    });
+  state.devedoresCache.forEach((devedor) => {
+    const razaoSocialLimpa = devedor.razaoSocial
+      .replace(/(\r\n|\n|\r)/gm, " ")
+      .replace(/"/g, '""');
+    const razaoSocial = `"${razaoSocialLimpa}"`;
+    const cnpj = formatCNPJForDisplay(devedor.cnpj);
 
-    // Adiciona o BOM (Byte Order Mark) para garantir a codificação UTF-8 correta no Excel
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `SASIF-Grandes_Devedores-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Arquivo CSV gerado com sucesso!", "success");
+    csvContent += `${razaoSocial};${cnpj}\n`;
+  });
+
+  const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+  const blob = new Blob([bom, csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `SASIF-Grandes_Devedores-${new Date()
+    .toLocaleDateString("pt-BR")
+    .replace(/\//g, "-")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Arquivo CSV gerado com sucesso!", "success");
 }
 
 /**
  * Exporta a lista de devedores (razão social e CNPJ) para um arquivo PDF.
  */
 function exportDevedoresToPDF() {
-    if (state.devedoresCache.length === 0) {
-        showToast("Não há devedores para exportar.", "warning");
-        return;
+  if (state.devedoresCache.length === 0) {
+    showToast("Não há devedores para exportar.", "warning");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("p", "mm", "a4");
+
+  doc.setFontSize(18);
+  doc.text("Relatório de Grandes Devedores - SASIF", 14, 22);
+
+  const tableRows = state.devedoresCache.map((devedor, index) => {
+    return [index + 1, devedor.razaoSocial, formatCNPJForDisplay(devedor.cnpj)];
+  });
+
+  doc.autoTable({
+    head: [["#", "Razão Social", "CNPJ"]],
+    body: tableRows,
+    startY: 30,
+    theme: "grid",
+    headStyles: { fillColor: [13, 71, 161] },
+  });
+
+  doc.save(
+    `SASIF-Grandes_Devedores-${new Date()
+      .toLocaleDateString("pt-BR")
+      .replace(/\//g, "-")}.pdf`
+  );
+  showToast("Arquivo PDF gerado com sucesso!", "success");
+}
+
+/**
+ * Renderiza um modal para o usuário escolher o formato de exportação da lista de processos.
+ * @param {object} devedor - O objeto completo do devedor.
+ */
+function renderProcessosExportModal(devedor) {
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+  modalOverlay.innerHTML = `
+    <div class="modal-content export-options-modal">
+        <h3>Exportar Lista de Processos</h3>
+        <p>Selecione o formato desejado para o arquivo.</p>
+        <div class="form-buttons">
+            <button data-action="export-csv" class="btn-primary">Exportar para CSV</button>
+            <button data-action="export-pdf" class="btn-primary">Exportar para PDF</button>
+            <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+        </div>
+    </div>
+  `;
+  document.body.appendChild(modalOverlay);
+
+  modalOverlay.addEventListener("click", (e) => {
+    const action = e.target.dataset.action;
+    if (action === "export-csv") {
+      exportProcessosToCSV(devedor);
+      modalOverlay.remove();
+    } else if (action === "export-pdf") {
+      exportProcessosToPDF(devedor);
+      modalOverlay.remove();
+    } else if (action === "close-modal" || e.target === modalOverlay) {
+      modalOverlay.remove();
+    }
+  });
+}
+
+/**
+ * Exporta a lista de processos de um devedor para um arquivo CSV.
+ * @param {object} devedor - O objeto do devedor.
+ */
+async function exportProcessosToCSV(devedor) {
+  showLoadingOverlay("Gerando CSV...");
+  try {
+    const processos = await getProcessosDoDevedorParaExportacao(devedor.id);
+    if (processos.length === 0) {
+      showToast("Não há processos para exportar.", "warning");
+      return;
+    }
+
+    let csvContent =
+      "Número do Processo;Exequente;Tipo;Status;Valor;Processo Piloto\n";
+    let currentPiloto = "";
+
+    processos.forEach((proc) => {
+      if (proc.tipoProcesso === "piloto") {
+        currentPiloto = proc.numeroProcesso;
+      } else if (proc.tipoProcesso === "autonomo") {
+        currentPiloto = "";
+      }
+
+      const numero = formatProcessoForDisplay(proc.numeroProcesso || "");
+      const exequenteNome = proc.exequente?.nome || "Não informado";
+      const exequente = `"${exequenteNome.replace(/"/g, '""')}"`;
+      const tipo = proc.tipoProcesso || "Não informado";
+      const status = proc.status || "Não informado";
+      const valor = (
+        proc.valorDaDivida ||
+        proc.valorAtual?.valor ||
+        0
+      ).toLocaleString("pt-BR");
+      const pilotoVinculado =
+        proc.tipoProcesso === "apenso" && currentPiloto
+          ? formatProcessoForDisplay(currentPiloto)
+          : "";
+
+      csvContent += `${numero};${exequente};${tipo};${status};"${valor}";${pilotoVinculado}\n`;
+    });
+
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+    const blob = new Blob([bom, csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const nomeArquivo = `SASIF-Processos_${devedor.razaoSocial.substring(
+      0,
+      20
+    )}-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Arquivo CSV gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar CSV:", error);
+    showToast("Ocorreu um erro ao gerar o arquivo CSV.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+/**
+ * Exporta a lista de processos de um devedor para um arquivo PDF.
+ * @param {object} devedor - O objeto do devedor.
+ */
+async function exportProcessosToPDF(devedor) {
+  showLoadingOverlay("Gerando PDF...");
+  try {
+    const processos = await getProcessosDoDevedorParaExportacao(devedor.id);
+    if (processos.length === 0) {
+      showToast("Não há processos para exportar.", "warning");
+      return;
     }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF("p", "mm", "a4");
 
-    doc.setFontSize(18);
-    doc.text("Relatório de Grandes Devedores - SASIF", 14, 22);
+    doc.setFontSize(16);
+    doc.text(`Lista de Processos - ${devedor.razaoSocial}`, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Exportado em: ${new Date().toLocaleString("pt-BR")}`, 14, 28);
 
-    const tableRows = state.devedoresCache.map((devedor, index) => {
-        return [
-            index + 1,
-            devedor.razaoSocial,
-            formatCNPJForDisplay(devedor.cnpj)
-        ];
-    });
+    const tableBody = [];
+    const processosAgrupados = processos.reduce((acc, proc) => {
+      const key = proc.exequente?.nome || "Não informado";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(proc);
+      return acc;
+    }, {});
+
+    for (const exequente in processosAgrupados) {
+      tableBody.push([
+        {
+          content: exequente,
+          colSpan: 4,
+          styles: { fontStyle: "bold", fillColor: "#f0f0f0", textColor: 20 },
+        },
+      ]);
+
+      processosAgrupados[exequente].forEach((proc) => {
+        tableBody.push([
+          {
+            content: formatProcessoForDisplay(proc.numeroProcesso || ""),
+            styles: {
+              cellPadding: { left: proc.tipoProcesso === "apenso" ? 9 : 4 },
+            },
+          },
+          proc.tipoProcesso || "Não informado",
+          proc.status || "Não informado",
+          (proc.valorDaDivida || proc.valorAtual?.valor || 0).toLocaleString(
+            "pt-BR",
+            { style: "currency", currency: "BRL" }
+          ),
+        ]);
+      });
+    }
 
     doc.autoTable({
-        head: [['#', 'Razão Social', 'CNPJ']],
-        body: tableRows,
-        startY: 30,
-        theme: 'grid',
-        headStyles: { fillColor: [13, 71, 161] } // Azul escuro do SASIF
+      startY: 35,
+      head: [["Número do Processo", "Tipo", "Status", "Valor"]],
+      body: tableBody,
+      theme: "grid",
+      headStyles: { fillColor: [13, 71, 161] },
     });
 
-    doc.save(`SASIF-Grandes_Devedores-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`);
+    const nomeArquivo = `SASIF-Processos_${devedor.razaoSocial.substring(
+      0,
+      20
+    )}-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`;
+    doc.save(nomeArquivo);
     showToast("Arquivo PDF gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar PDF:", error);
+    showToast("Ocorreu um erro ao gerar o arquivo PDF.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
 }

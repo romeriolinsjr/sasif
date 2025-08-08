@@ -293,8 +293,11 @@ export function renderProcessoForm(devedorId, processo = null) {
               isEditing ? processo.cdas || "" : ""
             }</textarea></div>
             <div id="error-message"></div>
-            <div class="form-buttons"><button id="save-processo-btn" class="btn-primary">Salvar</button><button id="cancel-btn">Cancelar</button></div>
-        </div>`;
+            <div class="form-buttons">
+                <button id="save-processo-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-btn" class="btn-secondary">Cancelar</button>
+            </div>
+          </div>`;
 
   document
     .getElementById("numero-processo")

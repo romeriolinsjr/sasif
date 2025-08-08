@@ -2259,8 +2259,9 @@ select.form-input[multiple] {
 }
 
 /* --- CORREÇÃO E MELHORIA PARA O ÍCONE DE EXPORTAÇÃO --- */
-#export-devedores-btn {
-  background-color: var(--cor-secundaria); /* Um fundo sutil para o ícone */
+#export-devedores-btn,
+#export-processos-btn {
+  background-color: var(--cor-secundaria);
   border-radius: 50%;
   width: 36px;
   height: 36px;
@@ -2270,12 +2271,14 @@ select.form-input[multiple] {
   margin-left: 16px;
 }
 
-#export-devedores-btn svg {
-  fill: #ffffff; /* Cor Branca, garantindo a visibilidade */
+#export-devedores-btn svg,
+#export-processos-btn svg {
+  fill: #ffffff;
   width: 20px;
   height: 20px;
 }
 
-#export-devedores-btn:hover {
+#export-devedores-btn:hover,
+#export-processos-btn:hover {
   background-color: var(--cor-primaria);
 }
