@@ -1,6 +1,5 @@
-const CACHE_NAME = "sasif-cache-v8"; // Mantemos a versão para limpar caches antigos, mas a estratégia muda.
+const CACHE_NAME = "sasif-cache-v8"; // Mantemos a versão, pois a lista de arquivos não muda.
 const URLS_TO_CACHE = [
-  // A lista de arquivos permanece a mesma
   "./",
   "index.html",
   "style.css",
@@ -31,7 +30,7 @@ const URLS_TO_CACHE = [
   "modules/utils.js",
 ];
 
-// Evento de Instalação (permanece o mesmo)
+// Evento de Instalação (sem alterações)
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -48,28 +47,29 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Evento de Fetch (REVERTIDO PARA A ESTRATÉGIA "NETWORK FIRST")
+// Evento de Fetch (COM A CORREÇÃO)
 self.addEventListener("fetch", (event) => {
   event.respondWith(
-    // 1. Tenta buscar o recurso na rede primeiro.
     fetch(event.request)
       .then((networkResponse) => {
-        // Se a busca na rede for bem-sucedida,
-        // clona a resposta para poder guardá-la no cache e retorná-la ao navegador.
         return caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, networkResponse.clone());
+          // --- INÍCIO DA CORREÇÃO ---
+          // SÓ ARMAZENA EM CACHE SE A REQUISIÇÃO FOR DO TIPO GET
+          if (event.request.method === "GET") {
+            cache.put(event.request, networkResponse.clone());
+          }
+          // --- FIM DA CORREÇÃO ---
+
           return networkResponse;
         });
       })
       .catch(() => {
-        // 2. Se a busca na rede falhar (offline),
-        // tenta servir o recurso a partir do cache.
         return caches.match(event.request);
       })
   );
 });
 
-// Evento de Ativação (permanece o mesmo)
+// Evento de Ativação (sem alterações)
 self.addEventListener("activate", (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
