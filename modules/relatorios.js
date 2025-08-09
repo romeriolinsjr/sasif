@@ -1,6 +1,7 @@
 // ==================================================================
 // Módulo: relatorios.js
 // Responsabilidade: Lógica de geração de todos os relatórios da aplicação.
+// (Versão com exportação de PDF padronizada e com logo)
 // ==================================================================
 
 import { db } from "./firebase.js";
@@ -9,10 +10,16 @@ import {
   pageTitle,
   showToast,
   renderReadOnlyTextModal,
+  showLoadingOverlay,
+  hideLoadingOverlay,
 } from "./ui.js";
 import { navigateTo } from "./navigation.js";
 import * as state from "./state.js";
-import { formatProcessoForDisplay, formatCurrency } from "./utils.js";
+import {
+  formatProcessoForDisplay,
+  formatCurrency,
+  loadImageAsBase64,
+} from "./utils.js";
 
 /**
  * Renderiza a estrutura principal da página de Relatórios.
@@ -203,6 +210,7 @@ async function gerarRelatorioProcessos() {
     }
   }
 }
+
 function renderRelatorioProcessosResultados(processos) {
   const resultsContainer = document.getElementById("report-results-container");
   if (processos.length === 0) {
@@ -217,13 +225,17 @@ function renderRelatorioProcessosResultados(processos) {
 
   resultsContainer.innerHTML = `
         <div class="detail-card">
-            <h3>Resultados do Relatório</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Resultados do Relatório</h3>
+                <button id="download-pdf-btn" class="action-icon" title="Exportar para PDF">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                </button>
+            </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <p><strong>Total de Processos:</strong> ${total}</p>
                 <p><strong>Valor Total das Dívidas:</strong> ${formatCurrency(
                   valorTotal
                 )}</p>
-                <button id="download-pdf-btn" class="btn-secondary">Download PDF</button>
             </div>
             <table class="data-table" id="report-table">
                 <thead>
@@ -246,6 +258,7 @@ function renderRelatorioProcessosResultados(processos) {
     .getElementById("download-pdf-btn")
     .addEventListener("click", gerarPDFRelatorioProcessos);
 }
+
 function renderReportTableBody(processos) {
   const tableBody = document.querySelector("#report-table tbody");
   if (!tableBody) return;
@@ -272,6 +285,7 @@ function renderReportTableBody(processos) {
     }
   });
 }
+
 function updateSortIcons() {
   document.querySelectorAll("#report-table th.sortable").forEach((th) => {
     const icon = th.querySelector(".sort-icon");
@@ -282,6 +296,7 @@ function updateSortIcons() {
     }
   });
 }
+
 /**
  * Lida com o clique no cabeçalho da tabela de relatório para ordenar os dados.
  */
@@ -291,31 +306,21 @@ function handleReportSort(event) {
 
   const sortKey = target.dataset.sortKey;
 
-  // Lógica de toggle aprimorada: se for a mesma coluna, inverte a direção.
-  // Se for uma coluna diferente, sempre começa com 'asc'.
   const newDirection =
     state.currentSortState.key === sortKey &&
     state.currentSortState.direction === "asc"
       ? "desc"
       : "asc";
 
-  // Atualiza o estado global usando a função setter correta.
   state.setCurrentSortState({ key: sortKey, direction: newDirection });
 
-  // Ordena os dados em memória.
   state.currentReportData.sort((a, b) => {
     let comparison = 0;
-
     switch (sortKey) {
-      // LÓGICA CORRIGIDA E MAIS CLARA PARA NÚMERO DE PROCESSO
       case "numeroProcesso": {
         const anoA = parseInt(a.numeroProcesso.substring(9, 13), 10);
         const anoB = parseInt(b.numeroProcesso.substring(9, 13), 10);
-
-        // 1. Compara pelo ano primeiro
         comparison = anoA - anoB;
-
-        // 2. Se os anos são iguais, e somente nesse caso, compara pelo número sequencial
         if (comparison === 0) {
           const seqA = parseInt(a.numeroProcesso.substring(0, 7), 10);
           const seqB = parseInt(b.numeroProcesso.substring(0, 7), 10);
@@ -323,14 +328,12 @@ function handleReportSort(event) {
         }
         break;
       }
-
       case "valor": {
         const valA = a.valorAtual?.valor || a.valorDivida || 0;
         const valB = b.valorAtual?.valor || b.valorDivida || 0;
         comparison = valA - valB;
         break;
       }
-
       case "devedor": {
         const valA =
           state.devedoresCache.find((d) => d.id === a.devedorId)?.razaoSocial ||
@@ -341,7 +344,6 @@ function handleReportSort(event) {
         comparison = valA.localeCompare(valB, "pt-BR");
         break;
       }
-
       case "exequente": {
         const valA =
           state.exequentesCache.find((e) => e.id === a.exequenteId)?.nome || "";
@@ -351,39 +353,58 @@ function handleReportSort(event) {
         break;
       }
     }
-
-    // Aplica a direção (ascendente ou descendente) ao resultado final da comparação.
     return newDirection === "asc" ? comparison : -comparison;
   });
 
-  // Re-renderiza a tabela com os dados agora ordenados e atualiza os ícones.
   renderReportTableBody(state.currentReportData);
   updateSortIcons();
 }
-function gerarPDFRelatorioProcessos() {
-  if (state.currentReportData.length === 0)
-    return showToast("Não há dados para gerar PDF.", "error");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF("p", "mm", "a4");
-  doc.setFontSize(18);
-  doc.text("Relatório de Processos - SASIF", 14, 22);
-  doc.autoTable({
-    html: "#report-table",
-    startY: 30,
-    theme: "grid",
-    headStyles: { fillColor: [13, 71, 161] },
-    didParseCell: (data) => {
-      if (data.section === "head")
-        data.cell.text = data.cell.text.map((s) =>
-          s.replace(" ▲", "").replace(" ▼", "")
-        );
-    },
-  });
-  doc.save(
-    `SASIF-Relatorio-Processos-${new Date()
-      .toLocaleDateString("pt-BR")
-      .replace(/\//g, "-")}.pdf`
-  );
+
+async function gerarPDFRelatorioProcessos() {
+  if (state.currentReportData.length === 0) {
+    showToast("Não há dados para gerar PDF.", "warning");
+    return;
+  }
+
+  showLoadingOverlay("Gerando PDF...");
+  try {
+    const logoBase64 = await loadImageAsBase64("images/logo.png");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+    const page_width = doc.internal.pageSize.getWidth();
+
+    doc.addImage(logoBase64, "PNG", page_width / 2 - 20, 15, 40, 0);
+    doc.setFontSize(18);
+    doc.text("Relatório de Processos", page_width / 2, 45, {
+      align: "center",
+    });
+
+    doc.autoTable({
+      html: "#report-table",
+      startY: 55,
+      theme: "grid",
+      headStyles: { fillColor: [13, 71, 161] },
+      didParseCell: (data) => {
+        if (data.section === "head") {
+          data.cell.text = data.cell.text.map((s) =>
+            s.replace(" ▲", "").replace(" ▼", "")
+          );
+        }
+      },
+    });
+
+    doc.save(
+      `SASIF-Relatorio-Processos-${new Date()
+        .toLocaleDateString("pt-BR")
+        .replace(/\//g, "-")}.pdf`
+    );
+    showToast("Arquivo PDF gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar PDF de processos:", error);
+    showToast("Ocorreu um erro ao gerar o PDF.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
 }
 
 // --- Relatório de Penhoras (Constrições) ---
@@ -393,8 +414,10 @@ async function gerarRelatorioPenhoras() {
   const processoId = document.getElementById("filtro-processo-penhora").value;
 
   const resultsContainer = document.getElementById("report-results-container");
-  if (!devedorId)
-    return (resultsContainer.innerHTML = `<p class="empty-list-message error">Selecione um executado.</p>`);
+  if (!devedorId) {
+    resultsContainer.innerHTML = `<p class="empty-list-message error">Selecione um executado.</p>`;
+    return;
+  }
   resultsContainer.innerHTML = `<p class="empty-list-message">Gerando relatório...</p>`;
 
   try {
@@ -411,8 +434,10 @@ async function gerarRelatorioPenhoras() {
       );
 
     const processosSnapshot = await processosQuery.get();
-    if (processosSnapshot.empty)
-      return (resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum processo encontrado.</p>`);
+    if (processosSnapshot.empty) {
+      resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum processo encontrado.</p>`;
+      return;
+    }
 
     const processosMap = new Map(
       processosSnapshot.docs.map((doc) => [
@@ -422,8 +447,10 @@ async function gerarRelatorioPenhoras() {
     );
     const processoIds = Array.from(processosMap.keys());
 
-    if (processoIds.length === 0)
-      return (resultsContainer.innerHTML = `<p class="empty-list-message">Nenhuma penhora encontrada.</p>`);
+    if (processoIds.length === 0) {
+      resultsContainer.innerHTML = `<p class="empty-list-message">Nenhuma penhora encontrada.</p>`;
+      return;
+    }
 
     let penhoras = [];
     const chunks = [];
@@ -442,8 +469,10 @@ async function gerarRelatorioPenhoras() {
       })
     );
 
-    if (penhoras.length === 0)
-      return (resultsContainer.innerHTML = `<p class="empty-list-message">Nenhuma penhora encontrada.</p>`);
+    if (penhoras.length === 0) {
+      resultsContainer.innerHTML = `<p class="empty-list-message">Nenhuma penhora encontrada.</p>`;
+      return;
+    }
 
     const groupedData = penhoras.reduce((acc, penhora) => {
       const processo = processosMap.get(penhora.processoId);
@@ -465,9 +494,17 @@ async function gerarRelatorioPenhoras() {
     resultsContainer.innerHTML = `<p class="empty-list-message error">Ocorreu um erro ao gerar o relatório.</p>`;
   }
 }
+
 function renderRelatorioPenhorasResultados(groupedData, processosMap) {
   const resultsContainer = document.getElementById("report-results-container");
-  let tableHTML = `<div class="detail-card"><h3>Resultados do Relatório</h3><div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 20px;"><button id="download-pdf-penhora-btn" class="btn-secondary">Download PDF</button></div><table class="data-table" id="report-table-penhoras"><thead><tr><th>Descrição do Bem</th><th style="width: 15%;">Valor</th><th style="width: 15%;">Data</th></tr></thead><tbody>`;
+  let tableHTML = `<div class="detail-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Resultados do Relatório</h3>
+                <button id="download-pdf-penhora-btn" class="action-icon" title="Exportar para PDF">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                </button>
+            </div>
+            <table class="data-table" id="report-table-penhoras"><thead><tr><th>Descrição do Bem</th><th style="width: 15%;">Valor</th><th style="width: 15%;">Data</th></tr></thead><tbody>`;
   for (const exequenteId in groupedData) {
     const exequente = state.exequentesCache.find((e) => e.id === exequenteId);
     tableHTML += `<tr class="group-header"><td colspan="3"><strong>Exequente:</strong> ${
@@ -498,64 +535,89 @@ function renderRelatorioPenhorasResultados(groupedData, processosMap) {
     .getElementById("download-pdf-penhora-btn")
     .addEventListener("click", gerarPDFRelatorioPenhoras);
 }
-function gerarPDFRelatorioPenhoras() {
-  const { jsPDF } = window.jspdf;
-  if (!state.currentReportData.grouped)
-    return showToast("Não há dados para PDF.", "error");
-  const doc = new jsPDF("p", "mm", "a4");
-  doc.setFontSize(18);
-  doc.text("Relatório de Constrições Patrimoniais - SASIF", 14, 22);
-  const tableRows = [];
-  for (const exequenteId in state.currentReportData.grouped) {
-    const exequente = state.exequentesCache.find((e) => e.id === exequenteId);
-    tableRows.push([
-      {
-        content: `Exequente: ${exequente ? exequente.nome : "N/I"}`,
-        colSpan: 3,
-        styles: { fontStyle: "bold", fillColor: "#eef1f5", textColor: "#333" },
-      },
-    ]);
-    for (const processoId in state.currentReportData.grouped[exequenteId]) {
-      const processo = state.currentReportData.processos.get(processoId) || {
-        numeroProcesso: "Desconhecido",
-      };
+
+async function gerarPDFRelatorioPenhoras() {
+  if (!state.currentReportData.grouped) {
+    showToast("Não há dados para gerar PDF.", "warning");
+    return;
+  }
+  showLoadingOverlay("Gerando PDF...");
+  try {
+    const logoBase64 = await loadImageAsBase64("images/logo.png");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+    const page_width = doc.internal.pageSize.getWidth();
+
+    doc.addImage(logoBase64, "PNG", page_width / 2 - 20, 15, 40, 0);
+    doc.setFontSize(18);
+    doc.text("Relatório de Constrições Patrimoniais", page_width / 2, 45, {
+      align: "center",
+    });
+
+    const tableRows = [];
+    for (const exequenteId in state.currentReportData.grouped) {
+      const exequente = state.exequentesCache.find((e) => e.id === exequenteId);
       tableRows.push([
         {
-          content: `Processo: ${formatProcessoForDisplay(
-            processo.numeroProcesso
-          )}`,
+          content: `Exequente: ${exequente ? exequente.nome : "N/I"}`,
           colSpan: 3,
-          styles: { fontStyle: "italic", fillColor: "#fafafa" },
+          styles: {
+            fontStyle: "bold",
+            fillColor: "#eef1f5",
+            textColor: "#333",
+          },
         },
       ]);
-      state.currentReportData.grouped[exequenteId][processoId].forEach(
-        (penhora) => {
-          const dataFormatada = penhora.data
-            ? `${penhora.data.split("-")[2]}/${penhora.data.split("-")[1]}/${
-                penhora.data.split("-")[0]
-              }`
-            : "N/I";
-          tableRows.push([
-            penhora.descricao,
-            formatCurrency(penhora.valor || 0),
-            dataFormatada,
-          ]);
-        }
-      );
+      for (const processoId in state.currentReportData.grouped[exequenteId]) {
+        const processo = state.currentReportData.processos.get(processoId) || {
+          numeroProcesso: "Desconhecido",
+        };
+        tableRows.push([
+          {
+            content: `Processo: ${formatProcessoForDisplay(
+              processo.numeroProcesso
+            )}`,
+            colSpan: 3,
+            styles: { fontStyle: "italic", fillColor: "#fafafa" },
+          },
+        ]);
+        state.currentReportData.grouped[exequenteId][processoId].forEach(
+          (penhora) => {
+            const dataFormatada = penhora.data
+              ? `${penhora.data.split("-")[2]}/${penhora.data.split("-")[1]}/${
+                  penhora.data.split("-")[0]
+                }`
+              : "N/I";
+            tableRows.push([
+              penhora.descricao,
+              formatCurrency(penhora.valor || 0),
+              dataFormatada,
+            ]);
+          }
+        );
+      }
     }
+
+    doc.autoTable({
+      head: [["Descrição do Bem", "Valor", "Data"]],
+      body: tableRows,
+      startY: 55,
+      theme: "grid",
+      headStyles: { fillColor: [13, 71, 161] },
+    });
+
+    doc.save(
+      `SASIF-Relatorio-Constricoes-${new Date()
+        .toLocaleDateString("pt-BR")
+        .replace(/\//g, "-")}.pdf`
+    );
+    showToast("Arquivo PDF gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar PDF de constrições:", error);
+    showToast("Ocorreu um erro ao gerar o PDF.", "error");
+  } finally {
+    hideLoadingOverlay();
   }
-  doc.autoTable({
-    head: [["Descrição do Bem", "Valor", "Data"]],
-    body: tableRows,
-    startY: 30,
-    theme: "grid",
-    headStyles: { fillColor: [13, 71, 161] },
-  });
-  doc.save(
-    `SASIF-Relatorio-Constricoes-${new Date()
-      .toLocaleDateString("pt-BR")
-      .replace(/\//g, "-")}.pdf`
-  );
 }
 
 // --- Relatório de Incidentes ---
@@ -565,8 +627,10 @@ async function gerarRelatorioIncidentes() {
     "filtro-exequente-incidente"
   ).value;
   const resultsContainer = document.getElementById("report-results-container");
-  if (!devedorId)
-    return (resultsContainer.innerHTML = `<p class="empty-list-message error">Selecione um executado.</p>`);
+  if (!devedorId) {
+    resultsContainer.innerHTML = `<p class="empty-list-message error">Selecione um executado.</p>`;
+    return;
+  }
   resultsContainer.innerHTML = `<p class="empty-list-message">Gerando relatório...</p>`;
 
   try {
@@ -577,8 +641,10 @@ async function gerarRelatorioIncidentes() {
         .where("devedorId", "==", devedorId)
         .where("exequenteId", "==", exequenteId)
         .get();
-      if (processosSnapshot.empty)
-        return (resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum processo para este executado e exequente.</p>`);
+      if (processosSnapshot.empty) {
+        resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum processo para este executado e exequente.</p>`;
+        return;
+      }
       numerosProcessosFiltrados = processosSnapshot.docs.map(
         (doc) => doc.data().numeroProcesso
       );
@@ -595,8 +661,10 @@ async function gerarRelatorioIncidentes() {
       );
     }
     const incidentesSnapshot = await incidentesQuery.get();
-    if (incidentesSnapshot.empty)
-      return (resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum incidente encontrado.</p>`);
+    if (incidentesSnapshot.empty) {
+      resultsContainer.innerHTML = `<p class="empty-list-message">Nenhum incidente encontrado.</p>`;
+      return;
+    }
 
     const incidentes = incidentesSnapshot.docs.map((doc) => ({
       id: doc.id,
@@ -608,9 +676,17 @@ async function gerarRelatorioIncidentes() {
     resultsContainer.innerHTML = `<p class="empty-list-message error">Ocorreu um erro ao gerar o relatório.</p>`;
   }
 }
+
 function renderRelatorioIncidentesResultados(incidentes) {
   const resultsContainer = document.getElementById("report-results-container");
-  let tableHTML = `<div class="detail-card"><h3>Resultados do Relatório de Incidentes</h3><div style="display: flex; justify-content: flex-end; margin-bottom: 20px;"><button id="download-pdf-incidente-btn" class="btn-secondary">Download PDF</button></div><table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Processo Principal</th><th>Descrição</th></tr></thead><tbody>`;
+  let tableHTML = `<div class="detail-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3>Resultados do Relatório de Incidentes</h3>
+            <button id="download-pdf-incidente-btn" class="action-icon" title="Exportar para PDF">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            </button>
+        </div>
+        <table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Processo Principal</th><th>Descrição</th></tr></thead><tbody>`;
   incidentes.forEach((incidente) => {
     const descricaoResumida =
       incidente.descricao.length > 100
@@ -648,29 +724,49 @@ function renderRelatorioIncidentesResultados(incidentes) {
     .getElementById("download-pdf-incidente-btn")
     .addEventListener("click", gerarPDFRelatorioIncidentes);
 }
-function gerarPDFRelatorioIncidentes() {
-  const { jsPDF } = window.jspdf;
-  if (!state.currentReportData || state.currentReportData.length === 0)
-    return showToast("Não há dados para PDF.", "error");
-  const doc = new jsPDF("p", "mm", "a4");
-  doc.setFontSize(18);
-  doc.text("Relatório de Incidentes Processuais - SASIF", 14, 22);
-  const tableRows = state.currentReportData.map((incidente) => [
-    formatProcessoForDisplay(incidente.numeroIncidente),
-    formatProcessoForDisplay(incidente.numeroProcessoPrincipal),
-    incidente.descricao,
-  ]);
-  doc.autoTable({
-    head: [["Nº do Incidente", "Processo Principal", "Descrição"]],
-    body: tableRows,
-    startY: 30,
-    theme: "grid",
-    headStyles: { fillColor: [13, 71, 161] },
-    columnStyles: { 2: { cellWidth: "auto" } },
-  });
-  doc.save(
-    `SASIF-Relatorio-Incidentes-${new Date()
-      .toLocaleDateString("pt-BR")
-      .replace(/\//g, "-")}.pdf`
-  );
+
+async function gerarPDFRelatorioIncidentes() {
+  if (!state.currentReportData || state.currentReportData.length === 0) {
+    showToast("Não há dados para gerar PDF.", "warning");
+    return;
+  }
+  showLoadingOverlay("Gerando PDF...");
+  try {
+    const logoBase64 = await loadImageAsBase64("images/logo.png");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+    const page_width = doc.internal.pageSize.getWidth();
+
+    doc.addImage(logoBase64, "PNG", page_width / 2 - 20, 15, 40, 0);
+    doc.setFontSize(18);
+    doc.text("Relatório de Incidentes Processuais", page_width / 2, 45, {
+      align: "center",
+    });
+
+    const tableRows = state.currentReportData.map((incidente) => [
+      formatProcessoForDisplay(incidente.numeroIncidente),
+      formatProcessoForDisplay(incidente.numeroProcessoPrincipal),
+      incidente.descricao,
+    ]);
+    doc.autoTable({
+      head: [["Nº do Incidente", "Processo Principal", "Descrição"]],
+      body: tableRows,
+      startY: 55,
+      theme: "grid",
+      headStyles: { fillColor: [13, 71, 161] },
+      columnStyles: { 2: { cellWidth: "auto" } },
+    });
+
+    doc.save(
+      `SASIF-Relatorio-Incidentes-${new Date()
+        .toLocaleDateString("pt-BR")
+        .replace(/\//g, "-")}.pdf`
+    );
+    showToast("Arquivo PDF gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar PDF de incidentes:", error);
+    showToast("Ocorreu um erro ao gerar o PDF.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
 }
