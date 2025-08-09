@@ -19,6 +19,7 @@ import {
   getAnaliseStatus,
   formatProcessoForDisplay,
   maskCNPJ,
+  loadImageAsBase64,
 } from "./utils.js";
 import * as state from "./state.js";
 import { renderProcessoForm, setupProcessosListener } from "./processos.js";
@@ -718,36 +719,57 @@ function exportDevedoresToCSV() {
 /**
  * Exporta a lista de devedores (razão social e CNPJ) para um arquivo PDF.
  */
-function exportDevedoresToPDF() {
+async function exportDevedoresToPDF() {
   if (state.devedoresCache.length === 0) {
     showToast("Não há devedores para exportar.", "warning");
     return;
   }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF("p", "mm", "a4");
+  showLoadingOverlay("Gerando PDF...");
+  try {
+    const logoBase64 = await loadImageAsBase64("images/logo.png");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("p", "mm", "a4");
+    const page_width = doc.internal.pageSize.getWidth();
 
-  doc.setFontSize(18);
-  doc.text("Relatório de Grandes Devedores - SASIF", 14, 22);
+    // 1. Adiciona a logo centralizada no topo
+    doc.addImage(logoBase64, "PNG", page_width / 2 - 20, 15, 40, 0);
 
-  const tableRows = state.devedoresCache.map((devedor, index) => {
-    return [index + 1, devedor.razaoSocial, formatCNPJForDisplay(devedor.cnpj)];
-  });
+    // 2. Adiciona o título centralizado abaixo da logo (COM NOVO TÍTULO E ESPAÇAMENTO)
+    doc.setFontSize(18);
+    doc.text("Lista de Grandes Devedores", page_width / 2, 45, {
+      align: "center",
+    }); // Y aumentado de 40 para 45
 
-  doc.autoTable({
-    head: [["#", "Razão Social", "CNPJ"]],
-    body: tableRows,
-    startY: 30,
-    theme: "grid",
-    headStyles: { fillColor: [13, 71, 161] },
-  });
+    const tableRows = state.devedoresCache.map((devedor, index) => {
+      return [
+        index + 1,
+        devedor.razaoSocial,
+        formatCNPJForDisplay(devedor.cnpj),
+      ];
+    });
 
-  doc.save(
-    `SASIF-Grandes_Devedores-${new Date()
-      .toLocaleDateString("pt-BR")
-      .replace(/\//g, "-")}.pdf`
-  );
-  showToast("Arquivo PDF gerado com sucesso!", "success");
+    // 3. Inicia a tabela mais abaixo (COM NOVO ESPAÇAMENTO)
+    doc.autoTable({
+      head: [["#", "Razão Social", "CNPJ"]],
+      body: tableRows,
+      startY: 55, // Y aumentado de 50 para 55
+      theme: "grid",
+      headStyles: { fillColor: [13, 71, 161] },
+    });
+
+    doc.save(
+      `SASIF-Grandes_Devedores-${new Date()
+        .toLocaleDateString("pt-BR")
+        .replace(/\//g, "-")}.pdf`
+    );
+    showToast("Arquivo PDF gerado com sucesso!", "success");
+  } catch (error) {
+    console.error("Erro ao gerar PDF de devedores:", error);
+    showToast("Ocorreu um erro ao gerar o PDF.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
 }
 
 /**
@@ -864,14 +886,25 @@ async function exportProcessosToPDF(devedor) {
       return;
     }
 
+    const logoBase64 = await loadImageAsBase64("images/logo.png");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF("p", "mm", "a4");
+    const page_width = doc.internal.pageSize.getWidth();
+    const margin_left = 14; // Margem esquerda padrão
 
+    // 1. Adiciona a logo centralizada no topo
+    doc.addImage(logoBase64, "PNG", page_width / 2 - 20, 15, 40, 0);
+
+    // 2. Adiciona o novo cabeçalho alinhado à esquerda, abaixo da logo
+    // Nome do devedor (destacado)
     doc.setFontSize(16);
-    doc.text(`Lista de Processos - ${devedor.razaoSocial}`, 14, 22);
-    doc.setFontSize(11);
+    doc.setTextColor(40);
+    doc.text(devedor.razaoSocial, margin_left, 45); // Posição Y aumentada para dar espaço
+
+    // CNPJ (abaixo do nome)
+    doc.setFontSize(12);
     doc.setTextColor(100);
-    doc.text(`Exportado em: ${new Date().toLocaleString("pt-BR")}`, 14, 28);
+    doc.text(`CNPJ: ${formatCNPJForDisplay(devedor.cnpj)}`, margin_left, 51); // Posição Y aumentada
 
     const tableBody = [];
     const processosAgrupados = processos.reduce((acc, proc) => {
@@ -908,8 +941,9 @@ async function exportProcessosToPDF(devedor) {
       });
     }
 
+    // 3. Inicia a tabela abaixo do novo cabeçalho
     doc.autoTable({
-      startY: 35,
+      startY: 60,
       head: [["Número do Processo", "Tipo", "Status", "Valor"]],
       body: tableBody,
       theme: "grid",

@@ -252,3 +252,41 @@ export function getPrazoStatus(firestoreDate) {
     statusClass: "status-ok",
   };
 }
+
+// ==================================================================
+// NOVA FUNÇÃO PARA CARREGAR IMAGEM PARA PDF
+// ==================================================================
+
+/**
+ * Carrega uma imagem de uma URL e a converte para o formato Base64.
+ * Essencial para embutir imagens em PDFs gerados com jsPDF.
+ * Usa um cache interno para evitar downloads repetidos da mesma imagem.
+ * @param {string} url - O caminho para a imagem (ex: 'images/logo.png').
+ * @returns {Promise<string>} Uma Promise que resolve com a string Base64 da imagem.
+ */
+let imageCache = null; // Cache para a imagem da logo
+
+export function loadImageAsBase64(url) {
+  // Se a imagem já estiver em cache, retorna a versão em cache imediatamente.
+  if (imageCache) {
+    return Promise.resolve(imageCache);
+  }
+
+  // Se não, busca a imagem na rede.
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.onload = function () {
+      const reader = new FileReader();
+      reader.onloadend = function () {
+        imageCache = reader.result; // Armazena o resultado no cache
+        resolve(reader.result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(xhr.response);
+    };
+    xhr.onerror = reject;
+    xhr.open("GET", url);
+    xhr.responseType = "blob";
+    xhr.send();
+  });
+}
