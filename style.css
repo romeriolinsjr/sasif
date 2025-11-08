@@ -1795,7 +1795,6 @@ body {
 .encaminhamento-cumprido td {
   background-color: #e8f5e9;
   color: #666;
-  text-decoration: line-through;
 }
 
 /* --- CONTROLES DO MODO DE EDIÇÃO (ENCAMINHAMENTOS) --- */
