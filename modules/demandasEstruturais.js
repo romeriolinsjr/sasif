@@ -1,13 +1,14 @@
 // ==================================================================
 // Módulo: demandasEstruturais.js
 // Responsabilidade: Lógica da página "Demandas Estruturais".
+// (Versão com funcionalidade de comentários nos encaminhamentos - CORRIGIDA)
 // ==================================================================
 
 import { db, storage } from "./firebase.js";
 import { contentArea, pageTitle, showToast } from "./ui.js";
 import { devedoresCache } from "./state.js";
 import { navigateTo } from "./navigation.js";
-import { formatCNPJForDisplay, maskProcesso, getSafeDate } from "./utils.js"; // <-- 1. IMPORTAÇÃO CORRETA
+import { formatCNPJForDisplay, maskProcesso, getSafeDate } from "./utils.js";
 
 let demandasCache = [];
 let activeDemandaState = {
@@ -29,7 +30,6 @@ export function renderDemandasEstruturaisPage() {
   pageTitle.textContent = "Demandas Estruturais";
   document.title = "SASIF | Demandas Estruturais";
 
-  // Reseta o estado para a página de listagem
   activeDemandaState = {
     demandaId: null,
     devedorId: null,
@@ -42,13 +42,7 @@ export function renderDemandasEstruturaisPage() {
     isEditingDemandas: false,
   };
 
-  // PONTO-CHAVE: Não vamos mais gerenciar o listener aqui.
-  // Ele será gerenciado em um ponto mais alto ou garantido no main.js.
-  // Por enquanto, vamos garantir que ele está lá.
-  // A remoção da linha abaixo previne a duplicação se já existir.
-  // document.body.removeEventListener("click", handlePageActions);
   document.body.addEventListener("click", handlePageActions);
-
   setupDemandasListener();
 
   contentArea.innerHTML = `
@@ -60,6 +54,7 @@ export function renderDemandasEstruturaisPage() {
     </div>
     <div id="demandas-list-container"><p class="empty-list-message">Carregando...</p></div>`;
 }
+
 function setupDemandasListener() {
   db.collection("demandasEstruturais")
     .orderBy("criadoEm", "desc")
@@ -83,6 +78,7 @@ function setupDemandasListener() {
       }
     );
 }
+
 function renderDemandasList() {
   const container = document.getElementById("demandas-list-container");
   if (!container) return;
@@ -153,6 +149,7 @@ function renderDemandasList() {
       </tbody>
     </table>`;
 }
+
 function renderCadastroModal() {
   const devedoresJaVinculados = new Set(demandasCache.map((d) => d.devedorId));
   const devedoresElegiveis = devedoresCache
@@ -170,6 +167,7 @@ function renderCadastroModal() {
   modalOverlay.innerHTML = `<div class="modal-content"><h3>Cadastrar Nova Demanda</h3><div class="form-group"><label for="devedor-select">Selecione o Devedor</label><select id="devedor-select"><option value="">-- Escolha --</option>${options}</select></div><div id="error-message"></div><div class="form-buttons"><button data-action="save-demanda" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
 }
+
 async function handleSaveDemanda() {
   const devedorId = document.getElementById("devedor-select").value;
   if (!devedorId) {
@@ -193,6 +191,7 @@ async function handleSaveDemanda() {
     document.getElementById("error-message").textContent = "Erro.";
   }
 }
+
 function handleDeleteDemanda(demandaId) {
   if (confirm("Tem certeza?")) {
     db.collection("demandasEstruturais")
@@ -216,7 +215,7 @@ export function renderDemandaEstruturalDetailPage(demandaId, devedorId) {
     { id: "atores", name: "Atores Envolvidos" },
     { id: "historico", name: "Histórico" },
     { id: "encaminhamentos", name: "Encaminhamentos" },
-    { id: "eixos", name: "Eixos" }, // ALTERAÇÃO: Nome da aba atualizado
+    { id: "eixos", name: "Eixos" },
   ];
   contentArea.innerHTML = `<div class="detail-page-header"><h2>${
     devedor?.razaoSocial || "Carregando..."
@@ -236,6 +235,7 @@ export function renderDemandaEstruturalDetailPage(demandaId, devedorId) {
     )}</div><div id="tab-content" class="tab-content">Carregando...</div>`;
   renderActiveTabContent();
 }
+
 function renderActiveTabContent() {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
@@ -256,13 +256,14 @@ function renderActiveTabContent() {
     case "encaminhamentos":
       renderEncaminhamentosTab(demanda);
       break;
-    case "eixos": // ALTERAÇÃO: Case atualizado
-      renderEixosTab(demanda); // ALTERAÇÃO: Nome da função que será chamada
+    case "eixos":
+      renderEixosTab(demanda);
       break;
     default:
       container.innerHTML = "Aba não encontrada.";
   }
 }
+
 // --- RENDERIZADORES DE CONTEÚDO DAS ABAS ---
 function renderVisaoGeralTab(demanda) {
   const c = document.getElementById("tab-content");
@@ -270,6 +271,7 @@ function renderVisaoGeralTab(demanda) {
     demanda.descricaoGeral ? "" : "empty"
   }">${demanda.descricaoGeral || "Nenhuma descrição geral."}</div></div>`;
 }
+
 function renderAtoresTab(demanda) {
   const c = document.getElementById("tab-content");
   const fill = activeDemandaState.isEditingAtores
@@ -280,6 +282,7 @@ function renderAtoresTab(demanda) {
   }"><div class="atores-header"><h3>Atores Envolvidos</h3><div class="eixos-actions"><button class="action-icon" data-action="add-ator" title="Adicionar"><svg viewBox="0 0 24 24" fill="#4CAF50"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button><button class="action-icon" data-action="toggle-edit-atores" title="Gerenciar"><svg viewBox="0 0 24 24" fill="${fill}"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg></button></div></div><div id="atores-list-container"></div></div>`;
   renderAtoresList(demanda.atores || []);
 }
+
 function renderHistoricoTab(demanda) {
   const c = document.getElementById("tab-content");
   const fill = activeDemandaState.isEditingEventos
@@ -291,7 +294,7 @@ function renderHistoricoTab(demanda) {
   } ${hasEvents ? "" : "no-events"}"></div></div>`;
   renderTimeline(demanda.eventos || []);
 }
-// Renomeie a função renderGerenciarEixosTab para renderEixosTab
+
 function renderEixosTab(demanda) {
   const c = document.getElementById("tab-content");
   const eixos = demanda.eixos || [];
@@ -303,8 +306,8 @@ function renderEixosTab(demanda) {
   if (eixos.length > 0) {
     contentInsideSection = `
         <div id="eixos-buttons-list" class="eixos-list"></div>
-      </div> <!-- Fechamento do .eixos-header-container -->
-      <div id="eixo-content-area"></div>`; // Área para descrição ou lista de encaminhamentos
+      </div>
+      <div id="eixo-content-area"></div>`;
   } else {
     contentInsideSection = `
         <p class="empty-list-message" style="margin-top: 16px;">Esta demanda estrutural não possui divisão em eixos. Adicione um para começar a organizar os encaminhamentos.</p>
@@ -315,7 +318,7 @@ function renderEixosTab(demanda) {
     <div class="eixos-section ${
       activeDemandaState.isEditingEixos ? "edit-mode" : ""
     }">
-      <div class="eixos-header-container"> <!-- Adicionado um container -->
+      <div class="eixos-header-container">
         <div class="eixos-header">
           <h3>Eixos da Demanda</h3>
           <div class="eixos-actions">
@@ -328,9 +331,10 @@ function renderEixosTab(demanda) {
   `;
 
   if (eixos.length > 0) {
-    renderEixosUI(demanda); // Função existente que renderiza os botões e o conteúdo do eixo
+    renderEixosUI(demanda);
   }
 }
+
 function renderEncaminhamentosTab(demanda) {
   const container = document.getElementById("tab-content");
   const fill = activeDemandaState.isEditingEncaminhamentos
@@ -464,6 +468,7 @@ async function handleMoveAtor(atorId, direction) {
     showToast("Erro ao reordenar.", "error");
   }
 }
+
 function renderEixosUI(demanda) {
   const eixos = demanda.eixos || [];
   const container = document.getElementById("eixos-buttons-list");
@@ -499,7 +504,6 @@ function renderEixosUI(demanda) {
 
   if (activeEixo) {
     if (activeDemandaState.isEditingEixos) {
-      // MODO EDIÇÃO: Mostra a descrição para editar
       contentContainer.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição do Eixo "${
         activeEixo.nome
       }"</h3><button class="action-icon" data-action="edit-descricao-eixo" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
@@ -508,7 +512,6 @@ function renderEixosUI(demanda) {
         activeEixo.descricao || "Nenhuma descrição para este eixo."
       }</div></div>`;
     } else {
-      // MODO VISUALIZAÇÃO: Mostra a lista de encaminhamentos vinculados
       const todosEncaminhamentos = (demanda.atosDeAudiencia || []).flatMap(
         (ato) =>
           (ato.encaminhamentos || []).map((enc) => ({ ...enc, atoOrigem: ato }))
@@ -522,6 +525,15 @@ function renderEixosUI(demanda) {
         contentContainer.innerHTML = `<div class="empty-list-message">Nenhum encaminhamento vinculado a este eixo.</div>`;
         return;
       }
+
+      // CORREÇÃO: Adiciona lógica de colunas condicionais
+      const isEditing = activeDemandaState.isEditingEncaminhamentos;
+      const commentHeaderHTML = isEditing
+        ? `<th class="comment-cell-header"></th>`
+        : "";
+      const headerActionsCell = isEditing
+        ? `<th class="actions-cell">Ações</th>`
+        : "";
 
       const tableRows = encaminhamentosDoEixo
         .map((enc) => {
@@ -540,43 +552,71 @@ function renderEixosUI(demanda) {
             )
             .join(", ");
 
+          const comentarioHTML = enc.comentarioCumprimento
+            ? `<div class="encaminhamento-comentario">${enc.comentarioCumprimento.replace(
+                /\n/g,
+                "<br>"
+              )}</div>`
+            : "";
+
+          // CORREÇÃO: Adiciona lógica de colunas condicionais
+          const commentCellHTML = isEditing
+            ? `<td class="comment-cell">
+                <button class="action-icon icon-comment" title="Adicionar/Editar Comentário" data-action="add-comment-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                </button>
+            </td>`
+            : "";
+
+          const actionsCell = isEditing
+            ? `<td class="actions-cell">
+                  <button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                  <button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                </td>`
+            : "";
+
           return `<tr class="${
             enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
           }">
-                    <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${
-                      enc.atoOrigem.id
-                    }" data-enc-id="${enc.id}" ${
+                      <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${
+                        enc.atoOrigem.id
+                      }" data-enc-id="${enc.id}" ${
             enc.status === "cumprido" ? "checked" : ""
           }></td>
-                    <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
+                      ${commentCellHTML}
+                      <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
             enc.descricao
-          }</span></td>
-                    <td>${enc.prazo}</td>
-                    <td>${origemTexto}</td>
-                  </tr>`;
+          }</span>${comentarioHTML}</td>
+                      <td>${enc.prazo}</td>
+                      <td>${origemTexto}</td>
+                      ${actionsCell}
+                    </tr>`;
         })
         .join("");
 
       contentContainer.innerHTML = `
-        <div class="description-card">
-          <div class="description-header"><h3>Encaminhamentos do Eixo "${activeEixo.nome}"</h3></div>
-          <table class="encaminhamentos-table">
-            <thead>
-              <tr>
-                <th style="width:40px;">Status</th>
-                <th>Descrição</th>
-                <th>Prazo</th>
-                <th>Ato de Origem</th>
-              </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
-          </table>
-        </div>`;
+          <div class="description-card">
+            <div class="description-header"><h3>Encaminhamentos do Eixo "${activeEixo.nome}"</h3></div>
+            <table class="encaminhamentos-table">
+              <thead>
+                <tr>
+                  <th style="width:40px;">Status</th>
+                  ${commentHeaderHTML}
+                  <th>Descrição</th>
+                  <th>Prazo</th>
+                  <th>Ato de Origem</th>
+                  ${headerActionsCell}
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>`;
     }
   } else {
     contentContainer.innerHTML = `<div class="empty-list-message">Selecione ou adicione um eixo.</div>`;
   }
 }
+
 function renderDescricaoModal(title, currentText, onSave) {
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
@@ -693,7 +733,6 @@ function renderTimeline(eventos) {
           })
         : "Data inválida";
 
-      // ALTERAÇÃO: Usa o novo campo `atoProcessualId`
       const vinculoHTML = evento.atoProcessualId
         ? `<button class="action-icon icon-link" title="Ir para o Ato Processual vinculado" data-action="navigate-to-ato" data-ato-id="${evento.atoProcessualId}"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></button>`
         : "";
@@ -703,21 +742,21 @@ function renderTimeline(eventos) {
         : "";
 
       return `<div class="timeline-event timeline-${position}"><div class="timeline-event-content">
-                <div class="timeline-event-header">
-                  <div class="timeline-title-container">
-                    <h4>${evento.titulo}</h4>
-                    ${vinculoHTML}
+                  <div class="timeline-event-header">
+                    <div class="timeline-title-container">
+                      <h4>${evento.titulo}</h4>
+                      ${vinculoHTML}
+                    </div>
+                    <span class="timeline-event-tipo">${evento.tipo}</span>
                   </div>
-                  <span class="timeline-event-tipo">${evento.tipo}</span>
-                </div>
-                <div class="timeline-event-data">${dataFormatada}</div>
-                <p class="timeline-event-descricao">${evento.descricao}</p>
-                ${anexoHTML}
-                <div class="timeline-actions">
-                  <button class="action-icon icon-edit" title="Editar Evento" data-action="edit-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                  <button class="action-icon icon-delete" title="Excluir Evento" data-action="delete-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                </div>
-              </div></div>`;
+                  <div class="timeline-event-data">${dataFormatada}</div>
+                  <p class="timeline-event-descricao">${evento.descricao}</p>
+                  ${anexoHTML}
+                  <div class="timeline-actions">
+                    <button class="action-icon icon-edit" title="Editar Evento" data-action="edit-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                    <button class="action-icon icon-delete" title="Excluir Evento" data-action="delete-evento" data-evento-id="${evento.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                  </div>
+                </div></div>`;
     })
     .join("");
 }
@@ -740,19 +779,18 @@ function renderEventoModal(evento = null) {
     : "";
 
   const fileUploadHTML = `
-    <div class="form-group anexo-upload-container">
-      <label>Anexar (Opcional)</label>
-      <div class="file-upload-wrapper">
-        <input type="file" id="evento-anexo-input" class="file-input-hidden">
-        <label for="evento-anexo-input" class="btn-secondary btn-file-upload">Escolher arquivo</label>
-        <span id="file-name-display" class="file-name-display">Nenhum arquivo selecionado</span>
-      </div>
-      ${anexoDisplayHTML}
-    </div>`;
+      <div class="form-group anexo-upload-container">
+        <label>Anexar (Opcional)</label>
+        <div class="file-upload-wrapper">
+          <input type="file" id="evento-anexo-input" class="file-input-hidden">
+          <label for="evento-anexo-input" class="btn-secondary btn-file-upload">Escolher arquivo</label>
+          <span id="file-name-display" class="file-name-display">Nenhum arquivo selecionado</span>
+        </div>
+        ${anexoDisplayHTML}
+      </div>`;
 
   const modalOverlay = document.createElement("div");
   modalOverlay.className = "modal-overlay";
-  // AQUI ESTÁ A CORREÇÃO: A antiga div de anexo foi removida do innerHTML
   modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${
     isEditing ? "Editar" : "Adicionar"
   } Evento</h3><div class="form-group"><label for="evento-titulo">Título</label><input type="text" id="evento-titulo" class="form-input" value="${
@@ -762,18 +800,18 @@ function renderEventoModal(evento = null) {
   }" placeholder="Ex: Audiência, Decisão..."></div></div><div class="form-group"><label for="evento-descricao">Descrição</label><textarea id="evento-descricao" class="form-input" rows="5">${
     evento?.descricao || ""
   }</textarea></div>
-  
-  <div class="form-group form-group-checkbox">
-    <input type="checkbox" id="evento-gera-encaminhamentos" ${geraEncaminhamentos}>
-    <label for="evento-gera-encaminhamentos">Este evento gera encaminhamentos</label>
-  </div>
-  
-  ${fileUploadHTML}
-  
-  <div id="error-message"></div>
-  <div class="form-buttons"><button data-action="save-evento" data-evento-id="${
-    evento?.id || ""
-  }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
+    
+    <div class="form-group form-group-checkbox">
+      <input type="checkbox" id="evento-gera-encaminhamentos" ${geraEncaminhamentos}>
+      <label for="evento-gera-encaminhamentos">Este evento gera encaminhamentos</label>
+    </div>
+    
+    ${fileUploadHTML}
+    
+    <div id="error-message"></div>
+    <div class="form-buttons"><button data-action="save-evento" data-evento-id="${
+      evento?.id || ""
+    }" class="btn-primary">Salvar</button><button data-action="close-modal" class="btn-secondary">Cancelar</button></div></div>`;
   document.body.appendChild(modalOverlay);
 
   const fileInput = document.getElementById("evento-anexo-input");
@@ -795,7 +833,6 @@ async function handleSaveEvento(eventoId = null) {
   saveBtn.disabled = true;
   saveBtn.textContent = "Salvando...";
 
-  // Obter dados do formulário
   const titulo = document.getElementById("evento-titulo").value.trim();
   const dataInput = document.getElementById("evento-data").value;
   const tipo = document.getElementById("evento-tipo").value.trim();
@@ -815,7 +852,6 @@ async function handleSaveEvento(eventoId = null) {
     (d) => d.id === activeDemandaState.demandaId
   );
   if (!demanda) {
-    // Caso de segurança
     errorMsg.textContent = "Demanda não encontrada. Recarregue a página.";
     saveBtn.disabled = false;
     saveBtn.textContent = "Salvar";
@@ -838,7 +874,6 @@ async function handleSaveEvento(eventoId = null) {
     let anexoURL = eventoExistente?.anexoURL || null;
     let anexoNome = eventoExistente?.anexoNome || null;
 
-    // Lógica de Anexo (sem alterações)
     if (file) {
       if (eventoExistente?.anexoURL) {
         await storage.refFromURL(eventoExistente.anexoURL).delete();
@@ -870,23 +905,20 @@ async function handleSaveEvento(eventoId = null) {
       atoProcessualId: eventoExistente?.atoProcessualId || null,
     };
 
-    // --- LÓGICA DE VINCULAÇÃO DE ATOS ---
     if (geraEncaminhamentos && !tinhaAtoVinculado) {
-      // CENÁRIO 1: Criar novo Ato Processual
       const novoAto = {
         id: `_${Math.random().toString(36).substr(2, 9)}`,
-        tipo: tipo, // Usa o mesmo tipo do evento
-        processoNumero: "", // Usuário preencherá depois
-        data: dataFinalEvento.data, // Usa a mesma data
-        hora: "", // Usuário preencherá depois
+        tipo: tipo,
+        processoNumero: "",
+        data: dataFinalEvento.data,
+        hora: "",
         descricao: "",
         encaminhamentos: [],
-        historicoEventId: dataFinalEvento.id, // Vínculo reverso
+        historicoEventId: dataFinalEvento.id,
       };
       atos.push(novoAto);
-      dataFinalEvento.atoProcessualId = novoAto.id; // Vínculo no evento
+      dataFinalEvento.atoProcessualId = novoAto.id;
     } else if (!geraEncaminhamentos && tinhaAtoVinculado) {
-      // CENÁRIO 2: Remover Ato Processual existente
       if (
         confirm(
           "Desmarcar esta opção excluirá o Ato Processual correspondente e todos os seus encaminhamentos na outra aba. Deseja continuar?"
@@ -895,21 +927,18 @@ async function handleSaveEvento(eventoId = null) {
         atos = atos.filter((a) => a.id !== tinhaAtoVinculado);
         dataFinalEvento.atoProcessualId = null;
       } else {
-        // Usuário cancelou, então re-renderiza o modal sem salvar.
         document.body.removeChild(document.querySelector(".modal-overlay"));
         renderEventoModal(eventoExistente);
         return;
       }
     }
 
-    // Atualiza a lista de eventos
     if (eventoId) {
       eventos = eventos.map((e) => (e.id === eventoId ? dataFinalEvento : e));
     } else {
       eventos.push(dataFinalEvento);
     }
 
-    // Salva tudo no banco de dados de uma vez
     await db.collection("demandasEstruturais").doc(demanda.id).update({
       eventos: eventos,
       atosDeAudiencia: atos,
@@ -944,7 +973,6 @@ async function handleDeleteEvento(eventoId) {
     return;
   }
 
-  // Se o evento tem anexo, deleta do Storage
   if (eventoParaExcluir.anexoURL) {
     try {
       await storage.refFromURL(eventoParaExcluir.anexoURL).delete();
@@ -955,20 +983,17 @@ async function handleDeleteEvento(eventoId) {
     }
   }
 
-  // Filtra o evento da lista de eventos
   const eventosAtualizados = (demanda.eventos || []).filter(
     (e) => e.id !== eventoId
   );
   let atosAtualizados = [...(demanda.atosDeAudiencia || [])];
 
-  // Se o evento tem um Ato vinculado, filtra-o da lista de atos
   if (eventoParaExcluir.atoProcessualId) {
     atosAtualizados = atosAtualizados.filter(
       (a) => a.id !== eventoParaExcluir.atoProcessualId
     );
   }
 
-  // Atualiza o banco com as duas listas (eventos e atos)
   db.collection("demandasEstruturais")
     .doc(demanda.id)
     .update({
@@ -978,10 +1003,11 @@ async function handleDeleteEvento(eventoId) {
     .then(() => showToast("Evento excluído com sucesso."))
     .catch(() => showToast("Erro ao excluir o evento.", "error"));
 }
+
 function renderAtosTimeline(atos) {
   const container = document.getElementById("atos-timeline-container");
   if (!container) return;
-  // <-- 6. CORREÇÃO NA ORDENAÇÃO
+
   const sortedAtos = (atos || [])
     .map((ato) => ({ ...ato, dataObj: getSafeDate(ato.data) }))
     .sort((a, b) => (b.dataObj || 0) - (a.dataObj || 0));
@@ -994,7 +1020,6 @@ function renderAtosTimeline(atos) {
   container.innerHTML = sortedAtos
     .map((ato, index) => {
       const position = index % 2 === 0 ? "left" : "right";
-      // <-- 7. CORREÇÃO NA FORMATAÇÃO
       const dataFormatada = ato.dataObj
         ? ato.dataObj.toLocaleDateString("pt-BR")
         : "Data inválida";
@@ -1024,6 +1049,7 @@ function renderAtosTimeline(atos) {
     renderEncaminhamentosList(ato.id, ato.encaminhamentos || [])
   );
 }
+
 function renderEncaminhamentosList(atoId, encaminhamentos) {
   const container = document.getElementById(`encaminhamentos-list-${atoId}`);
   if (!container) return;
@@ -1035,6 +1061,15 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
     (d) => d.id === activeDemandaState.demandaId
   );
   const isEditing = activeDemandaState.isEditingEncaminhamentos;
+
+  // CORREÇÃO: Cria as colunas de cabeçalho condicionalmente
+  const commentHeaderHTML = isEditing
+    ? `<th class="comment-cell-header"></th>`
+    : "";
+  const headerActionsCell = isEditing
+    ? `<th class="actions-cell">Ações</th>`
+    : "";
+
   const tableRows = encaminhamentos
     .map((enc) => {
       let responsaveisNomes = [];
@@ -1057,30 +1092,61 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
           ? responsaveisNomes.join(", ")
           : "Ninguém designado";
 
+      // CORREÇÃO: Cria a célula de comentário condicionalmente
+      const commentCellHTML = isEditing
+        ? `<td class="comment-cell">
+                <button class="action-icon icon-comment" title="Adicionar/Editar Comentário" data-action="add-comment-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                </button>
+            </td>`
+        : "";
+
       const actionsCell = isEditing
-        ? `<td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>`
+        ? `<td class="actions-cell">
+                    <button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                    <button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${atoId}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                  </td>`
+        : "";
+
+      const comentarioHTML = enc.comentarioCumprimento
+        ? `<div class="encaminhamento-comentario">${enc.comentarioCumprimento.replace(
+            /\n/g,
+            "<br>"
+          )}</div>`
         : "";
 
       return `<tr class="${
         enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
-      }"><td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${atoId}" data-enc-id="${
+      }">
+                      <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${atoId}" data-enc-id="${
         enc.id
-      }" ${
-        enc.status === "cumprido" ? "checked" : ""
-      }></td><td><strong>${responsaveisDisplay}</strong><br><span style="font-size:13px; color:#555;">${
+      }" ${enc.status === "cumprido" ? "checked" : ""}></td>
+                      ${commentCellHTML}
+                      <td><strong>${responsaveisDisplay}</strong><br><span style="font-size:13px; color:#555;">${
         enc.descricao
-      }</span></td><td>${enc.prazo}</td>${actionsCell}</tr>`;
+      }</span>${comentarioHTML}</td>
+                      <td>${enc.prazo}</td>
+                      ${actionsCell}
+                    </tr>`;
     })
     .join("");
 
-  const headerActionsCell = isEditing
-    ? `<th class="actions-cell">Ações</th>`
-    : "";
-  container.innerHTML = `<table class="encaminhamentos-table"><thead><tr><th style="width:40px;">Status</th><th>Descrição</th><th>Prazo</th>${headerActionsCell}</tr></thead><tbody>${tableRows}</tbody></table>`;
+  container.innerHTML = `<table class="encaminhamentos-table">
+                            <thead>
+                              <tr>
+                                <th style="width:40px;">Status</th>
+                                ${commentHeaderHTML}
+                                <th>Descrição</th>
+                                <th>Prazo</th>
+                                ${headerActionsCell}
+                              </tr>
+                            </thead>
+                            <tbody>${tableRows}</tbody>
+                          </table>`;
 }
+
 function renderAtoModal(ato = null) {
   const isEditing = ato !== null;
-  // <-- 8. CORREÇÃO NA LEITURA
   const dataAtoObj = isEditing ? getSafeDate(ato.data) : null;
   const dataFormatada = dataAtoObj
     ? dataAtoObj.toISOString().split("T")[0]
@@ -1091,42 +1157,44 @@ function renderAtoModal(ato = null) {
   modalOverlay.innerHTML = `<div class="modal-content modal-large"><h3>${
     isEditing ? "Editar" : "Adicionar"
   } Ato Processual</h3>
-    <div style="display:flex;gap:16px;">
-        <div class="form-group" style="flex:2;">
-            <label for="ato-tipo">Tipo de Ato</label>
-            <input type="text" id="ato-tipo" value="${
-              ato?.tipo || ""
-            }" placeholder="Ex: Audiência, Reunião, Decisão">
-        </div>
-        <div class="form-group" style="flex:3;">
-            <label for="ato-processo">Nº do Processo</label>
-            <input type="text" id="ato-processo" value="${
-              ato?.processoNumero || ""
-            }">
-        </div>
-    </div>
-    <div style="display:flex;gap:16px;">
-        <div class="form-group" style="flex:1;">
-            <label for="ato-data">Data</label>
-            <input type="date" id="ato-data" value="${dataFormatada}">
-        </div>
-        <div class="form-group" style="flex:1;">
-            <label for="ato-hora">Hora</label>
-            <input type="time" id="ato-hora" value="${ato?.hora || ""}">
-        </div>
-    </div>
-    <div class="form-group">
-        <label for="ato-descricao">Descrição (Opcional)</label>
-        <textarea id="ato-descricao" rows="3">${ato?.descricao || ""}</textarea>
-    </div>
-    <div id="error-message"></div>
-    <div class="form-buttons">
-        <button data-action="save-ato" data-ato-id="${
-          ato?.id || ""
-        }" class="btn-primary">Salvar</button>
-        <button data-action="close-modal" class="btn-secondary">Cancelar</button>
-    </div>
-  </div>`;
+      <div style="display:flex;gap:16px;">
+          <div class="form-group" style="flex:2;">
+              <label for="ato-tipo">Tipo de Ato</label>
+              <input type="text" id="ato-tipo" value="${
+                ato?.tipo || ""
+              }" placeholder="Ex: Audiência, Reunião, Decisão">
+          </div>
+          <div class="form-group" style="flex:3;">
+              <label for="ato-processo">Nº do Processo</label>
+              <input type="text" id="ato-processo" value="${
+                ato?.processoNumero || ""
+              }">
+          </div>
+      </div>
+      <div style="display:flex;gap:16px;">
+          <div class="form-group" style="flex:1;">
+              <label for="ato-data">Data</label>
+              <input type="date" id="ato-data" value="${dataFormatada}">
+          </div>
+          <div class="form-group" style="flex:1;">
+              <label for="ato-hora">Hora</label>
+              <input type="time" id="ato-hora" value="${ato?.hora || ""}">
+          </div>
+      </div>
+      <div class="form-group">
+          <label for="ato-descricao">Descrição (Opcional)</label>
+          <textarea id="ato-descricao" rows="3">${
+            ato?.descricao || ""
+          }</textarea>
+      </div>
+      <div id="error-message"></div>
+      <div class="form-buttons">
+          <button data-action="save-ato" data-ato-id="${
+            ato?.id || ""
+          }" class="btn-primary">Salvar</button>
+          <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+      </div>
+    </div>`;
   document.body.appendChild(modalOverlay);
 
   const processoInput = document.getElementById("ato-processo");
@@ -1136,6 +1204,7 @@ function renderAtoModal(ato = null) {
     });
   }
 }
+
 async function handleSaveAto(atoId = null) {
   const tipo = document.getElementById("ato-tipo").value.trim();
   const processoNumero = document.getElementById("ato-processo").value.trim();
@@ -1181,6 +1250,7 @@ async function handleSaveAto(atoId = null) {
     document.getElementById("error-message").textContent = "Erro ao salvar.";
   }
 }
+
 async function handleDeleteAto(atoId) {
   if (!confirm("Excluir este ato e todos os seus encaminhamentos?")) return;
   const demanda = demandasCache.find(
@@ -1199,6 +1269,7 @@ async function handleDeleteAto(atoId) {
     showToast("Erro.", "error");
   }
 }
+
 function renderEncaminhamentoModal(atoId, encaminhamento = null) {
   const isEditing = encaminhamento !== null;
   const demanda = demandasCache.find(
@@ -1239,13 +1310,13 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
       .join("");
 
     eixosDropdownHTML = `
-      <div class="form-group">
-        <label for="enc-eixo">Eixo (Opcional)</label>
-        <select id="enc-eixo" class="form-input"> <!-- CLASSE ADICIONADA -->
-          <option value="">-- Nenhum --</option>
-          ${eixosOptions}
-        </select>
-      </div>`;
+        <div class="form-group">
+          <label for="enc-eixo">Eixo (Opcional)</label>
+          <select id="enc-eixo" class="form-input">
+            <option value="">-- Nenhum --</option>
+            ${eixosOptions}
+          </select>
+        </div>`;
   }
 
   const modalOverlay = document.createElement("div");
@@ -1253,30 +1324,31 @@ function renderEncaminhamentoModal(atoId, encaminhamento = null) {
   modalOverlay.innerHTML = `<div class="modal-content"><h3>${
     isEditing ? "Editar" : "Adicionar"
   } Encaminhamento</h3>
-  <div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple class="form-input">
-  ${atoresOptions}
-  </select></div> <!-- CLASSE ADICIONADA -->
-  <div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" class="form-input" value="${
-    encaminhamento?.pessoa || ""
-  }"></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
-  <div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" class="form-input" value="${
-    encaminhamento?.prazo || ""
-  }"></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
-  <div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" class="form-input" rows="4">${
-    encaminhamento?.descricao || ""
-  }</textarea></div> <!-- CLASSE ADICIONADA POR CONSISTÊNCIA -->
+    <div class="form-group"><label for="enc-entidade">Entidade(s) Responsável(is) (segure Ctrl/Cmd para selecionar várias)</label><select id="enc-entidade" multiple class="form-input">
+    ${atoresOptions}
+    </select></div>
+    <div class="form-group"><label for="enc-pessoa">Pessoa (Opcional)</label><input type="text" id="enc-pessoa" class="form-input" value="${
+      encaminhamento?.pessoa || ""
+    }"></div>
+    <div class="form-group"><label for="enc-prazo">Prazo</label><input type="text" id="enc-prazo" class="form-input" value="${
+      encaminhamento?.prazo || ""
+    }"></div>
+    <div class="form-group"><label for="enc-descricao">Descrição</label><textarea id="enc-descricao" class="form-input" rows="4">${
+      encaminhamento?.descricao || ""
+    }</textarea></div>
+    
+    ${eixosDropdownHTML}
   
-  ${eixosDropdownHTML}
-
-  <div id="error-message"></div>
-  <div class="form-buttons">
-    <button data-action="save-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
+    <div id="error-message"></div>
+    <div class="form-buttons">
+      <button data-action="save-encaminhamento" data-ato-id="${atoId}" data-enc-id="${
     encaminhamento?.id || ""
   }" class="btn-primary">Salvar</button>
-    <button data-action="close-modal" class="btn-secondary">Cancelar</button>
-  </div></div>`;
+      <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+    </div></div>`;
   document.body.appendChild(modalOverlay);
 }
+
 async function handleSaveEncaminhamento(atoId, encId = null) {
   const selectedOptions =
     document.getElementById("enc-entidade").selectedOptions;
@@ -1285,7 +1357,6 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
   const prazo = document.getElementById("enc-prazo").value.trim();
   const descricao = document.getElementById("enc-descricao").value.trim();
 
-  // NOVA LÓGICA: Capturar o eixo selecionado
   const eixoSelect = document.getElementById("enc-eixo");
   const eixoId = eixoSelect ? eixoSelect.value : null;
 
@@ -1314,7 +1385,7 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
           descricao,
           eixoId: eixoId || null,
         };
-        delete updatedEnc.entidadeId; // Remove a chave antiga se existir
+        delete updatedEnc.entidadeId;
         return updatedEnc;
       }
       return enc;
@@ -1327,7 +1398,8 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
       prazo,
       descricao,
       status: "pendente",
-      eixoId: eixoId || null, // Salva o ID do eixo
+      eixoId: eixoId || null,
+      comentarioCumprimento: "",
     };
     encaminhamentos.push(novoEnc);
   }
@@ -1344,6 +1416,7 @@ async function handleSaveEncaminhamento(atoId, encId = null) {
     document.getElementById("error-message").textContent = "Erro ao salvar.";
   }
 }
+
 async function handleDeleteEncaminhamento(atoId, encId) {
   if (!confirm("Excluir este encaminhamento?")) return;
   const demanda = demandasCache.find(
@@ -1365,6 +1438,7 @@ async function handleDeleteEncaminhamento(atoId, encId) {
     showToast("Erro.", "error");
   }
 }
+
 async function handleToggleEncaminhamentoStatus(atoId, encId) {
   const demanda = demandasCache.find(
     (d) => d.id === activeDemandaState.demandaId
@@ -1394,7 +1468,71 @@ async function handleToggleEncaminhamentoStatus(atoId, encId) {
 }
 
 // ==================================================================
-// HANDLER DE AÇÕES GERAL
+// NOVAS FUNÇÕES PARA COMENTÁRIOS
+// ==================================================================
+function renderComentarioModal(atoId, encId) {
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const ato = demanda.atosDeAudiencia.find((a) => a.id === atoId);
+  const encaminhamento = ato.encaminhamentos.find((e) => e.id === encId);
+  const currentComment = encaminhamento.comentarioCumprimento || "";
+
+  const modalOverlay = document.createElement("div");
+  modalOverlay.className = "modal-overlay";
+  modalOverlay.innerHTML = `
+        <div class="modal-content">
+          <h3>Comentário sobre o Cumprimento</h3>
+          <div class="form-group">
+            <label for="comentario-textarea">Adicione informações sobre o cumprimento desta diligência:</label>
+            <textarea id="comentario-textarea" class="form-input" rows="6">${currentComment}</textarea>
+          </div>
+          <div id="error-message"></div>
+          <div class="form-buttons">
+            <button data-action="save-comment-encaminhamento" data-ato-id="${atoId}" data-enc-id="${encId}" class="btn-primary">Salvar</button>
+            <button data-action="close-modal" class="btn-secondary">Cancelar</button>
+          </div>
+        </div>
+      `;
+  document.body.appendChild(modalOverlay);
+  document.getElementById("comentario-textarea").focus();
+}
+
+async function handleSaveComentario(atoId, encId) {
+  const comentario = document
+    .getElementById("comentario-textarea")
+    .value.trim();
+  const demanda = demandasCache.find(
+    (d) => d.id === activeDemandaState.demandaId
+  );
+  const atos = [...demanda.atosDeAudiencia];
+  const atoIndex = atos.findIndex((a) => a.id === atoId);
+  if (atoIndex === -1) return showToast("Erro: Ato não encontrado.", "error");
+
+  const encIndex = atos[atoIndex].encaminhamentos.findIndex(
+    (e) => e.id === encId
+  );
+  if (encIndex === -1)
+    return showToast("Erro: Encaminhamento não encontrado.", "error");
+
+  atos[atoIndex].encaminhamentos[encIndex].comentarioCumprimento = comentario;
+
+  try {
+    await db
+      .collection("demandasEstruturais")
+      .doc(demanda.id)
+      .update({ atosDeAudiencia: atos });
+    showToast("Comentário salvo com sucesso!");
+    document.body.removeChild(document.querySelector(".modal-overlay"));
+  } catch (e) {
+    document.getElementById("error-message").textContent =
+      "Erro ao salvar o comentário.";
+    console.error("Erro ao salvar comentário:", e);
+  }
+}
+
+// ==================================================================
+// HANDLER DE AÇÕES GERAL (ATUALIZADO)
 // ==================================================================
 function handlePageActions(event) {
   const target = event.target.closest("[data-action]");
@@ -1402,7 +1540,6 @@ function handlePageActions(event) {
 
   const action = target.dataset.action;
 
-  // Ações que não devem recarregar a página
   if (
     action !== "view-details" &&
     action !== "navigate-to-ato" &&
@@ -1411,9 +1548,6 @@ function handlePageActions(event) {
     event.preventDefault();
   }
 
-  // PONTO-CHAVE: Ações que ocorrem dentro de listas dinâmicas.
-  // Parar a propagação aqui evita que o clique seja interpretado
-  // por outro elemento se houver aninhamento.
   const stopPropagationActions = [
     "delete-demanda",
     "delete-eixo",
@@ -1434,6 +1568,8 @@ function handlePageActions(event) {
     "save-encaminhamento",
     "delete-encaminhamento",
     "toggle-encaminhamento-status",
+    "add-comment-encaminhamento",
+    "save-comment-encaminhamento",
   ];
 
   if (stopPropagationActions.includes(action)) {
@@ -1442,7 +1578,6 @@ function handlePageActions(event) {
 
   switch (action) {
     case "close-modal":
-      // Não precisa de preventDefault, apenas executa
       document.body.removeChild(document.querySelector(".modal-overlay"));
       break;
     case "select-tab":
@@ -1461,7 +1596,6 @@ function handlePageActions(event) {
     case "delete-demanda":
       handleDeleteDemanda(target.dataset.id);
       break;
-    // Removido o case duplicado de "delete-demanda"
     case "toggle-edit-demandas":
       activeDemandaState.isEditingDemandas =
         !activeDemandaState.isEditingDemandas;
@@ -1588,7 +1722,6 @@ function handlePageActions(event) {
       }, 100);
       break;
     }
-    // Encaminhamentos
     case "add-ato":
       renderAtoModal();
       break;
@@ -1632,5 +1765,14 @@ function handlePageActions(event) {
         target.dataset.encId
       );
       break;
+
+    case "add-comment-encaminhamento": {
+      renderComentarioModal(target.dataset.atoId, target.dataset.encId);
+      break;
+    }
+    case "save-comment-encaminhamento": {
+      handleSaveComentario(target.dataset.atoId, target.dataset.encId);
+      break;
+    }
   }
 }

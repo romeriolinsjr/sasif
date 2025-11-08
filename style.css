@@ -2281,3 +2281,36 @@ select.form-input[multiple] {
 #export-processos-btn:hover {
   background-color: var(--cor-primaria);
 }
+
+/* --- ESTILOS PARA COMENTÁRIOS DE ENCAMINHAMENTO --- */
+
+.comment-cell {
+  width: 40px;
+  padding-right: 0 !important;
+  text-align: center;
+}
+.comment-cell-header {
+  width: 40px;
+}
+
+.icon-comment svg {
+  fill: #6c757d; /* Cinza secundário */
+}
+
+.encaminhamento-comentario {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background-color: #f8f9fa; /* Cinza bem claro, igual ao fundo do app */
+  border-left: 3px solid #ccc;
+  font-size: 13px; /* Fonte menor */
+  color: #555; /* Cor de texto mais suave */
+  line-height: 1.5;
+  white-space: pre-wrap; /* Respeita quebras de linha */
+  text-align: justify; /* NOVO: Justifica o texto do comentário */
+}
+
+/* Justifica o texto da descrição principal do encaminhamento */
+.encaminhamentos-table td > span {
+  display: block; /* Garante que o span se comporte como um bloco para justificar */
+  text-align: justify;
+}
