@@ -71,14 +71,17 @@ function renderInvestigacaoList(investigacoes) {
       const numeroFormatado = item.numeroProcesso
         ? formatProcessoForDisplay(item.numeroProcesso)
         : "Não informado";
-      const faseAtual = item.faseAtual || "Indefinida";
+      // Lógica para exibir a fase correta (com a regra de suspensão)
+      const faseDisplay = item.isSuspended
+        ? "Suspenso"
+        : item.faseAtual || "Indefinida";
       const statusCellHTML = `<td><span class="status-dot ${prazoInfo.statusClass}"></span>${prazoInfo.text}</td>`;
       return `<tr>
           <td><span class="link-like" data-action="view-details" data-id="${
             item.id
           }">${numeroFormatado}</span></td>
           <td>${item.suscitado || "Não informado"}</td>
-          <td>${faseAtual}</td>
+          <td>${faseDisplay}</td>
           ${statusCellHTML}
         </tr>`;
     })
@@ -259,6 +262,15 @@ function buildEditModeContent(investigacao) {
         <div class="form-group"><label for="inv-suscitado-edit">Suscitado</label><input type="text" id="inv-suscitado-edit" class="form-input" value="${
           isNew ? "" : investigacao.suscitado || ""
         }"></div>
+
+
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+          <input type="checkbox" id="inv-is-suspended-edit" style="width: auto;" ${
+            isNew ? "" : investigacao.isSuspended ? "checked" : ""
+          }>
+          <label for="inv-is-suspended-edit" style="margin-bottom: 0;">Processo Suspenso</label>
+        </div>
+
 
         <div class="andamento-secao">
             <h4 style="font-size: 1.1em; color: var(--cor-primaria); margin-top: 24px; margin-bottom: 16px; border-bottom: 1px solid var(--cor-borda); padding-bottom: 8px;">Trâmite Processual</h4>
@@ -485,10 +497,13 @@ async function handleSaveUnifiedModal(id) {
     errorMsg.textContent = "Preencha todos os campos cadastrais obrigatórios.";
     return;
   }
+  const isSuspended = document.getElementById("inv-is-suspended-edit").checked; // ADICIONADO
+
   const dataToSave = {
     numeroProcesso,
     suscitante,
     suscitado,
+    isSuspended: isSuspended, // ADICIONADO
     descricao: document.getElementById("inv-descricao-edit").value.trim(),
     dataAjuizamento: firebase.firestore.Timestamp.fromDate(
       new Date(dataAjuizamentoInput + "T00:00:00")

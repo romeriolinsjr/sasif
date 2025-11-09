@@ -237,7 +237,9 @@ function renderInvestigacoesWidget(investigacoes) {
         prazoStatus = `Retorno em ${diffDays} dia(s)`;
         statusClass = "status-ok";
       }
-      const faseAtual = item.faseAtual || "Indefinida";
+      const faseDisplay = item.isSuspended
+        ? "Suspenso"
+        : item.faseAtual || "Indefinida";
       contentHTML += `
           <div class="analise-item" data-id="${
             item.id
@@ -247,7 +249,7 @@ function renderInvestigacoesWidget(investigacoes) {
       )}</div>
               <div class="analise-item-detalhes">
                   <strong>Suscitado:</strong> ${item.suscitado} <br>
-                  <strong>Fase:</strong> ${faseAtual} <br>
+                  <strong>Fase:</strong> ${faseDisplay} <br>
                   <strong>Prazo:</strong> ${prazoStatus}
               </div>
           </div>`;
