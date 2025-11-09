@@ -559,9 +559,11 @@ body {
   background-color: white;
   border-radius: 8px;
   box-shadow: var(--sombra);
-  margin-bottom: 24px;
-  display: flex; /* Chave para o layout interno */
-  flex-direction: column; /* Organiza header e content verticalmente */
+  /* A margem não é mais necessária, pois o 'gap' do grid cuida do espaçamento. */
+  display: flex;
+  flex-direction: column;
+  /* Define uma altura fixa para todos os cards, garantindo o alinhamento. */
+  height: 400px;
 }
 
 .detail-card h3,
@@ -636,7 +638,9 @@ body {
 /* --- DASHBOARD WIDGETS --- */
 #dashboard-widgets-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  /* Cria exatamente duas colunas de largura igual. */
+  grid-template-columns: repeat(2, 1fr);
+  /* Define o espaçamento entre os cards. */
   gap: 24px;
 }
 
@@ -647,9 +651,11 @@ body {
 }
 
 .widget-content {
-  max-height: 280px; /* Esta é a altura máxima para a lista de itens. Ajuste se necessário. */
-  overflow-y: auto; /* Adiciona a barra de rolagem vertical APENAS se o conteúdo exceder a altura. */
-  padding: 0 14px 24px 24px; /* Padding: Top, Right, Bottom, Left. O padding direito é menor para compensar a barra de rolagem. */
+  /* Removemos a altura máxima para que o flexbox controle o espaço. */
+  overflow-y: auto; /* Adiciona a barra de rolagem vertical se o conteúdo exceder. */
+  padding: 0 14px 24px 24px;
+  /* Garante que esta área cresça para preencher o espaço restante no card. */
+  flex-grow: 1;
 }
 
 /* Melhora a aparência da barra de rolagem (para navegadores Webkit como Chrome e Edge) */
@@ -1396,6 +1402,7 @@ body {
   line-height: 1.6;
   white-space: pre-wrap; /* Respeita quebras de linha e espaços */
   color: #333;
+  text-align: justify; /* ADICIONADO: Justifica o texto da descrição. */
 }
 
 .description-content.empty {
@@ -1626,6 +1633,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
   color: #333;
+  text-align: justify; /* ADICIONADO: Justifica o texto da descrição. */
 }
 
 .timeline-actions {
