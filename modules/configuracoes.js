@@ -882,13 +882,27 @@ export function renderIncidenteFormModal(incidente = null) {
             <div class="form-group"><label for="incidente-descricao">Descrição (Obrigatório)</label><textarea id="incidente-descricao" rows="4" required>${
               isEditing ? incidente.descricao : ""
             }</textarea></div>
-            <div class="form-group"><label for="incidente-status">Status</label><select id="incidente-status" class="import-devedor-select"><option value="Em Andamento" ${
-              isEditing && incidente.status === "Em Andamento" ? "selected" : ""
-            }>Em Andamento</option><option value="Concluído" ${
-    isEditing && incidente.status === "Concluído" ? "selected" : ""
-  }>Concluído</option></select></div>
+            <div class="form-group"><label for="incidente-status">Status</label><select id="incidente-status" class="import-devedor-select">
+                <option value="Ativo" ${
+                  isEditing &&
+                  (incidente.status === "Ativo" ||
+                    incidente.status === "Em Andamento")
+                    ? "selected"
+                    : ""
+                }>Ativo</option>
+                <option value="Inativo" ${
+                  isEditing &&
+                  (incidente.status === "Inativo" ||
+                    incidente.status === "Concluído")
+                    ? "selected"
+                    : ""
+                }>Inativo</option>
+            </select></div>
             <div id="error-message"></div>
-            <div class="form-buttons"><button id="save-incidente-btn" class="btn-primary">Salvar</button><button id="cancel-incidente-btn">Cancelar</button></div>
+            <div class="form-buttons">
+                <button id="save-incidente-btn" class="btn-primary">Salvar</button>
+                <button id="cancel-incidente-btn">Cancelar</button>
+            </div>
         </div>
     `;
   document.body.appendChild(modalOverlay);
@@ -992,6 +1006,18 @@ function renderTodosIncidentesList(incidentes) {
   let tableHTML = `<table class="data-table"><thead><tr><th>Nº do Incidente</th><th>Processo Principal</th><th>Devedor</th><th>Status</th><th class="actions-cell">Ações</th></tr></thead><tbody>`;
   incidentes.forEach((item) => {
     const devedor = state.devedoresCache.find((d) => d.id === item.devedorId);
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // Lógica de tradução para o status e a classe do CSS
+    let statusText = "Inativo";
+    let statusClass = "status-baixado"; // Cor cinza (padrão)
+
+    if (item.status === "Ativo" || item.status === "Em Andamento") {
+      statusText = "Ativo";
+      statusClass = "status-ativo"; // Cor verde
+    }
+    // --- FIM DA CORREÇÃO ---
+
     tableHTML += `<tr data-id="${item.id}" data-descricao="${
       item.descricao
     }"><td><a href="#" class="view-processo-link" data-action="view-details">${formatProcessoForDisplay(
@@ -1000,11 +1026,7 @@ function renderTodosIncidentesList(incidentes) {
       item.numeroProcessoPrincipal
     )}</td><td>${
       devedor ? devedor.razaoSocial : "N/I"
-    }</td><td><span class="status-badge status-${item.status
-      .toLowerCase()
-      .replace(" ", "-")}">${
-      item.status
-    }</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-id="${
+    }</td><td><span class="status-badge ${statusClass}">${statusText}</span></td><td class="actions-cell"><button class="action-icon icon-edit" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-id="${
       item.id
     }"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td></tr>`;
   });
