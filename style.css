@@ -2330,3 +2330,24 @@ select.form-input[multiple] {
   border: 1px solid #e0e0e0;
   background-color: #f8f9fa;
 }
+
+/* --- AJUSTE DE LARGURA DA COLUNA SUSCITADO --- */
+#investigacao-list-container .data-table {
+  table-layout: fixed; /* Força as colunas a respeitarem as larguras definidas */
+  width: 100%;
+}
+
+#investigacao-list-container .suscitado-cell {
+  /* Define uma largura máxima para a célula */
+  max-width: 400px;
+
+  /* Permite que palavras longas quebrem para a próxima linha */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+
+  /* Garante que o texto possa ter múltiplas linhas */
+  white-space: normal;
+
+  /* ADICIONADO: Justifica o texto dentro da célula */
+  text-align: justify;
+}

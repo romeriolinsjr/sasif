@@ -68,6 +68,11 @@ function renderInvestigacaoList(investigacoes) {
   const tableRows = investigacoes
     .map((item) => {
       const prazoInfo = getPrazoStatus(item.prazoRetorno);
+      // ADICIONADO: Se o processo já foi julgado, ignora o prazo e exibe um status neutro.
+      if (item.faseAtual === "Julgado") {
+        prazoInfo.text = "—"; // Usa um traço para indicar "não aplicável"
+        prazoInfo.statusClass = "status-baixado"; // Usa a cor cinza
+      }
       const numeroFormatado = item.numeroProcesso
         ? formatProcessoForDisplay(item.numeroProcesso)
         : "Não informado";
@@ -80,7 +85,7 @@ function renderInvestigacaoList(investigacoes) {
           <td><span class="link-like" data-action="view-details" data-id="${
             item.id
           }">${numeroFormatado}</span></td>
-          <td>${item.suscitado || "Não informado"}</td>
+          <td class="suscitado-cell">${item.suscitado || "Não informado"}</td>
           <td>${faseDisplay}</td>
           ${statusCellHTML}
         </tr>`;
