@@ -560,13 +560,18 @@ function renderEixosUI(demanda) {
             const origemTexto = `${
               enc.atoOrigem.tipo || "Ato"
             } de ${dataFormatada}`;
-            const responsaveisNomes = (enc.entidadeIds || [])
+            // Lógica para montar o nome do responsável (órgão + pessoa)
+            let responsaveisDisplay = (enc.entidadeIds || [])
               .map(
                 (id) =>
                   (demanda.atores || []).find((a) => a.id === id)?.nome ||
                   "Ator não encontrado"
               )
               .join(", ");
+
+            if (enc.pessoa) {
+              responsaveisDisplay += ` (${enc.pessoa})`;
+            }
             const comentarioHTML = enc.comentarioCumprimento
               ? `<div class="encaminhamento-comentario">${enc.comentarioCumprimento.replace(
                   /\n/g,
@@ -588,7 +593,7 @@ function renderEixosUI(demanda) {
               enc.status === "cumprido" ? "checked" : ""
             }></td>
                         ${commentCellHTML}
-                        <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
+                        <td><strong>${responsaveisDisplay}</strong><br><span style="font-size:13px; color:#555;">${
               enc.descricao
             }</span>${comentarioHTML}</td>
                         <td>${enc.prazo}</td>
@@ -1094,10 +1099,15 @@ function renderEncaminhamentosList(atoId, encaminhamentos) {
         if (ator) responsaveisNomes.push(ator.nome);
       }
 
-      const responsaveisDisplay =
+      let responsaveisDisplay =
         responsaveisNomes.length > 0
           ? responsaveisNomes.join(", ")
           : "Ninguém designado";
+
+      // ADICIONADO: Acrescenta o nome da pessoa, se existir.
+      if (enc.pessoa) {
+        responsaveisDisplay += ` (${enc.pessoa})`;
+      }
 
       // CORREÇÃO: Cria a célula de comentário condicionalmente
       const commentCellHTML = isEditing

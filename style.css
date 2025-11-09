@@ -696,6 +696,7 @@ body {
 .audiencia-item-detalhes {
   font-size: 14px;
   color: #333;
+  text-align: justify; /* ADICIONADO: Justifica o texto. */
 }
 .audiencia-item.destaque {
   background-color: #fffde7;
@@ -722,6 +723,7 @@ body {
   color: #555;
   margin-top: 4px;
   padding-left: 22px;
+  text-align: justify; /* ADICIONADO: Justifica o texto. */
 }
 
 /* --- BUSCA GLOBAL --- */
