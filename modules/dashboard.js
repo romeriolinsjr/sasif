@@ -60,16 +60,22 @@ export function setupDashboardWidgets() {
     });
   db.collection("investigacoesFiscais")
     .where("status", "==", "ativo")
-    .where("prazoRetorno", "!=", null)
+    .where("prazoRetorno", "!=", null) // 1. Mantemos a consulta original que sabemos que funciona.
     .orderBy("prazoRetorno", "asc")
-    .limit(10)
     .get()
     .then((snapshot) => {
-      const investigacoes = snapshot.docs.map((doc) => ({
+      const todasInvestigacoes = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      renderInvestigacoesWidget(investigacoes);
+
+      // 2. AQUI A MÁGICA ACONTECE: Filtramos a lista para remover os processos julgados.
+      const investigacoesFiltradas = todasInvestigacoes.filter(
+        (inv) => inv.fasesStatus?.julgamento !== "feito"
+      );
+
+      // 3. Renderizamos o widget apenas com a lista já filtrada.
+      renderInvestigacoesWidget(investigacoesFiltradas.slice(0, 10));
     })
     .catch((error) => {
       console.error("Erro ao buscar investigações para o dashboard:", error);
