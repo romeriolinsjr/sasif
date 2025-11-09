@@ -503,115 +503,122 @@ function renderEixosUI(demanda) {
   );
 
   if (activeEixo) {
-    if (activeDemandaState.isEditingEixos) {
-      contentContainer.innerHTML = `<div class="description-card"><div class="description-header"><h3>Descrição do Eixo "${
-        activeEixo.nome
-      }"</h3><button class="action-icon" data-action="edit-descricao-eixo" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div><div class="description-content ${
-        activeEixo.descricao ? "" : "empty"
-      }">${
-        activeEixo.descricao || "Nenhuma descrição para este eixo."
-      }</div></div>`;
-    } else {
+    let finalHTML = "";
+    const isEditingEixos = activeDemandaState.isEditingEixos;
+
+    const editButtonHTML = isEditingEixos
+      ? `<button class="action-icon" data-action="edit-descricao-eixo" title="Editar Descrição"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>`
+      : "";
+
+    const descricaoLimpa = (activeEixo.descricao || "").trim();
+    const temDescricao = descricaoLimpa.length > 0;
+
+    // ****** A CORREÇÃO ESTÁ AQUI ******
+    // O texto foi movido para a mesma linha do `<div>` para remover a quebra de linha e os espaços fantasmas.
+    finalHTML += `
+      <div class="description-card eixo-description-card">
+        <div class="description-header">
+          <h3>Descrição do Eixo "${activeEixo.nome}"</h3>
+          ${editButtonHTML}
+        </div>
+        <div class="description-content ${temDescricao ? "" : "empty"}">${
+      temDescricao
+        ? descricaoLimpa
+        : isEditingEixos
+        ? "Clique no lápis para adicionar uma descrição."
+        : "Nenhuma descrição adicionada para este eixo."
+    }</div>
+      </div>`;
+
+    if (!isEditingEixos) {
       const todosEncaminhamentos = (demanda.atosDeAudiencia || []).flatMap(
         (ato) =>
           (ato.encaminhamentos || []).map((enc) => ({ ...enc, atoOrigem: ato }))
       );
-
       const encaminhamentosDoEixo = todosEncaminhamentos.filter(
         (enc) => enc.eixoId === activeEixo.id
       );
 
       if (encaminhamentosDoEixo.length === 0) {
-        contentContainer.innerHTML = `<div class="empty-list-message">Nenhum encaminhamento vinculado a este eixo.</div>`;
-        return;
+        finalHTML += `<div class="empty-list-message">Nenhum encaminhamento vinculado a este eixo.</div>`;
+      } else {
+        const isEditingEncaminhamentos =
+          activeDemandaState.isEditingEncaminhamentos;
+        const commentHeaderHTML = isEditingEncaminhamentos
+          ? `<th class="comment-cell-header"></th>`
+          : "";
+        const headerActionsCell = isEditingEncaminhamentos
+          ? `<th class="actions-cell">Ações</th>`
+          : "";
+
+        const tableRows = encaminhamentosDoEixo
+          .map((enc) => {
+            const dataAtoObj = getSafeDate(enc.atoOrigem.data);
+            const dataFormatada = dataAtoObj
+              ? dataAtoObj.toLocaleDateString("pt-BR")
+              : "Data inválida";
+            const origemTexto = `${
+              enc.atoOrigem.tipo || "Ato"
+            } de ${dataFormatada}`;
+            const responsaveisNomes = (enc.entidadeIds || [])
+              .map(
+                (id) =>
+                  (demanda.atores || []).find((a) => a.id === id)?.nome ||
+                  "Ator não encontrado"
+              )
+              .join(", ");
+            const comentarioHTML = enc.comentarioCumprimento
+              ? `<div class="encaminhamento-comentario">${enc.comentarioCumprimento.replace(
+                  /\n/g,
+                  "<br>"
+                )}</div>`
+              : "";
+            const commentCellHTML = isEditingEncaminhamentos
+              ? `<td class="comment-cell"><button class="action-icon icon-comment" title="Adicionar/Editar Comentário" data-action="add-comment-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg></button></td>`
+              : "";
+            const actionsCell = isEditingEncaminhamentos
+              ? `<td class="actions-cell"><button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button><button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></td>`
+              : "";
+            return `<tr class="${
+              enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
+            }">
+                        <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${
+                          enc.atoOrigem.id
+                        }" data-enc-id="${enc.id}" ${
+              enc.status === "cumprido" ? "checked" : ""
+            }></td>
+                        ${commentCellHTML}
+                        <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
+              enc.descricao
+            }</span>${comentarioHTML}</td>
+                        <td>${enc.prazo}</td>
+                        <td>${origemTexto}</td>
+                        ${actionsCell}
+                      </tr>`;
+          })
+          .join("");
+
+        finalHTML += `
+            <div class="description-card">
+              <div class="description-header"><h3>Encaminhamentos do Eixo "${activeEixo.nome}"</h3></div>
+              <table class="encaminhamentos-table">
+                <thead>
+                  <tr>
+                    <th style="width:40px;">Status</th>
+                    ${commentHeaderHTML}
+                    <th>Descrição</th>
+                    <th>Prazo</th>
+                    <th>Ato de Origem</th>
+                    ${headerActionsCell}
+                  </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>`;
       }
-
-      // CORREÇÃO: Adiciona lógica de colunas condicionais
-      const isEditing = activeDemandaState.isEditingEncaminhamentos;
-      const commentHeaderHTML = isEditing
-        ? `<th class="comment-cell-header"></th>`
-        : "";
-      const headerActionsCell = isEditing
-        ? `<th class="actions-cell">Ações</th>`
-        : "";
-
-      const tableRows = encaminhamentosDoEixo
-        .map((enc) => {
-          const dataAtoObj = getSafeDate(enc.atoOrigem.data);
-          const dataFormatada = dataAtoObj
-            ? dataAtoObj.toLocaleDateString("pt-BR")
-            : "Data inválida";
-          const origemTexto = `${
-            enc.atoOrigem.tipo || "Ato"
-          } de ${dataFormatada}`;
-          const responsaveisNomes = (enc.entidadeIds || [])
-            .map(
-              (id) =>
-                (demanda.atores || []).find((a) => a.id === id)?.nome ||
-                "Ator não encontrado"
-            )
-            .join(", ");
-
-          const comentarioHTML = enc.comentarioCumprimento
-            ? `<div class="encaminhamento-comentario">${enc.comentarioCumprimento.replace(
-                /\n/g,
-                "<br>"
-              )}</div>`
-            : "";
-
-          // CORREÇÃO: Adiciona lógica de colunas condicionais
-          const commentCellHTML = isEditing
-            ? `<td class="comment-cell">
-                <button class="action-icon icon-comment" title="Adicionar/Editar Comentário" data-action="add-comment-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-                </button>
-            </td>`
-            : "";
-
-          const actionsCell = isEditing
-            ? `<td class="actions-cell">
-                  <button class="action-icon icon-edit" title="Editar" data-action="edit-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                  <button class="action-icon icon-delete" title="Excluir" data-action="delete-encaminhamento" data-ato-id="${enc.atoOrigem.id}" data-enc-id="${enc.id}"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                </td>`
-            : "";
-
-          return `<tr class="${
-            enc.status === "cumprido" ? "encaminhamento-cumprido" : ""
-          }">
-                      <td style="width: 40px;"><input type="checkbox" class="status-checkbox" data-action="toggle-encaminhamento-status" data-ato-id="${
-                        enc.atoOrigem.id
-                      }" data-enc-id="${enc.id}" ${
-            enc.status === "cumprido" ? "checked" : ""
-          }></td>
-                      ${commentCellHTML}
-                      <td><strong>${responsaveisNomes}</strong><br><span style="font-size:13px; color:#555;">${
-            enc.descricao
-          }</span>${comentarioHTML}</td>
-                      <td>${enc.prazo}</td>
-                      <td>${origemTexto}</td>
-                      ${actionsCell}
-                    </tr>`;
-        })
-        .join("");
-
-      contentContainer.innerHTML = `
-          <div class="description-card">
-            <div class="description-header"><h3>Encaminhamentos do Eixo "${activeEixo.nome}"</h3></div>
-            <table class="encaminhamentos-table">
-              <thead>
-                <tr>
-                  <th style="width:40px;">Status</th>
-                  ${commentHeaderHTML}
-                  <th>Descrição</th>
-                  <th>Prazo</th>
-                  <th>Ato de Origem</th>
-                  ${headerActionsCell}
-                </tr>
-              </thead>
-              <tbody>${tableRows}</tbody>
-            </table>
-          </div>`;
     }
+
+    contentContainer.innerHTML = finalHTML;
   } else {
     contentContainer.innerHTML = `<div class="empty-list-message">Selecione ou adicione um eixo.</div>`;
   }

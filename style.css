@@ -2322,3 +2322,10 @@ select.form-input[multiple] {
   display: block; /* Garante que o span se comporte como um bloco para justificar */
   text-align: justify;
 }
+
+/* --- ESTILO PARA DESCRIÇÃO DO EIXO --- */
+.eixo-description-card {
+  margin-bottom: 24px;
+  border: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+}
